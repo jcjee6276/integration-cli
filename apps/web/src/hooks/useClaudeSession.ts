@@ -29,15 +29,12 @@ export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions =
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 핸들러를 ref로 유지해 effect 재실행 없이 최신 콜백 참조
   const onOutputRef = useRef(onOutput);
   const onExitRef = useRef(onExit);
   useEffect(() => {
     onOutputRef.current = onOutput;
     onExitRef.current = onExit;
   });
-
-  // ─── 소켓 연결 ──────────────────────────────────────────────────────
 
   useEffect(() => {
     const socket = io(`${SERVER_URL}${NAMESPACE}`, { transports: ["websocket"] });
@@ -75,8 +72,6 @@ export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions =
       socket.disconnect();
     };
   }, []);
-
-  // ─── 세션 제어 ──────────────────────────────────────────────────────
 
   const createSession = useCallback((workingDirectory?: string) => {
     setError(null);
