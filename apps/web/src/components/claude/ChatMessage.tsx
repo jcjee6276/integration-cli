@@ -2,7 +2,7 @@ import rehypeHighlight from "rehype-highlight";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { ChatMessage as ChatMessageType } from "@/hooks/useClaudeChat";
+import type { ChatMessage as ChatMessageType, ToolUseBlock } from "@/hooks/useClaudeChat";
 
 // ─── Markdown 렌더러 ────────────────────────────────────────────────────────
 
@@ -109,6 +109,25 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
+// ─── 도구 사용 카드 ──────────────────────────────────────────────────────────
+
+function ToolUseCard({ toolUse }: { toolUse: ToolUseBlock }) {
+  const primaryInput = Object.values(toolUse.input)[0];
+  const preview = typeof primaryInput === "string" ? primaryInput : JSON.stringify(toolUse.input);
+
+  return (
+    <div className="mb-2 overflow-hidden rounded-lg border border-gray-700 text-xs">
+      <div className="flex items-center gap-1.5 border-b border-gray-700 bg-gray-900 px-3 py-1.5">
+        <span className="text-gray-400">⚙</span>
+        <span className="font-mono font-medium text-gray-300">{toolUse.tool}</span>
+      </div>
+      <pre className="overflow-x-auto bg-gray-950 px-3 py-2 font-mono text-green-400 whitespace-pre-wrap break-all">
+        {preview}
+      </pre>
+    </div>
+  );
+}
+
 // ─── 말풍선 ─────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -137,7 +156,14 @@ export function ChatMessage({ message }: Props) {
         C
       </div>
       <div className="max-w-[75%] min-w-0 rounded-2xl rounded-tl-sm bg-gray-800 px-4 py-3 text-sm text-gray-100">
-        <MarkdownContent content={message.content} />
+        {message.toolUses?.map((t, i) => <ToolUseCard key={i} toolUse={t} />)}
+        {message.content && <MarkdownContent content={message.content} />}
+        {message.meta && (
+          <p className="mt-2 text-right text-xs text-gray-600">
+            {(message.meta.durationMs / 1000).toFixed(1)}s ·{" "}
+            ${message.meta.costUsd.toFixed(4)}
+          </p>
+        )}
       </div>
     </div>
   );

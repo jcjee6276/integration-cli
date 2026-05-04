@@ -11,17 +11,37 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
 export interface SessionInfo {
   id: string;
+  claudeSessionId: string | null;
   status: string;
   workingDirectory: string;
   createdAt: string;
 }
 
+export interface ToolUse {
+  tool: string;
+  input: Record<string, unknown>;
+}
+
+export interface ResultMeta {
+  result: string;
+  isError: boolean;
+  durationMs: number;
+  costUsd: number;
+}
+
 interface UseClaudeSessionOptions {
-  onOutput?: (data: string) => void;
+  onText?: (text: string) => void;
+  onTool?: (toolUse: ToolUse) => void;
+  onResult?: (meta: ResultMeta) => void;
   onExit?: (exitCode: number) => void;
 }
 
-export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions = {}) {
+export function useClaudeSession({
+  onText,
+  onTool,
+  onResult,
+  onExit,
+}: UseClaudeSessionOptions = {}) {
   const socketRef = useRef<Socket | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -29,10 +49,14 @@ export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions =
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const onOutputRef = useRef(onOutput);
+  const onTextRef = useRef(onText);
+  const onToolRef = useRef(onTool);
+  const onResultRef = useRef(onResult);
   const onExitRef = useRef(onExit);
   useEffect(() => {
-    onOutputRef.current = onOutput;
+    onTextRef.current = onText;
+    onToolRef.current = onTool;
+    onResultRef.current = onResult;
     onExitRef.current = onExit;
   });
 
@@ -51,14 +75,25 @@ export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions =
     socket.on("session:created", (info: SessionInfo) => {
       setSession(info);
       sessionIdRef.current = info.id;
-      socket.emit("session:subscribe", { sessionId: info.id });
     });
 
-    socket.on("session:output", ({ data }: { data: string }) => {
-      onOutputRef.current?.(data);
+    // 텍스트 스트리밍 델타
+    socket.on("session:text", ({ text }: { sessionId: string; text: string }) => {
+      onTextRef.current?.(text);
     });
 
-    socket.on("session:exit", ({ exitCode }: { exitCode: number }) => {
+    // 도구 사용 알림
+    socket.on("session:tool", ({ tool, input }: { sessionId: string; tool: string; input: Record<string, unknown> }) => {
+      onToolRef.current?.({ tool, input });
+    });
+
+    // 응답 완료
+    socket.on("session:result", (meta: { sessionId: string } & ResultMeta) => {
+      onResultRef.current?.(meta);
+    });
+
+    // 프로세스 종료
+    socket.on("session:exit", ({ exitCode }: { sessionId: string; exitCode: number }) => {
       setSession(null);
       sessionIdRef.current = null;
       onExitRef.current?.(exitCode);
@@ -78,16 +113,10 @@ export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions =
     socketRef.current?.emit("session:create", { workingDirectory });
   }, []);
 
-  const sendInput = useCallback((input: string) => {
+  const sendMessage = useCallback((message: string) => {
     const sessionId = sessionIdRef.current;
     if (!sessionId) return;
-    socketRef.current?.emit("session:input", { sessionId, input });
-  }, []);
-
-  const resize = useCallback((cols: number, rows: number) => {
-    const sessionId = sessionIdRef.current;
-    if (!sessionId) return;
-    socketRef.current?.emit("session:resize", { sessionId, cols, rows });
+    socketRef.current?.emit("session:message", { sessionId, input: message });
   }, []);
 
   const terminateSession = useCallback(() => {
@@ -98,13 +127,5 @@ export function useClaudeSession({ onOutput, onExit }: UseClaudeSessionOptions =
     sessionIdRef.current = null;
   }, []);
 
-  return {
-    connectionStatus,
-    session,
-    error,
-    createSession,
-    sendInput,
-    resize,
-    terminateSession,
-  };
+  return { connectionStatus, session, error, createSession, sendMessage, terminateSession };
 }
