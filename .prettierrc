@@ -1,0 +1,26 @@
+{
+  "semi": true,
+  "quoteProps": "as-needed",
+  "trailingComma": "all",
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 100,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": ["apps/web/**/*.{ts,tsx}"],
+      "options": {
+        "singleQuote": false,
+        "plugins": ["prettier-plugin-tailwindcss"]
+      }
+    },
+    {
+      "files": ["apps/server/**/*.ts"],
+      "options": {
+        "singleQuote": true
+      }
+    }
+  ]
+}
