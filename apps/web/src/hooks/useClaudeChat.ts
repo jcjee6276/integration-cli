@@ -2,11 +2,11 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import { stripAnsi } from "@/lib/ansi";
+import { cleanCliOutput, detectPermissionPrompt } from "@/lib/ansi";
 
 import { useClaudeSession } from "./useClaudeSession";
 
-export type MessageRole = "user" | "assistant";
+export type MessageRole = "user" | "assistant" | "permission";
 
 export interface ChatMessage {
   id: string;
@@ -66,19 +66,17 @@ export function useClaudeChat() {
     useClaudeSession({
       onOutput: useCallback(
         (raw: string) => {
-          let text = stripAnsi(raw);
-          if (!text) return;
+          // 1단계: ANSI + CLI 노이즈 제거
+          let text = cleanCliOutput(raw);
 
-          // PTY는 전송한 텍스트를 그대로 echo로 돌려줌 — 첫 청크에서 걸러냄
+          // 2단계: PTY echo 필터링 (전송한 텍스트가 그대로 돌아오는 것)
           if (!echoFilteredRef.current && lastSentRef.current) {
             const echo = lastSentRef.current;
-            // echo가 그대로 포함된 경우 해당 부분 제거
             const idx = text.indexOf(echo);
             if (idx !== -1) {
               text = text.slice(idx + echo.length);
               echoFilteredRef.current = true;
             } else if (echo.startsWith(text.trimEnd())) {
-              // 부분 echo (청크가 나뉘어 온 경우) — 통째로 skip
               echoFilteredRef.current = true;
               return;
             }
@@ -86,13 +84,28 @@ export function useClaudeChat() {
 
           if (!text.trim()) return;
 
+          // 3단계: 권한 요청 프롬프트 감지
+          const permission = detectPermissionPrompt(streamingRef.current + text);
+          if (permission) {
+            flushStreaming();
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: nextId(),
+                role: "permission",
+                content: JSON.stringify(permission),
+                createdAt: new Date(),
+              },
+            ]);
+            setIsWaiting(false);
+            return;
+          }
+
           streamingRef.current += text;
           setStreaming(streamingRef.current);
-
-          // 출력이 잠잠해지면 응답 완료 처리
           scheduleFlush();
         },
-        [scheduleFlush],
+        [scheduleFlush, flushStreaming],
       ),
 
       onExit: useCallback(

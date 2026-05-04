@@ -3,7 +3,9 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { useClaudeChat } from '@/hooks/useClaudeChat';
+import { PermissionCard } from '@/components/claude/PermissionCard';
 import { ParsedMessage } from '@/lib/parseClaudeOutput';
+import type { PermissionPrompt } from '@/lib/ansi';
 import { ChatMessage } from './ChatMessage';
 
 // ─── Status indicator ────────────────────────────────────────────────────────
@@ -209,9 +211,22 @@ export function ClaudeChat() {
           <EmptyState onStart={start} disabled={connectionStatus !== 'connected'} />
         ) : (
           <div className="mx-auto max-w-2xl py-4">
-            {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
-            ))}
+            {messages.map((msg) => {
+              if (msg.role === 'permission') {
+                const prompt = JSON.parse(msg.content) as PermissionPrompt;
+                return (
+                  <PermissionCard
+                    key={msg.id}
+                    tool={prompt.tool}
+                    command={prompt.command}
+                    warning={prompt.warning}
+                    onAllow={() => send('1')}
+                    onDeny={() => send('2')}
+                  />
+                );
+              }
+              return <ChatMessage key={msg.id} message={msg} />;
+            })}
             {isThinkingOnly && <ThinkingDots />}
             <div ref={bottomRef} />
           </div>

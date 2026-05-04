@@ -5,7 +5,9 @@ import { useEffect, useRef } from "react";
 
 import { ChatInput } from "@/components/claude/ChatInput";
 import { ChatMessage, StreamingMessage } from "@/components/claude/ChatMessage";
+import { PermissionCard } from "@/components/claude/PermissionCard";
 import { useClaudeChat } from "@/hooks/useClaudeChat";
+import type { PermissionPrompt } from "@/lib/ansi";
 
 const STATUS_DOT: Record<string, string> = {
   connected: "bg-green-500",
@@ -19,7 +21,6 @@ export default function ClaudePage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 새 메시지가 쌓일 때마다 자동 스크롤
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streaming]);
@@ -86,11 +87,25 @@ export default function ClaudePage() {
             </div>
           )}
 
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} />
-          ))}
+          {messages.map((msg) => {
+            if (msg.role === "permission") {
+              const prompt = JSON.parse(msg.content) as PermissionPrompt;
+              return (
+                <PermissionCard
+                  key={msg.id}
+                  tool={prompt.tool}
+                  command={prompt.command}
+                  warning={prompt.warning}
+                  // 허용: "1" 전송 (Claude CLI 선택지 1번)
+                  onAllow={() => send("1")}
+                  // 거부: "2" 전송
+                  onDeny={() => send("2")}
+                />
+              );
+            }
+            return <ChatMessage key={msg.id} message={msg} />;
+          })}
 
-          {/* 스트리밍 중인 응답 */}
           {isWaiting && <StreamingMessage content={streaming} />}
 
           <div ref={bottomRef} />

@@ -1,11 +1,7 @@
 // Comprehensive ANSI/VT100 escape sequence pattern
-const ANSI_RE =
-  /[](?:[@-Z\\-_]|\[[0-9;]*[ -/]*[@-~]|\][^]*[\\])/g;
-
-const SPINNER_CHARS = new Set(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']);
-
-export type MessageRole = 'user' | 'assistant';
-
+const ANSI_RE = "/[](?:[@-Z\\-_]|\[[0-9;]*[ -/]*[@-~]|\][^]*[\\])/g";
+const SPINNER_CHARS = new Set(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]);
+export type MessageRole = "user" | "assistant" | "permission";
 export interface ParsedMessage {
   id: string;
   role: MessageRole;
@@ -21,7 +17,7 @@ export interface ToolUseBlock {
 
 /** Strip all ANSI escape sequences from a string */
 export function stripAnsi(raw: string): string {
-  return raw.replace(ANSI_RE, '');
+  return raw.replace(ANSI_RE, "");
 }
 
 /**
@@ -30,16 +26,16 @@ export function stripAnsi(raw: string): string {
  */
 function resolveCarriageReturns(text: string): string {
   return text
-    .split('\n')
+    .split("\n")
     .map((line) => {
-      const parts = line.split('\r');
+      const parts = line.split("\r");
       // Last non-empty segment is the visible content
       for (let i = parts.length - 1; i >= 0; i--) {
         if (parts[i].trim()) return parts[i];
       }
-      return '';
+      return "";
     })
-    .join('\n');
+    .join("\n");
 }
 
 /** True if the line contains only spinner / progress noise */
@@ -67,9 +63,12 @@ export function cleanPtyOutput(raw: string): string {
   const stripped = stripAnsi(raw);
   const resolved = resolveCarriageReturns(stripped);
 
-  const lines = resolved.split('\n').filter((line) => !isNoiseLine(line));
+  const lines = resolved.split("\n").filter((line) => !isNoiseLine(line));
 
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return lines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Extract tool-use blocks from cleaned output text */
@@ -106,9 +105,9 @@ export function extractToolBlocks(text: string): ToolUseBlock[] {
 export function isThinking(raw: string): boolean {
   const stripped = stripAnsi(raw);
   // Spinner on the last non-empty part of any \r-overwritten line
-  const lines = stripped.split('\n');
+  const lines = stripped.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
-    const parts = lines[i].split('\r');
+    const parts = lines[i].split("\r");
     const visible = parts[parts.length - 1];
     const ch = visible.trimStart()[0];
     if (ch && SPINNER_CHARS.has(ch)) return true;
