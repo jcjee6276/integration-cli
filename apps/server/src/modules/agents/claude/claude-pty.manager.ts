@@ -64,6 +64,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     const proc = spawn('claude', args, {
       cwd: session.workingDirectory,
       env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     let buffer = '';

@@ -106,6 +106,8 @@ export class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     @MessageBody() body: { sessionId: string } & SendInputDto,
   ): void {
     try {
+      void client.join(body.sessionId);
+      this.subscriptions.get(client.id)?.add(body.sessionId);
       this.ptyManager.sendMessage(body.sessionId, body.input);
     } catch (err) {
       this.emitError(client, err);
