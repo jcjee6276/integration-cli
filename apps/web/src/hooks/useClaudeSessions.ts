@@ -115,13 +115,13 @@ export function useClaudeSessions() {
 
   // ─── REST API ─────────────────────────────────────────────────────────────
 
-  const createSession = useCallback(async () => {
+  const createSession = useCallback(async (workingDirectory?: string) => {
     setError(null);
     try {
       const res = await fetch(`${SERVER_URL}/agents/claude/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(workingDirectory ? { workingDirectory } : {}),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const info: SessionInfo = await res.json();

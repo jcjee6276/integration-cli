@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/claude/ChatInput";
 import { ChatMessage, StreamingMessage } from "@/components/claude/ChatMessage";
@@ -29,6 +29,12 @@ export default function ClaudePage() {
   } = useClaudeSessions();
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const dirPickerRef = useRef<HTMLInputElement>(null);
+  const [workingDir, setWorkingDir] = useState("");
+
+  const dirBasename = workingDir
+    ? workingDir.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? ""
+    : "";
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,10 +66,47 @@ export default function ClaudePage() {
           </div>
         </div>
 
-        {/* 새 세션 버튼 */}
-        <div className="p-3">
+        {/* 워크 디렉토리 선택 + 새 세션 */}
+        <div className="flex flex-col gap-2 p-3">
+          {/* 디렉토리 피커 */}
           <button
-            onClick={createSession}
+            type="button"
+            onClick={() => dirPickerRef.current?.click()}
+            className="flex w-full items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-left transition-colors hover:border-gray-600 hover:bg-gray-800"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4 shrink-0 text-gray-400"
+            >
+              <path d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+            </svg>
+            {dirBasename ? (
+              <span className="truncate font-mono text-xs text-orange-400">{dirBasename}</span>
+            ) : (
+              <span className="text-xs text-gray-600">워크 디렉토리 선택</span>
+            )}
+          </button>
+
+          {/* 숨겨진 파일 인풋 */}
+          <input
+            ref={dirPickerRef}
+            type="file"
+            className="hidden"
+            {...({ webkitdirectory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setWorkingDir(file.webkitRelativePath.split("/")[0]);
+              }
+              e.target.value = "";
+            }}
+          />
+
+          {/* 새 세션 버튼 */}
+          <button
+            onClick={() => createSession(workingDir || undefined)}
             disabled={connectionStatus !== "connected"}
             className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -95,8 +138,12 @@ export default function ClaudePage() {
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-400" />
                         )}
                       </div>
-                      <p className="mt-0.5 text-[10px] text-gray-600">
-                        {new Date(s.info.createdAt).toLocaleTimeString()}
+                      <p className="mt-0.5 truncate font-mono text-[10px] text-orange-400/70">
+                        {s.info.workingDirectory
+                          .replace(/[/\\]+$/, "")
+                          .split(/[/\\]/)
+                          .filter(Boolean)
+                          .at(-1) ?? ""}
                       </p>
                       {lastMsg && (
                         <p className="mt-0.5 truncate text-[11px] text-gray-500">
