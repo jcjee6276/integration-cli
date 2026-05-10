@@ -2,8 +2,11 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
 import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
+import { SessionEntity } from '../../../database/entities/session.entity';
 import type { ClaudeSession, SessionInfo } from './interfaces/claude-session.interface';
 import type {
   ClaudeAssistantEvent,
@@ -21,19 +24,35 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   private readonly logger = new Logger(ClaudePtyManager.name);
   private readonly sessions = new Map<string, ClaudeSession>();
 
+  constructor(
+    @InjectRepository(SessionEntity)
+    private readonly sessionRepo: Repository<SessionEntity>,
+  ) {
+    super();
+  }
+
   // ─── 세션 생명주기 ───────────────────────────────────────────────────
 
   createSession(workingDirectory = process.cwd()): SessionInfo {
     const id = uuidv4();
+    const now = new Date();
     const session: ClaudeSession = {
       id,
       claudeSessionId: null,
       status: 'idle',
       workingDirectory,
-      createdAt: new Date(),
-      lastActivity: new Date(),
+      createdAt: now,
+      lastActivity: now,
     };
     this.sessions.set(id, session);
+
+    void this.sessionRepo.save({
+      id,
+      claudeSessionId: null,
+      status: 'idle',
+      workingDirectory,
+    });
+
     this.logger.log(`Created session ${id}`);
     return this.toSessionInfo(session);
   }
@@ -42,6 +61,9 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     const session = this.requireSession(sessionId);
     session.status = 'terminated';
     this.sessions.delete(sessionId);
+
+    void this.sessionRepo.update(sessionId, { status: 'terminated' });
+
     this.logger.log(`Terminated session ${sessionId}`);
   }
 
@@ -55,6 +77,8 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
 
     session.status = 'processing';
     session.lastActivity = new Date();
+
+    void this.sessionRepo.update(sessionId, { status: 'processing' });
 
     const args = ['--output-format', 'stream-json', '--verbose', '--print', '-p', message];
     if (session.claudeSessionId) {
@@ -92,12 +116,15 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       buffer = '';
       session.status = 'idle';
 
+      void this.sessionRepo.update(sessionId, { status: 'idle' });
+
       const event: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
       this.emit('exit', event);
     });
 
     proc.on('error', (err) => {
       session.status = 'idle';
+      void this.sessionRepo.update(sessionId, { status: 'idle' });
       this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
       this.emit('error', { sessionId, message: err.message });
     });
@@ -119,6 +146,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
         const e = event as ClaudeInitEvent;
         if (e.subtype === 'init') {
           session.claudeSessionId = e.session_id;
+          void this.sessionRepo.update(sessionId, { claudeSessionId: e.session_id });
           this.logger.debug(`[${sessionId}] Claude session: ${e.session_id}, model: ${e.model}`);
         }
         break;
