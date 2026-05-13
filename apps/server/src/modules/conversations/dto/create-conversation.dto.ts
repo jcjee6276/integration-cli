@@ -1,4 +1,6 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+
+import { AgentModel, ConversationType } from '../enums/conversation.enum';
 
 export class CreateConversationDto {
   @IsString()
@@ -12,4 +14,10 @@ export class CreateConversationDto {
   @IsString()
   @IsNotEmpty()
   content!: string;
+
+  @IsEnum(AgentModel)
+  agentModel!: AgentModel;
+
+  @IsEnum(ConversationType)
+  type!: ConversationType;
 }
