@@ -29,6 +29,33 @@ export interface SessionState {
 let msgId = 0;
 const nextId = () => String(++msgId);
 
+// ─── Conversation API ────────────────────────────────────────────────────────
+
+type ConversationType = "user_message" | "agent_message";
+
+function saveConversation(
+  agentSessionId: string,
+  promptId: string,
+  content: string,
+  type: ConversationType,
+): void {
+  void fetch(`${SERVER_URL}/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      agentSessionId,
+      promptId,
+      content,
+      agentModel: "claude",
+      type,
+    }),
+  }).catch(() => {
+    // 대화 저장 실패는 무시 (채팅 UX에 영향 없음)
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function useClaudeSessions() {
   const socketRef = useRef<Socket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -38,6 +65,8 @@ export function useClaudeSessions() {
 
   const streamingRef = useRef<Record<string, string>>({});
   const pendingToolsRef = useRef<Record<string, ToolUseBlock[]>>({});
+  /** 메시지 전송 시 생성된 promptId — 응답 수신 시 1:1 매핑에 사용 */
+  const pendingPromptIdRef = useRef<Record<string, string>>({});
 
   // ─── WebSocket (스트리밍 이벤트 수신 전용) ───────────────────────────────
   useEffect(() => {
@@ -77,6 +106,13 @@ export function useClaudeSessions() {
         const toolUses = pendingToolsRef.current[sessionId] ?? [];
         streamingRef.current[sessionId] = "";
         pendingToolsRef.current[sessionId] = [];
+
+        // 동일 promptId로 agent_message 저장 (user_message와 1:1 매핑)
+        const promptId = pendingPromptIdRef.current[sessionId];
+        if (promptId && content) {
+          saveConversation(sessionId, promptId, content, "agent_message");
+          delete pendingPromptIdRef.current[sessionId];
+        }
 
         setSessions((prev) =>
           prev.map((s) => {
@@ -133,6 +169,10 @@ export function useClaudeSessions() {
   }, []);
 
   const sendMessage = useCallback((sessionId: string, text: string) => {
+    // promptId 생성 — user_message와 agent_message를 1:1로 연결하는 키
+    const promptId = crypto.randomUUID();
+    pendingPromptIdRef.current[sessionId] = promptId;
+
     setSessions((prev) =>
       prev.map((s) =>
         s.info.id === sessionId
@@ -147,6 +187,10 @@ export function useClaudeSessions() {
           : s,
       ),
     );
+
+    // user_message DB 저장
+    saveConversation(sessionId, promptId, text, "user_message");
+
     socketRef.current?.emit("session:message", { sessionId, input: text });
   }, []);
 
