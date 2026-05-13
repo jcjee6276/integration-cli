@@ -5,6 +5,7 @@ import * as path from 'path';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { ConversationEntity } from './entities/conversation.entity';
 import { SessionEntity } from './entities/session.entity';
 
 const DB_DIR = path.join(os.homedir(), '.ji');
@@ -19,7 +20,7 @@ if (!fs.existsSync(DB_DIR)) {
     TypeOrmModule.forRoot({
       type: 'better-sqlite3',
       database: DB_PATH,
-      entities: [SessionEntity],
+      entities: [SessionEntity, ConversationEntity],
       synchronize: true,
     }),
   ],
