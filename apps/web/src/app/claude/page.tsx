@@ -68,7 +68,6 @@ export default function ClaudePage() {
 
         {/* 워크 디렉토리 선택 + 새 세션 */}
         <div className="flex flex-col gap-2 p-3">
-          {/* 디렉토리 피커 */}
           <button
             type="button"
             onClick={() => dirPickerRef.current?.click()}
@@ -89,7 +88,6 @@ export default function ClaudePage() {
             )}
           </button>
 
-          {/* 숨겨진 파일 인풋 */}
           <input
             ref={dirPickerRef}
             type="file"
@@ -97,14 +95,11 @@ export default function ClaudePage() {
             {...({ webkitdirectory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                setWorkingDir(file.webkitRelativePath.split("/")[0]);
-              }
+              if (file) setWorkingDir(file.webkitRelativePath.split("/")[0]);
               e.target.value = "";
             }}
           />
 
-          {/* 새 세션 버튼 */}
           <button
             onClick={() => createSession(workingDir || undefined)}
             disabled={connectionStatus !== "connected"}
@@ -117,33 +112,32 @@ export default function ClaudePage() {
         {/* 세션 목록 */}
         <nav className="flex-1 overflow-y-auto px-2 pb-2">
           {sessions.length === 0 ? (
-            <p className="py-8 text-center text-xs text-gray-600">세션이 없습니다</p>
+            <p className="py-8 text-center text-xs text-gray-600">
+              {connectionStatus === "connected" ? "세션이 없습니다" : "연결 중…"}
+            </p>
           ) : (
             <ul className="flex flex-col gap-0.5">
               {sessions.map((s) => {
                 const lastMsg = s.messages[s.messages.length - 1];
+                const isSelected = selectedSessionId === s.info.id;
                 return (
                   <li key={s.info.id}>
                     <button
                       onClick={() => selectSession(s.info.id)}
                       className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
-                        selectedSessionId === s.info.id
+                        isSelected
                           ? "bg-gray-800 text-gray-100"
                           : "text-gray-400 hover:bg-gray-900 hover:text-gray-200"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs">{s.info.id.slice(0, 8)}</span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="truncate text-xs font-medium">{s.info.title}</span>
                         {s.isWaiting && (
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-400" />
+                          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-orange-400" />
                         )}
                       </div>
-                      <p className="mt-0.5 truncate font-mono text-[10px] text-orange-400/70">
-                        {s.info.workingDirectory
-                          .replace(/[/\\]+$/, "")
-                          .split(/[/\\]/)
-                          .filter(Boolean)
-                          .at(-1) ?? ""}
+                      <p className="mt-0.5 text-[10px] text-gray-600">
+                        {new Date(s.info.createdAt).toLocaleString()}
                       </p>
                       {lastMsg && (
                         <p className="mt-0.5 truncate text-[11px] text-gray-500">
@@ -162,7 +156,6 @@ export default function ClaudePage() {
       {/* ── 메인 채팅 영역 ───────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {!selectedSession ? (
-          /* 빈 상태 */
           <div className="flex flex-1 flex-col items-center justify-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/20 text-3xl">
               🤖
@@ -172,7 +165,7 @@ export default function ClaudePage() {
               <p className="mt-1 text-sm text-gray-500">
                 {connectionStatus !== "connected"
                   ? "서버에 연결 중…"
-                  : "왼쪽에서 새 세션을 생성하세요"}
+                  : "왼쪽에서 세션을 선택하거나 새 세션을 생성하세요"}
               </p>
             </div>
           </div>
@@ -180,7 +173,10 @@ export default function ClaudePage() {
           <>
             {/* 채팅 헤더 */}
             <header className="flex shrink-0 items-center justify-between border-b border-gray-800 px-5 py-3">
-              <span className="font-mono text-xs text-gray-400">{selectedSession.info.id}</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-gray-200">{selectedSession.info.title}</span>
+                <span className="font-mono text-[10px] text-gray-600">{selectedSession.info.id}</span>
+              </div>
               <button
                 onClick={() => terminateSession(selectedSession.info.id)}
                 className="rounded-lg bg-gray-700 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-gray-600"
@@ -199,14 +195,26 @@ export default function ClaudePage() {
             {/* 메시지 목록 */}
             <main className="flex-1 overflow-y-auto px-4 py-6">
               <div className="mx-auto flex max-w-2xl flex-col gap-5">
-                {selectedSession.messages.length === 0 && !selectedSession.isWaiting && (
-                  <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-                    <p className="text-sm text-gray-500">
-                      Claude가 준비되었습니다. 메시지를 보내보세요.
-                    </p>
+                {/* 대화 기록 로딩 중 */}
+                {!selectedSession.messagesLoaded && (
+                  <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-600">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-700 border-t-gray-400" />
+                    이전 대화를 불러오는 중…
                   </div>
                 )}
 
+                {/* 대화 없을 때 빈 상태 */}
+                {selectedSession.messagesLoaded &&
+                  selectedSession.messages.length === 0 &&
+                  !selectedSession.isWaiting && (
+                    <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                      <p className="text-sm text-gray-500">
+                        Claude가 준비되었습니다. 메시지를 보내보세요.
+                      </p>
+                    </div>
+                  )}
+
+                {/* 메시지 렌더링 */}
                 {selectedSession.messages.map((msg) => {
                   if (msg.role === "permission") {
                     const prompt = JSON.parse(msg.content) as PermissionPrompt;
@@ -224,6 +232,7 @@ export default function ClaudePage() {
                   return <ChatMessage key={msg.id} message={msg} />;
                 })}
 
+                {/* 스트리밍 / 대기 */}
                 {selectedSession.isWaiting && (
                   <StreamingMessage content={selectedSession.streaming} />
                 )}
