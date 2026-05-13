@@ -25,10 +25,10 @@ export class ConversationController {
     return this.conversationService.create(dto);
   }
 
-  /** GET /conversations/session/:agentSessionId — 세션 전체 대화 조회 */
-  @Get('session/:agentSessionId')
-  findBySession(@Param('agentSessionId') agentSessionId: string) {
-    return this.conversationService.findBySession(agentSessionId);
+  /** GET /conversations/session/:sessionId — 세션 전체 대화 조회 */
+  @Get('session/:sessionId')
+  findBySession(@Param('sessionId') sessionId: string) {
+    return this.conversationService.findBySession(sessionId);
   }
 
   /** GET /conversations/:id — 단건 조회 */
@@ -44,10 +44,10 @@ export class ConversationController {
     return this.conversationService.remove(id);
   }
 
-  /** DELETE /conversations/session/:agentSessionId — 세션 전체 삭제 */
-  @Delete('session/:agentSessionId')
+  /** DELETE /conversations/session/:sessionId — 세션 전체 삭제 */
+  @Delete('session/:sessionId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  removeBySession(@Param('agentSessionId') agentSessionId: string) {
-    return this.conversationService.removeBySession(agentSessionId);
+  removeBySession(@Param('sessionId') sessionId: string) {
+    return this.conversationService.removeBySession(sessionId);
   }
 }

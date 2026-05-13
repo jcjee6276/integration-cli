@@ -43,7 +43,7 @@ function saveConversation(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      agentSessionId,
+      sessionId: agentSessionId,
       promptId,
       content,
       agentModel: "claude",

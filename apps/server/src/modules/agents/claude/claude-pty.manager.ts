@@ -1,11 +1,13 @@
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import * as path from 'path';
 
 import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AgentSessionEntity } from '../../../database/entities/agent-session.entity';
 import { SessionEntity } from '../../../database/entities/session.entity';
 import type { ClaudeSession, SessionInfo } from './interfaces/claude-session.interface';
 import type {
@@ -25,6 +27,8 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   private readonly sessions = new Map<string, ClaudeSession>();
 
   constructor(
+    @InjectRepository(AgentSessionEntity)
+    private readonly agentSessionRepo: Repository<AgentSessionEntity>,
     @InjectRepository(SessionEntity)
     private readonly sessionRepo: Repository<SessionEntity>,
   ) {
@@ -46,14 +50,20 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     };
     this.sessions.set(id, session);
 
-    void this.sessionRepo.save({
+    const title = path.basename(workingDirectory) || workingDirectory;
+
+    // Claude 프로세스 세션 저장 (agent_sessions)
+    void this.agentSessionRepo.save({
       id,
       claudeSessionId: null,
       status: 'idle',
       workingDirectory,
     });
 
-    this.logger.log(`Created session ${id}`);
+    // 사용자 대면 세션 저장 (sessions)
+    void this.sessionRepo.save({ sessionId: id, title });
+
+    this.logger.log(`Created session ${id} (${title})`);
     return this.toSessionInfo(session);
   }
 
@@ -62,7 +72,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     session.status = 'terminated';
     this.sessions.delete(sessionId);
 
-    void this.sessionRepo.update(sessionId, { status: 'terminated' });
+    void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
 
     this.logger.log(`Terminated session ${sessionId}`);
   }
@@ -78,7 +88,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     session.status = 'processing';
     session.lastActivity = new Date();
 
-    void this.sessionRepo.update(sessionId, { status: 'processing' });
+    void this.agentSessionRepo.update(sessionId, { status: 'processing' });
 
     const args = ['--output-format', 'stream-json', '--verbose', '--print', '-p', message];
     if (session.claudeSessionId) {
@@ -116,7 +126,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       buffer = '';
       session.status = 'idle';
 
-      void this.sessionRepo.update(sessionId, { status: 'idle' });
+      void this.agentSessionRepo.update(sessionId, { status: 'idle' });
 
       const event: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
       this.emit('exit', event);
@@ -124,7 +134,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
 
     proc.on('error', (err) => {
       session.status = 'idle';
-      void this.sessionRepo.update(sessionId, { status: 'idle' });
+      void this.agentSessionRepo.update(sessionId, { status: 'idle' });
       this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
       this.emit('error', { sessionId, message: err.message });
     });
@@ -146,7 +156,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
         const e = event as ClaudeInitEvent;
         if (e.subtype === 'init') {
           session.claudeSessionId = e.session_id;
-          void this.sessionRepo.update(sessionId, { claudeSessionId: e.session_id });
+          void this.agentSessionRepo.update(sessionId, { claudeSessionId: e.session_id });
           this.logger.debug(`[${sessionId}] Claude session: ${e.session_id}, model: ${e.model}`);
         }
         break;

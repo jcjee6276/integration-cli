@@ -19,9 +19,9 @@ export class ConversationService {
   }
 
   /** 특정 세션의 전체 대화 조회 (생성 순) */
-  findBySession(agentSessionId: string): Promise<ConversationEntity[]> {
+  findBySession(sessionId: string): Promise<ConversationEntity[]> {
     return this.repo.find({
-      where: { agentSessionId },
+      where: { sessionId },
       order: { createdAt: 'ASC' },
     });
   }
@@ -40,7 +40,7 @@ export class ConversationService {
   }
 
   /** 세션 전체 삭제 */
-  async removeBySession(agentSessionId: string): Promise<void> {
-    await this.repo.delete({ agentSessionId });
+  async removeBySession(sessionId: string): Promise<void> {
+    await this.repo.delete({ sessionId });
   }
 }

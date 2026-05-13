@@ -1,18 +1,33 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 import { AgentModel, ConversationType } from '../../modules/conversations/enums/conversation.enum';
+import { SessionEntity } from './session.entity';
 
 @Entity('conversations')
 export class ConversationEntity {
-  /** 전체 세션 ID (자동 생성 UUID, 기본 키) */
+  /** 대화 고유 ID (UUID, PK) */
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  /** Agent 세션 ID */
-  @Column({ type: 'text', name: 'agent_session_id' })
-  agentSessionId!: string;
+  /** 세션 FK (sessions.session_id) */
+  @Column({ type: 'text', name: 'session_id' })
+  sessionId!: string;
 
-  /** 프롬프트 ID */
+  @ManyToOne(() => SessionEntity, (session) => session.conversations, {
+    onDelete: 'CASCADE',
+    nullable: false,
+  })
+  @JoinColumn({ name: 'session_id', referencedColumnName: 'sessionId' })
+  session!: SessionEntity;
+
+  /** 프롬프트 ID — user_message / agent_message 1:1 매핑 키 */
   @Column({ type: 'text', name: 'prompt_id' })
   promptId!: string;
 

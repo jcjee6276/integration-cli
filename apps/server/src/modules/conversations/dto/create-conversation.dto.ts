@@ -5,7 +5,7 @@ import { AgentModel, ConversationType } from '../enums/conversation.enum';
 export class CreateConversationDto {
   @IsString()
   @IsNotEmpty()
-  agentSessionId!: string;
+  sessionId!: string;
 
   @IsString()
   @IsNotEmpty()
