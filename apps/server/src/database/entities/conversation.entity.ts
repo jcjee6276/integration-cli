@@ -1,14 +1,6 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 import { AgentModel, ConversationType } from '../../modules/conversations/enums/conversation.enum';
-import { SessionEntity } from './session.entity';
 
 @Entity('conversations')
 export class ConversationEntity {
@@ -19,13 +11,6 @@ export class ConversationEntity {
   /** 세션 FK (sessions.session_id) */
   @Column({ type: 'text', name: 'session_id' })
   sessionId!: string;
-
-  @ManyToOne(() => SessionEntity, (session) => session.conversations, {
-    onDelete: 'CASCADE',
-    nullable: false,
-  })
-  @JoinColumn({ name: 'session_id', referencedColumnName: 'sessionId' })
-  session!: SessionEntity;
 
   /** 프롬프트 ID — user_message / agent_message 1:1 매핑 키 */
   @Column({ type: 'text', name: 'prompt_id' })

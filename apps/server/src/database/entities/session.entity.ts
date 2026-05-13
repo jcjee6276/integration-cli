@@ -1,6 +1,4 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-
-import { ConversationEntity } from './conversation.entity';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('sessions')
 export class SessionEntity {
@@ -14,7 +12,4 @@ export class SessionEntity {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
-
-  @OneToMany(() => ConversationEntity, (conversation) => conversation.session)
-  conversations!: ConversationEntity[];
 }
