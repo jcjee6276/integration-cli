@@ -91,3 +91,13 @@ export async function stopTask(id: string): Promise<Task> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export async function rerunTask(id: string, supplementNote?: string): Promise<Task> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/rerun`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ supplementNote }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}

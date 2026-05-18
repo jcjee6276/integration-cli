@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 
 import { CreateTaskDto } from './dto/create-task.dto';
+import { RerunTaskDto } from './dto/rerun-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksService } from './tasks.service';
 
@@ -57,6 +58,13 @@ export class TasksController {
   @HttpCode(HttpStatus.OK)
   stop(@Param('id') id: string) {
     return this.tasksService.stop(id);
+  }
+
+  /** POST /tasks/:id/rerun — 보완 사항과 함께 재 실행 */
+  @Post(':id/rerun')
+  @HttpCode(HttpStatus.OK)
+  rerun(@Param('id') id: string, @Body() dto: RerunTaskDto) {
+    return this.tasksService.rerun(id, dto.supplementNote);
   }
 
   /** DELETE /tasks/:id */

@@ -43,6 +43,7 @@ interface TaskCardProps {
   onExecute: () => void;
   onStop: () => void;
   onEdit: () => void;
+  onRerun: (note: string) => void;
   onDelete: () => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
 }
@@ -55,23 +56,39 @@ function TaskCard({
   onExecute,
   onStop,
   onEdit,
+  onRerun,
   onDelete,
   onTaskStatusChange,
 }: TaskCardProps) {
-  const isRunning   = task.status === "running";
-  const canExecute  = task.status === "pending" || task.status === "stopped";
-  const canStop     = isRunning;
-  const showLogs    = expanded && (isRunning || task.status === "completed" || task.status === "error");
+  const isRunning     = task.status === "running";
+  const isFinished    = task.status === "completed" || task.status === "error";
+  const canExecute    = task.status === "pending" || task.status === "stopped";
+  const canStop       = isRunning;
+  const canRerun      = isFinished;
+  const showLogs      = expanded && (isRunning || isFinished);
 
-  // 실행 중이거나 완료/에러 후 확장 상태에서만 WS 연결
+  const [rerunMode, setRerunMode] = useState(false);
+  const [supplementNote, setSupplementNote] = useState("");
+
+  const handleRerunConfirm = () => {
+    onRerun(supplementNote);
+    setRerunMode(false);
+    setSupplementNote("");
+  };
+
+  const handleRerunCancel = () => {
+    setRerunMode(false);
+    setSupplementNote("");
+  };
+
   const { agentLogs, connected } = useTaskExecution(
     showLogs ? task.id : null,
     onTaskStatusChange,
   );
 
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-gray-700/60 bg-gray-900/50 transition-colors hover:border-gray-600">
-      {/* 카드 헤더 (클릭 → expand) */}
+    <article className="flex flex-col rounded-xl border border-gray-700/60 bg-gray-900/50 transition-colors hover:border-gray-600">
+      {/* 카드 헤더 */}
       <button
         type="button"
         onClick={onToggleExpand}
@@ -135,6 +152,48 @@ function TaskCard({
             />
           )}
 
+          {/* 재 실행 보완 입력 패널 */}
+          {rerunMode && (
+            <div className="flex flex-col gap-2 rounded-xl border border-blue-800/40 bg-blue-950/20 p-3">
+              <label className="text-xs font-medium text-blue-300">
+                보완할 점 입력
+                <span className="ml-1 text-[10px] font-normal text-gray-500">(선택 — 비워두면 동일 조건으로 재 실행)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={supplementNote}
+                onChange={(e) => setSupplementNote(e.target.value)}
+                placeholder="예: 에러 핸들링이 빠져 있습니다. 로딩 상태도 추가해주세요."
+                autoFocus
+                className="w-full resize-none rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-xs text-gray-200 placeholder-gray-600 outline-none focus:border-blue-700"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleRerunCancel}
+                  className="rounded-lg px-3 py-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRerunConfirm}
+                  disabled={isActioning}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40"
+                >
+                  {isActioning ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border border-white/40 border-t-white" />
+                  ) : (
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                      <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  재 실행
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 액션 버튼 */}
           <div className="flex items-center justify-between border-t border-gray-800 pt-3">
             <span className="text-[10px] text-gray-600">
@@ -144,6 +203,7 @@ function TaskCard({
               })}
             </span>
             <div className="flex items-center gap-1.5">
+              {/* 실행 (pending/stopped) */}
               {canExecute && (
                 <button
                   onClick={onExecute}
@@ -160,6 +220,8 @@ function TaskCard({
                   실행
                 </button>
               )}
+
+              {/* 중지 (running) */}
               {canStop && (
                 <button
                   onClick={onStop}
@@ -176,14 +238,34 @@ function TaskCard({
                   중지
                 </button>
               )}
-              <button
-                onClick={onEdit}
-                disabled={isActioning || isRunning}
-                className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-gray-500 hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-30"
-                title={isRunning ? "실행 중에는 수정할 수 없습니다" : "수정"}
-              >
-                수정
-              </button>
+
+              {/* 재 실행 (completed/error) */}
+              {canRerun && !rerunMode && (
+                <button
+                  onClick={() => setRerunMode(true)}
+                  disabled={isActioning}
+                  className="flex items-center gap-1 rounded-lg border border-blue-700/60 px-3 py-1.5 text-xs font-medium text-blue-300 transition-colors hover:border-blue-500 hover:bg-blue-900/20 hover:text-blue-200 disabled:opacity-40"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                    <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
+                  </svg>
+                  재 실행
+                </button>
+              )}
+
+              {/* 수정 (pending/stopped만 — 완료된 작업은 재 실행으로 보완) */}
+              {!isFinished && (
+                <button
+                  onClick={onEdit}
+                  disabled={isActioning || isRunning}
+                  className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-gray-500 hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-30"
+                  title={isRunning ? "실행 중에는 수정할 수 없습니다" : "수정"}
+                >
+                  수정
+                </button>
+              )}
+
+              {/* 삭제 */}
               <button
                 onClick={onDelete}
                 disabled={isActioning || isRunning}
@@ -218,6 +300,7 @@ export function TaskListModal({ open, onClose }: Props) {
     loadTasks,
     execute,
     stop,
+    rerun,
     remove,
     onEditDone,
     updateTaskStatus,
@@ -259,14 +342,12 @@ export function TaskListModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* 에러 */}
         {error && (
           <p className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs text-red-400">
             {error}
           </p>
         )}
 
-        {/* 로딩 */}
         {loading && tasks.length === 0 && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-600">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-700 border-t-gray-400" />
@@ -274,7 +355,6 @@ export function TaskListModal({ open, onClose }: Props) {
           </div>
         )}
 
-        {/* 빈 상태 */}
         {!loading && tasks.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 text-xl">📋</div>
@@ -285,7 +365,6 @@ export function TaskListModal({ open, onClose }: Props) {
           </div>
         )}
 
-        {/* 작업 카드 목록 */}
         {tasks.length > 0 && (
           <ul className="flex flex-col gap-2">
             {tasks.map((task) => (
@@ -297,10 +376,14 @@ export function TaskListModal({ open, onClose }: Props) {
                   onToggleExpand={() => handleToggleExpand(task.id)}
                   onExecute={() => {
                     void execute(task.id);
-                    setExpandedId(task.id); // 실행 시 자동 확장
+                    setExpandedId(task.id);
                   }}
                   onStop={() => void stop(task.id)}
                   onEdit={() => setEditingTask(task)}
+                  onRerun={(note) => {
+                    void rerun(task.id, note || undefined);
+                    setExpandedId(task.id);
+                  }}
                   onDelete={() => void remove(task.id)}
                   onTaskStatusChange={updateTaskStatus}
                 />

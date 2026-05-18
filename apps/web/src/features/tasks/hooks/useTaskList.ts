@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { deleteTask, executeTask, fetchTasks, stopTask } from "../api/tasks.api";
+import { deleteTask, executeTask, fetchTasks, rerunTask, stopTask } from "../api/tasks.api";
 import type { Task, TaskStatus } from "../api/tasks.api";
 
 export function useTaskList(open: boolean) {
@@ -76,6 +76,18 @@ export function useTaskList(open: boolean) {
     }
   }, []);
 
+  const rerun = useCallback(async (id: string, supplementNote?: string) => {
+    setActioningId(id);
+    try {
+      const updated = await rerunTask(id, supplementNote);
+      setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "재 실행 실패");
+    } finally {
+      setActioningId(null);
+    }
+  }, []);
+
   const remove = useCallback(async (id: string) => {
     setActioningId(id);
     try {
@@ -113,6 +125,7 @@ export function useTaskList(open: boolean) {
     loadTasks,
     execute,
     stop,
+    rerun,
     remove,
     onEditDone,
     updateTaskStatus,

@@ -69,7 +69,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   // ─── 공개 API ─────────────────────────────────────────────────────────
 
   /** 태스크의 모든 에이전트 스폰 (TasksService에서 호출) */
-  async spawnTask(task: TaskEntity): Promise<void> {
+  async spawnTask(task: TaskEntity, supplementNote?: string): Promise<void> {
     if (!task.agents.length) {
       throw new Error('에이전트가 없습니다. 최소 하나의 에이전트를 추가하세요.');
     }
@@ -90,6 +90,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
         `당신은 ${roleLabel} 역할의 AI 에이전트입니다.`,
         `\n\n[작업 목표]\n${task.title}`,
         reqList ? `\n\n[요구사항]\n${reqList}` : '',
+        supplementNote ? `\n\n[이전 결과 보완 사항]\n${supplementNote}` : '',
         `\n\n위 작업을 수행해주세요.`,
       ].join('');
 

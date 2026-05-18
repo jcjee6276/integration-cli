@@ -98,6 +98,23 @@ export class TasksService {
     return this.findOne(id);
   }
 
+  // ─── 재 실행 ─────────────────────────────────────────────────────────
+
+  async rerun(id: string, supplementNote?: string): Promise<TaskEntity> {
+    const task = await this.findOne(id);
+    if (task.status === 'running') return task;
+
+    // 에이전트 상태 초기화
+    for (const agent of task.agents) {
+      await this.agentRepo.update(agent.id, { status: 'pending', claudeSessionId: null });
+    }
+    await this.taskRepo.update(id, { status: 'pending' });
+
+    const refreshed = await this.findOne(id);
+    await this.executionService.spawnTask(refreshed, supplementNote);
+    return this.findOne(id);
+  }
+
   // ─── 중지 ────────────────────────────────────────────────────────────
 
   async stop(id: string): Promise<TaskEntity> {
