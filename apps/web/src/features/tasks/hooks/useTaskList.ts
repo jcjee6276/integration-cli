@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { deleteTask, executeTask, fetchTasks, stopTask } from "../api/tasks.api";
-import type { Task } from "../api/tasks.api";
+import type { Task, TaskStatus } from "../api/tasks.api";
 
 export function useTaskList(open: boolean) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -96,6 +96,13 @@ export function useTaskList(open: boolean) {
     [],
   );
 
+  // WS 이벤트로 task status가 바뀔 때 로컬 state 반영
+  const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
+    );
+  }, []);
+
   return {
     tasks,
     loading,
@@ -108,5 +115,6 @@ export function useTaskList(open: boolean) {
     stop,
     remove,
     onEditDone,
+    updateTaskStatus,
   };
 }

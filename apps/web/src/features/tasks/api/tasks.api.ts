@@ -2,8 +2,8 @@ import { SERVER_URL } from "@/lib/constants";
 
 export type AgentRole = "frontend" | "backend" | "doc" | "operation" | "other";
 
-export type TaskStatus = "pending" | "running" | "stopped" | "completed";
-export type AgentStatus = "pending" | "running" | "stopped";
+export type TaskStatus = "pending" | "running" | "stopped" | "completed" | "error";
+export type AgentStatus = "pending" | "running" | "stopped" | "completed" | "error";
 
 export interface TaskRequirement {
   id: number;
