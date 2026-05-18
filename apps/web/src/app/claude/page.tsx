@@ -11,6 +11,7 @@ import { ChatInput } from "@/features/chat/ui/ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "@/features/chat/ui/ChatMessage";
 import { PermissionCard } from "@/features/chat/ui/PermissionCard";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
+import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
 import type { PermissionPrompt } from "@/lib/ansi";
 
 const STATUS_DOT: Record<string, string> = {
@@ -47,6 +48,7 @@ export default function ClaudePage() {
   const dirPickerRef = useRef<HTMLInputElement>(null);
   const [workingDir, setWorkingDir] = useState("");
   const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskListOpen, setTaskListOpen] = useState(false);
 
   const dirBasename = workingDir
     ? workingDir.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? ""
@@ -185,18 +187,34 @@ export default function ClaudePage() {
             + 새 세션
           </button>
 
-          <button
-            type="button"
-            onClick={() => setTaskModalOpen(true)}
-            className="w-full rounded-lg border border-gray-700 bg-gray-900 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-gray-500 hover:bg-gray-800 hover:text-gray-100"
-          >
-            ＋ 작업 추가
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTaskModalOpen(true)}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-900 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-gray-500 hover:bg-gray-800 hover:text-gray-100"
+            >
+              ＋ 작업 추가
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaskListOpen(true)}
+              title="작업 목록"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-700 bg-gray-900 text-gray-400 transition-colors hover:border-gray-500 hover:bg-gray-800 hover:text-gray-200"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 3.5A.75.75 0 012.75 7.5h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 8.25zm0 3.5A.75.75 0 012.75 11h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 11.75z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <TaskCreateModal
           open={taskModalOpen}
           onClose={() => setTaskModalOpen(false)}
+        />
+        <TaskListModal
+          open={taskListOpen}
+          onClose={() => setTaskListOpen(false)}
         />
 
         {/* 세션 목록 */}
