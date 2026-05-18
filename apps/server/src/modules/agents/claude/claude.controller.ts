@@ -14,6 +14,7 @@ import {
 import { ClaudeAuthManager } from './claude-auth.manager';
 import type { AuthStatus } from './claude-auth.manager';
 import { ClaudeService } from './claude.service';
+import type { ClaudeStatus } from './claude.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SendInputDto } from './dto/send-input.dto';
 import type { SessionInfo } from './interfaces/claude-session.interface';
@@ -30,6 +31,12 @@ export class ClaudeController {
   @Get('auth/status')
   getAuthStatus(): Promise<AuthStatus> {
     return this.authManager.getAuthStatus();
+  }
+
+  /** GET /agents/claude/status — 버전·인증·세션 통합 상태 */
+  @Get('status')
+  getStatus(): Promise<ClaudeStatus> {
+    return this.claudeService.getStatus();
   }
 
   /** POST /agents/claude/sessions — 새 세션 생성 */

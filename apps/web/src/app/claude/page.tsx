@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/claude/ChatInput";
-import { ChatMessage, StreamingMessage } from "@/components/claude/ChatMessage";
+import { ChatMessage, StreamingMessage, SystemMessage } from "@/components/claude/ChatMessage";
 import { LoginPanel } from "@/components/claude/LoginPanel";
 import { PermissionCard } from "@/components/claude/PermissionCard";
 import { useClaudeAuth } from "@/hooks/useClaudeAuth";
 import { useClaudeSessions } from "@/hooks/useClaudeSessions";
 import type { PermissionPrompt } from "@/lib/ansi";
+
+const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001";
 
 const STATUS_DOT: Record<string, string> = {
   connected: "bg-green-500",
@@ -38,6 +40,7 @@ export default function ClaudePage() {
     selectSession,
     sendMessage,
     terminateSession,
+    injectMessage,
   } = useClaudeSessions();
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -52,9 +55,42 @@ export default function ClaudePage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selectedSession?.messages, selectedSession?.streaming]);
 
-  const handleSend = (text: string) => {
-    if (!selectedSessionId || !text.trim()) return;
-    sendMessage(selectedSessionId, text);
+  const handleSend = async (text: string) => {
+    const trimmed = text.trim();
+    if (!selectedSessionId || !trimmed) return;
+
+    if (trimmed === "/status") {
+      injectMessage(selectedSessionId, { role: "user", content: "/status" });
+      try {
+        const res = await fetch(`${SERVER_URL}/agents/claude/status`);
+        const data = await res.json();
+        const a = data.auth;
+        const authLines: string[] = [];
+        if (a.loggedIn) {
+          authLines.push(`인증         ✅ 로그인됨 (${a.authMethod})`);
+          if (a.email)            authLines.push(`계정         ${a.email}`);
+          if (a.orgName)          authLines.push(`조직         ${a.orgName}`);
+          if (a.subscriptionType) authLines.push(`구독         ${a.subscriptionType}`);
+        } else {
+          authLines.push("인증         ❌ 로그아웃 상태");
+        }
+        const lines = [
+          `Claude Code  ${data.version}`,
+          `플랫폼       ${data.platform}`,
+          ...authLines,
+          `활성 세션    ${data.activeSessions}개`,
+        ].join("\n");
+        injectMessage(selectedSessionId, { role: "system", content: lines });
+      } catch {
+        injectMessage(selectedSessionId, {
+          role: "system",
+          content: "❌ 상태 조회 실패 — 서버 연결을 확인하세요.",
+        });
+      }
+      return;
+    }
+
+    sendMessage(selectedSessionId, trimmed);
   };
 
   const inputDisabled =
@@ -269,6 +305,9 @@ export default function ClaudePage() {
                         onDeny={() => sendMessage(selectedSession.info.id, "2")}
                       />
                     );
+                  }
+                  if (msg.role === "system") {
+                    return <SystemMessage key={msg.id} content={msg.content} />;
                   }
                   return <ChatMessage key={msg.id} message={msg} />;
                 })}

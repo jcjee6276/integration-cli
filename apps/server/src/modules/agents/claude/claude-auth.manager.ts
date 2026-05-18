@@ -7,6 +7,9 @@ export interface AuthStatus {
   loggedIn: boolean;
   authMethod: string;
   apiProvider: string;
+  email?: string;
+  orgName?: string;
+  subscriptionType?: string;
 }
 
 @Injectable()

@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import type { ResultMeta, ToolUse } from "./useClaudeSession";
 import { useClaudeSession } from "./useClaudeSession";
 
-export type MessageRole = "user" | "assistant" | "permission";
+export type MessageRole = "user" | "assistant" | "permission" | "system";
 
 export interface ToolUseBlock {
   tool: string;

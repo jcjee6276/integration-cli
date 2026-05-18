@@ -169,6 +169,22 @@ export function ChatMessage({ message }: Props) {
   );
 }
 
+// ─── 시스템 메시지 (슬래시 커맨드 응답) ──────────────────────────────────────
+
+export function SystemMessage({ content }: { content: string }) {
+  return (
+    <div className="flex w-full justify-center">
+      <div className="w-full max-w-[90%] overflow-hidden rounded-xl border border-gray-700/60 bg-gray-900/60 text-xs">
+        <div className="flex items-center gap-1.5 border-b border-gray-700/60 px-3 py-1.5">
+          <span className="text-gray-500">⚡</span>
+          <span className="font-mono font-medium text-gray-400">system</span>
+        </div>
+        <div className="px-4 py-3 font-mono text-gray-300 whitespace-pre-wrap">{content}</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 스트리밍 중 말풍선 ──────────────────────────────────────────────────────
 
 export function StreamingMessage({ content }: { content: string }) {

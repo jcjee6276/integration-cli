@@ -306,6 +306,25 @@ export function useClaudeSessions() {
     setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
   }, []);
 
+  const injectMessage = useCallback(
+    (sessionId: string, message: Omit<ChatMessage, "id" | "createdAt">) => {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.info.id === sessionId
+            ? {
+                ...s,
+                messages: [
+                  ...s.messages,
+                  { ...message, id: nextId(), createdAt: new Date() },
+                ],
+              }
+            : s,
+        ),
+      );
+    },
+    [],
+  );
+
   const selectedSession = sessions.find((s) => s.info.id === selectedSessionId) ?? null;
 
   return {
@@ -318,5 +337,6 @@ export function useClaudeSessions() {
     selectSession: setSelectedSessionId,
     sendMessage,
     terminateSession,
+    injectMessage,
   };
 }
