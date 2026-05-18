@@ -11,6 +11,8 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 
+import { ClaudeAuthManager } from './claude-auth.manager';
+import type { AuthStatus } from './claude-auth.manager';
 import { ClaudeService } from './claude.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SendInputDto } from './dto/send-input.dto';
@@ -19,7 +21,16 @@ import type { SessionInfo } from './interfaces/claude-session.interface';
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @Controller('agents/claude')
 export class ClaudeController {
-  constructor(private readonly claudeService: ClaudeService) {}
+  constructor(
+    private readonly claudeService: ClaudeService,
+    private readonly authManager: ClaudeAuthManager,
+  ) {}
+
+  /** GET /agents/claude/auth/status — Claude Code 인증 상태 확인 */
+  @Get('auth/status')
+  getAuthStatus(): Promise<AuthStatus> {
+    return this.authManager.getAuthStatus();
+  }
 
   /** POST /agents/claude/sessions — 새 세션 생성 */
   @Post('sessions')

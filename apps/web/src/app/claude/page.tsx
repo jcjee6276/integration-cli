@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/claude/ChatInput";
 import { ChatMessage, StreamingMessage } from "@/components/claude/ChatMessage";
+import { LoginPanel } from "@/components/claude/LoginPanel";
 import { PermissionCard } from "@/components/claude/PermissionCard";
+import { useClaudeAuth } from "@/hooks/useClaudeAuth";
 import { useClaudeSessions } from "@/hooks/useClaudeSessions";
 import type { PermissionPrompt } from "@/lib/ansi";
 
@@ -16,6 +18,16 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 export default function ClaudePage() {
+  const { authState, loginState, loginOutput, loginUrls, startLogin, cancelLogin, checkAuth } =
+    useClaudeAuth();
+
+  // 로그인 완료 후 auth 재확인
+  useEffect(() => {
+    if (loginState === "done") {
+      void checkAuth();
+    }
+  }, [loginState, checkAuth]);
+
   const {
     connectionStatus,
     sessions,
@@ -47,6 +59,35 @@ export default function ClaudePage() {
 
   const inputDisabled =
     !selectedSession || selectedSession.isWaiting || connectionStatus !== "connected";
+
+  // 인증 확인 중 / 미인증 시 로그인 화면
+  if (authState === "checking") {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#0d1117]">
+        <span className="h-6 w-6 animate-spin rounded-full border-2 border-gray-700 border-t-orange-500" />
+      </div>
+    );
+  }
+
+  if (authState === "unauthenticated") {
+    return (
+      <div className="flex h-screen flex-col bg-[#0d1117] text-white">
+        <header className="flex items-center gap-2 border-b border-gray-800 px-4 py-3">
+          <Link href="/" className="text-gray-500 transition-colors hover:text-gray-300">
+            ←
+          </Link>
+          <span className="text-sm font-semibold text-gray-100">Claude CLI</span>
+        </header>
+        <LoginPanel
+          loginState={loginState}
+          loginOutput={loginOutput}
+          loginUrls={loginUrls}
+          onStart={startLogin}
+          onCancel={cancelLogin}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#0d1117] text-white">
