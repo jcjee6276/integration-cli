@@ -144,6 +144,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       '--output-format', 'stream-json',
       '--verbose',
       '--print',
+      '--dangerously-skip-permissions',
       '-p', prompt,
     ];
 
