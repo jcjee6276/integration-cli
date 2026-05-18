@@ -7,6 +7,7 @@ import { ChatInput } from "@/components/claude/ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "@/components/claude/ChatMessage";
 import { LoginPanel } from "@/components/claude/LoginPanel";
 import { PermissionCard } from "@/components/claude/PermissionCard";
+import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { useClaudeAuth } from "@/hooks/useClaudeAuth";
 import { useClaudeSessions } from "@/hooks/useClaudeSessions";
 import type { PermissionPrompt } from "@/lib/ansi";
@@ -46,6 +47,7 @@ export default function ClaudePage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const dirPickerRef = useRef<HTMLInputElement>(null);
   const [workingDir, setWorkingDir] = useState("");
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
 
   const dirBasename = workingDir
     ? workingDir.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? ""
@@ -184,7 +186,20 @@ export default function ClaudePage() {
           >
             + 새 세션
           </button>
+
+          <button
+            type="button"
+            onClick={() => setTaskModalOpen(true)}
+            className="w-full rounded-lg border border-gray-700 bg-gray-900 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-gray-500 hover:bg-gray-800 hover:text-gray-100"
+          >
+            ＋ 작업 추가
+          </button>
         </div>
+
+        <TaskCreateModal
+          open={taskModalOpen}
+          onClose={() => setTaskModalOpen(false)}
+        />
 
         {/* 세션 목록 */}
         <nav className="flex-1 overflow-y-auto px-2 pb-2">
