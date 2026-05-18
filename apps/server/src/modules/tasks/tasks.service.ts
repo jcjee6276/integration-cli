@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
 import { TaskRequirementEntity } from '../../database/entities/task-requirement.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
-import { ClaudePtyManager } from '../agents/claude/claude-pty.manager';
+import { TaskExecutionService } from './task-execution.service';
 import type { CreateTaskDto } from './dto/create-task.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
 
@@ -19,7 +19,7 @@ export class TasksService {
     private readonly requirementRepo: Repository<TaskRequirementEntity>,
     @InjectRepository(TaskAgentEntity)
     private readonly agentRepo: Repository<TaskAgentEntity>,
-    private readonly ptyManager: ClaudePtyManager,
+    private readonly executionService: TaskExecutionService,
   ) {}
 
   // ─── 생성 ────────────────────────────────────────────────────────────
@@ -36,7 +36,6 @@ export class TasksService {
         ),
       );
     }
-
     if (dto.agents?.length) {
       await this.agentRepo.save(
         dto.agents.map((a) =>
@@ -49,7 +48,6 @@ export class TasksService {
         ),
       );
     }
-
     return this.findOne(id);
   }
 
@@ -72,7 +70,6 @@ export class TasksService {
         );
       }
     }
-
     if (dto.agents !== undefined) {
       await this.agentRepo.delete({ taskId: id });
       if (dto.agents.length) {
@@ -88,7 +85,6 @@ export class TasksService {
         );
       }
     }
-
     return this.findOne(id);
   }
 
@@ -98,31 +94,7 @@ export class TasksService {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
-    const workingDir = task.workingDir ?? process.cwd();
-    const reqList = task.requirements
-      .sort((a, b) => a.orderIndex - b.orderIndex)
-      .map((r, i) => `${i + 1}. ${r.content}`)
-      .join('\n');
-
-    for (const agent of task.agents) {
-      const roleLabel = agent.role === 'other' && agent.customRole ? agent.customRole : agent.role;
-      const prompt = [
-        `[Task] ${task.title}`,
-        reqList ? `\n[Requirements]\n${reqList}` : '',
-        `\n[Your Role] ${roleLabel}`,
-        '\n작업을 시작해주세요.',
-      ].join('');
-
-      const session = this.ptyManager.createSession(workingDir);
-      this.ptyManager.sendMessage(session.id, prompt);
-
-      await this.agentRepo.update(agent.id, {
-        claudeSessionId: session.id,
-        status: 'running',
-      });
-    }
-
-    await this.taskRepo.update(id, { status: 'running' });
+    await this.executionService.spawnTask(task);
     return this.findOne(id);
   }
 
@@ -130,15 +102,7 @@ export class TasksService {
 
   async stop(id: string): Promise<TaskEntity> {
     const task = await this.findOne(id);
-
-    for (const agent of task.agents) {
-      if (agent.claudeSessionId) {
-        try { this.ptyManager.terminateSession(agent.claudeSessionId); } catch {}
-      }
-      await this.agentRepo.update(agent.id, { claudeSessionId: null, status: 'stopped' });
-    }
-
-    await this.taskRepo.update(id, { status: 'stopped' });
+    await this.executionService.stopTask(task);
     return this.findOne(id);
   }
 
