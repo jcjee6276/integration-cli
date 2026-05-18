@@ -1,6 +1,6 @@
 "use client";
 
-import type { LoginState } from "@/hooks/useClaudeAuth";
+import type { LoginState } from "../hooks/useClaudeAuth";
 
 interface LoginPanelProps {
   loginState: LoginState;
@@ -17,7 +17,6 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-      {/* 아이콘 + 제목 */}
       <div className="flex flex-col items-center gap-3 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/20 text-3xl">
           🔐
@@ -28,7 +27,6 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
         </p>
       </div>
 
-      {/* 상태 영역 */}
       {loginState === "idle" && (
         <button
           onClick={onStart}
@@ -40,7 +38,6 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
 
       {isPending && (
         <div className="flex w-full max-w-lg flex-col gap-4">
-          {/* URL 버튼들 */}
           {loginUrls.length > 0 && (
             <div className="flex flex-col gap-2">
               <p className="text-xs font-medium text-gray-400">브라우저에서 아래 링크를 열어 인증을 완료하세요:</p>
@@ -58,14 +55,12 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
             </div>
           )}
 
-          {/* 출력 로그 */}
           {loginOutput && (
             <pre className="max-h-48 overflow-y-auto rounded-lg border border-gray-800 bg-gray-950 px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-gray-400">
               {loginOutput}
             </pre>
           )}
 
-          {/* 대기 중 인디케이터 */}
           {loginUrls.length === 0 && (
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-700 border-t-orange-500" />
@@ -73,10 +68,7 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
             </div>
           )}
 
-          <button
-            onClick={onCancel}
-            className="text-xs text-gray-600 transition-colors hover:text-gray-400"
-          >
+          <button onClick={onCancel} className="text-xs text-gray-600 transition-colors hover:text-gray-400">
             취소
           </button>
         </div>

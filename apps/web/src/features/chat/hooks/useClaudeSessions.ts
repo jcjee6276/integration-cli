@@ -3,75 +3,56 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 
-import type { ChatMessage, ToolUseBlock } from "@/hooks/useClaudeChat";
-import type { ResultMeta } from "@/hooks/useClaudeSession";
+import { CLAUDE_WS_NAMESPACE, SERVER_URL } from "@/lib/constants";
+import {
+  createSession as apiCreateSession,
+  deleteSession,
+  fetchConversations,
+  fetchDBSessions,
+  saveConversation,
+} from "../api/sessions.api";
+import type { DBConversation, SessionInfo } from "../api/sessions.api";
 
-const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001";
-const NAMESPACE = "/agents/claude";
+// ─── 타입 ────────────────────────────────────────────────────────────────────
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
+export type MessageRole = "user" | "assistant" | "permission" | "system";
 
-// ─── 서버 응답 타입 ────────────────────────────────────────────────────────────
-
-export interface SessionInfo {
-  id: string;
-  title: string;
-  claudeSessionId?: string | null;
-  status?: string;
-  workingDirectory?: string;
-  createdAt: string;
+export interface ToolUseBlock {
+  tool: string;
+  input: Record<string, unknown>;
 }
 
-/** GET /sessions 응답 */
-interface DBSession {
-  sessionId: string;
-  title: string;
-  createdAt: string;
+export interface ResultMeta {
+  result: string;
+  isError: boolean;
+  durationMs: number;
+  costUsd: number;
 }
 
-/** GET /conversations/session/:id 응답 */
-interface DBConversation {
+export interface ChatMessage {
   id: string;
-  sessionId: string;
-  promptId: string;
+  role: MessageRole;
   content: string;
-  agentModel: string;
-  type: "user_message" | "agent_message";
-  createdAt: string;
+  toolUses?: ToolUseBlock[];
+  meta?: ResultMeta;
+  createdAt: Date;
 }
-
-// ─── 세션 상태 ────────────────────────────────────────────────────────────────
 
 export interface SessionState {
   info: SessionInfo;
   messages: ChatMessage[];
   streaming: string;
   isWaiting: boolean;
-  /** DB에서 대화 기록을 불러왔는지 여부 */
   messagesLoaded: boolean;
 }
 
+export { SessionInfo };
+
+// ─── 헬퍼 ────────────────────────────────────────────────────────────────────
+
 let msgId = 0;
 const nextId = () => String(++msgId);
-
-// ─── Conversation 저장 헬퍼 ──────────────────────────────────────────────────
-
-type ConversationType = "user_message" | "agent_message";
-
-function saveConversation(
-  sessionId: string,
-  promptId: string,
-  content: string,
-  type: ConversationType,
-): void {
-  void fetch(`${SERVER_URL}/conversations`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId, promptId, content, agentModel: "claude", type }),
-  }).catch(() => undefined);
-}
-
-// ─── DB Conversation → ChatMessage 변환 ──────────────────────────────────────
 
 function toMessages(convos: DBConversation[]): ChatMessage[] {
   return convos.map((c) => ({
@@ -82,7 +63,7 @@ function toMessages(convos: DBConversation[]): ChatMessage[] {
   }));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useClaudeSessions() {
   const socketRef = useRef<Socket | null>(null);
@@ -94,17 +75,13 @@ export function useClaudeSessions() {
   const streamingRef = useRef<Record<string, string>>({});
   const pendingToolsRef = useRef<Record<string, ToolUseBlock[]>>({});
   const pendingPromptIdRef = useRef<Record<string, string>>({});
-  /** 이미 대화 로딩을 시작한 세션 ID 집합 (중복 요청 방지) */
   const loadingSessionsRef = useRef<Set<string>>(new Set());
 
-  // ─── DB에서 세션 목록 로드 ─────────────────────────────────────────────────
+  // ─── DB 세션 로드 ──────────────────────────────────────────────────────────
 
   const loadSessionsFromDB = useCallback(async () => {
     try {
-      const res = await fetch(`${SERVER_URL}/sessions`);
-      if (!res.ok) return;
-      const dbSessions: DBSession[] = await res.json();
-
+      const dbSessions = await fetchDBSessions();
       setSessions((prev) => {
         const existingIds = new Set(prev.map((s) => s.info.id));
         const newStates: SessionState[] = dbSessions
@@ -116,51 +93,41 @@ export function useClaudeSessions() {
             isWaiting: false,
             messagesLoaded: false,
           }));
-        // DB 세션이 맨 앞에 오고 (최신순), 이미 있는 세션은 유지
         return [...prev, ...newStates].sort(
           (a, b) => new Date(b.info.createdAt).getTime() - new Date(a.info.createdAt).getTime(),
         );
       });
-    } catch {
-      // 세션 로드 실패 무시
-    }
+    } catch {}
   }, []);
 
-  // ─── 특정 세션의 대화 기록 로드 ───────────────────────────────────────────
+  // ─── 대화 기록 로드 ────────────────────────────────────────────────────────
 
   const loadConversations = useCallback(async (sessionId: string) => {
     if (loadingSessionsRef.current.has(sessionId)) return;
     loadingSessionsRef.current.add(sessionId);
-
     try {
-      const res = await fetch(`${SERVER_URL}/conversations/session/${sessionId}`);
-      if (!res.ok) return;
-      const convos: DBConversation[] = await res.json();
-      const messages = toMessages(convos);
-
+      const convos = await fetchConversations(sessionId);
       setSessions((prev) =>
         prev.map((s) =>
-          s.info.id === sessionId ? { ...s, messages, messagesLoaded: true } : s,
+          s.info.id === sessionId ? { ...s, messages: toMessages(convos), messagesLoaded: true } : s,
         ),
       );
     } catch {
-      // 로드 실패 시 빈 상태로 처리
       setSessions((prev) =>
         prev.map((s) => (s.info.id === sessionId ? { ...s, messagesLoaded: true } : s)),
       );
     }
   }, []);
 
-  // ─── WebSocket (스트리밍 이벤트 수신 전용) ───────────────────────────────
+  // ─── WebSocket ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const socket = io(`${SERVER_URL}${NAMESPACE}`, { transports: ["websocket"] });
+    const socket = io(`${SERVER_URL}${CLAUDE_WS_NAMESPACE}`, { transports: ["websocket"] });
     socketRef.current = socket;
     setConnectionStatus("connecting");
 
     socket.on("connect", () => {
       setConnectionStatus("connected");
-      // 연결 직후 DB 세션 목록 동기화
       void loadSessionsFromDB();
     });
 
@@ -192,7 +159,6 @@ export function useClaudeSessions() {
         streamingRef.current[sessionId] = "";
         pendingToolsRef.current[sessionId] = [];
 
-        // 동일 promptId로 agent_message 저장 (1:1 매핑)
         const promptId = pendingPromptIdRef.current[sessionId];
         if (promptId && content) {
           saveConversation(sessionId, promptId, content, "agent_message");
@@ -229,12 +195,10 @@ export function useClaudeSessions() {
 
     socket.on("error", ({ message }: { message: string }) => setError(message));
 
-    return () => {
-      socket.disconnect();
-    };
+    return () => { socket.disconnect(); };
   }, [loadSessionsFromDB]);
 
-  // ─── 세션 선택 시 대화 기록 자동 로드 ────────────────────────────────────
+  // ─── 세션 선택 시 대화 기록 로드 ─────────────────────────────────────────
 
   useEffect(() => {
     if (!selectedSessionId) return;
@@ -243,35 +207,28 @@ export function useClaudeSessions() {
     void loadConversations(selectedSessionId);
   }, [selectedSessionId, sessions, loadConversations]);
 
-  // ─── REST API ─────────────────────────────────────────────────────────────
+  // ─── 공개 API ─────────────────────────────────────────────────────────────
 
   const createSession = useCallback(async (workingDirectory?: string) => {
     setError(null);
     try {
-      const res = await fetch(`${SERVER_URL}/agents/claude/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(workingDirectory ? { workingDirectory } : {}),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw = await res.json();
-      // 서버 반환값(workingDirectory 기반)으로 title 생성
+      const raw = await apiCreateSession(workingDirectory);
       const title = raw.workingDirectory
         ? raw.workingDirectory.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? "새 세션"
         : "새 세션";
 
       const newState: SessionState = {
-        info: { id: raw.id, title, createdAt: raw.createdAt, ...raw },
+        info: { ...raw, title },
         messages: [],
         streaming: "",
         isWaiting: false,
-        messagesLoaded: true, // 새 세션은 기록 없음
+        messagesLoaded: true,
       };
 
       setSessions((prev) => [newState, ...prev]);
       setSelectedSessionId(raw.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "세션 생성 실패");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "세션 생성 실패");
     }
   }, []);
 
@@ -300,7 +257,7 @@ export function useClaudeSessions() {
 
   const terminateSession = useCallback(async (sessionId: string) => {
     try {
-      await fetch(`${SERVER_URL}/agents/claude/sessions/${sessionId}`, { method: "DELETE" });
+      await deleteSession(sessionId);
     } catch {}
     setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
     setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
@@ -311,13 +268,7 @@ export function useClaudeSessions() {
       setSessions((prev) =>
         prev.map((s) =>
           s.info.id === sessionId
-            ? {
-                ...s,
-                messages: [
-                  ...s.messages,
-                  { ...message, id: nextId(), createdAt: new Date() },
-                ],
-              }
+            ? { ...s, messages: [...s.messages, { ...message, id: nextId(), createdAt: new Date() }] }
             : s,
         ),
       );

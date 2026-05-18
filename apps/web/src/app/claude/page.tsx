@@ -3,16 +3,15 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { ChatInput } from "@/components/claude/ChatInput";
-import { ChatMessage, StreamingMessage, SystemMessage } from "@/components/claude/ChatMessage";
-import { LoginPanel } from "@/components/claude/LoginPanel";
-import { PermissionCard } from "@/components/claude/PermissionCard";
+import { useClaudeAuth } from "@/features/auth/hooks/useClaudeAuth";
+import { LoginPanel } from "@/features/auth/ui/LoginPanel";
+import { getClaudeStatus } from "@/features/auth/api/auth.api";
+import { useClaudeSessions } from "@/features/chat/hooks/useClaudeSessions";
+import { ChatInput } from "@/features/chat/ui/ChatInput";
+import { ChatMessage, StreamingMessage, SystemMessage } from "@/features/chat/ui/ChatMessage";
+import { PermissionCard } from "@/features/chat/ui/PermissionCard";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
-import { useClaudeAuth } from "@/hooks/useClaudeAuth";
-import { useClaudeSessions } from "@/hooks/useClaudeSessions";
 import type { PermissionPrompt } from "@/lib/ansi";
-
-const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001";
 
 const STATUS_DOT: Record<string, string> = {
   connected: "bg-green-500",
@@ -64,8 +63,7 @@ export default function ClaudePage() {
     if (trimmed === "/status") {
       injectMessage(selectedSessionId, { role: "user", content: "/status" });
       try {
-        const res = await fetch(`${SERVER_URL}/agents/claude/status`);
-        const data = await res.json();
+        const data = await getClaudeStatus();
         const a = data.auth;
         const authLines: string[] = [];
         if (a.loggedIn) {
