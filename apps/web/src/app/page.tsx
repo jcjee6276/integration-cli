@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getAuthStatus } from "@/features/auth/api/auth.api";
+import { ThemeToggle } from "@/lib/theme";
 
 type AuthBadge = "loading" | "authenticated" | "unauthenticated" | "unavailable";
 
@@ -32,31 +33,31 @@ const BADGE_CONFIG: Record<
   { border: string; bg: string; text: string; dot: string; label: string }
 > = {
   loading: {
-    border: "border-white/[0.07]",
-    bg: "bg-white/[0.04]",
+    border: "border-gray-900/[0.07] dark:border-white/[0.07]",
+    bg: "bg-gray-900/[0.04] dark:bg-white/[0.04]",
     text: "text-transparent",
-    dot: "bg-white/20",
+    dot: "bg-gray-900/20 dark:bg-white/20",
     label: "로그인 필요",
   },
   authenticated: {
     border: "border-emerald-500/25",
     bg: "bg-emerald-500/[0.08]",
-    text: "text-emerald-400",
-    dot: "bg-emerald-400 shadow-[0_0_5px_#34d399]",
+    text: "text-emerald-600 dark:text-emerald-400",
+    dot: "bg-emerald-500 shadow-[0_0_5px_#34d399] dark:bg-emerald-400",
     label: "사용 가능",
   },
   unauthenticated: {
     border: "border-amber-500/25",
     bg: "bg-amber-500/[0.08]",
-    text: "text-amber-400",
-    dot: "bg-amber-400",
+    text: "text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-500 dark:bg-amber-400",
     label: "로그인 필요",
   },
   unavailable: {
-    border: "border-white/[0.06]",
-    bg: "bg-white/[0.03]",
-    text: "text-white/30",
-    dot: "bg-white/20",
+    border: "border-gray-900/[0.06] dark:border-white/[0.06]",
+    bg: "bg-gray-900/[0.03] dark:bg-white/[0.03]",
+    text: "text-gray-900/30 dark:text-white/30",
+    dot: "bg-gray-900/20 dark:bg-white/20",
     label: "준비 중",
   },
 };
@@ -93,25 +94,16 @@ function Badge({ badge }: BadgeProps) {
 function SkeletonCard({ index }: { index: number }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.025] p-6"
+      className="relative overflow-hidden rounded-2xl border border-gray-900/[0.06] bg-gray-900/[0.025] p-6 dark:border-white/[0.06] dark:bg-white/[0.025]"
       style={{ animationDelay: `${index * 60}ms` }}
     >
-      {/* shimmer sweep */}
       <div className="animate-shimmer-bg absolute inset-0" />
-
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <div
-            className="h-[15px] w-28 rounded-md bg-white/[0.07]"
-            style={{ animationDelay: `${index * 60}ms` }}
-          />
-          <div
-            className="h-3 w-48 rounded-md bg-white/[0.04]"
-            style={{ animationDelay: `${index * 60 + 80}ms` }}
-          />
+          <div className="h-[15px] w-28 rounded-md bg-gray-900/[0.07] dark:bg-white/[0.07]" />
+          <div className="h-3 w-48 rounded-md bg-gray-900/[0.04] dark:bg-white/[0.04]" />
         </div>
-        {/* badge placeholder — matches min-w-[88px] of real badge */}
-        <div className="h-[26px] min-w-[88px] rounded-full bg-white/[0.06]" />
+        <div className="h-[26px] min-w-[88px] rounded-full bg-gray-900/[0.06] dark:bg-white/[0.06]" />
       </div>
     </div>
   );
@@ -149,10 +141,10 @@ function AgentCard({
       tabIndex={clickable ? undefined : -1}
       className={[
         "animate-fade-in-up group relative overflow-hidden rounded-2xl",
-        "border border-white/[0.07] bg-white/[0.025]",
+        "border border-gray-900/[0.07] bg-gray-900/[0.025] dark:border-white/[0.07] dark:bg-white/[0.025]",
         "p-6 transition-all duration-300",
         clickable
-          ? `hover:border-white/[0.12] hover:bg-white/[0.04] ${hoverShadow}`
+          ? `hover:border-gray-900/[0.12] hover:bg-gray-900/[0.04] dark:hover:border-white/[0.12] dark:hover:bg-white/[0.04] ${hoverShadow}`
           : "pointer-events-none opacity-40",
       ].join(" ")}
       style={{ animationDelay: `${index * 60}ms` }}
@@ -166,7 +158,7 @@ function AgentCard({
         ].join(" ")}
       />
 
-      {/* Ambient tint — always visible; intensifies on hover for clickable cards */}
+      {/* Ambient tint */}
       <div
         className={[
           "absolute inset-x-0 top-0 h-32",
@@ -179,10 +171,10 @@ function AgentCard({
 
       <div className="relative flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-semibold tracking-tight text-white/90">
+          <h2 className="text-[15px] font-semibold tracking-tight text-gray-900/90 dark:text-white/90">
             {name}
           </h2>
-          <p className="mt-0.5 truncate text-[13px] leading-relaxed text-white/35">
+          <p className="mt-0.5 truncate text-[13px] leading-relaxed text-gray-900/35 dark:text-white/35">
             {description}
           </p>
         </div>
@@ -193,7 +185,7 @@ function AgentCard({
       {/* Arrow indicator */}
       {clickable && (
         <div className="absolute right-5 top-1/2 -translate-y-1/2 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-25">
-          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 text-white">
+          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 text-gray-900 dark:text-white">
             <path
               fillRule="evenodd"
               d="M6.22 4.22a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06l-3.25 3.25a.75.75 0 01-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 010-1.06z"
@@ -255,13 +247,18 @@ export default function Home() {
   const isLoading = claudeBadge === "loading";
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#07090e] px-6 py-12">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#f4f6fb] px-6 py-12 dark:bg-[#07090e]">
+
+      {/* Theme toggle */}
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
 
       {/* Ambient background glows */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-1/2 top-[40%] h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/[0.035] blur-[120px]" />
-        <div className="absolute -left-24 bottom-1/4 h-[350px] w-[450px] rounded-full bg-blue-600/[0.025] blur-[100px]" />
-        <div className="absolute -right-24 top-1/4 h-[300px] w-[400px] rounded-full bg-purple-600/[0.025] blur-[100px]" />
+        <div className="absolute left-1/2 top-[40%] h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/[0.04] blur-[120px] dark:bg-orange-500/[0.035]" />
+        <div className="absolute -left-24 bottom-1/4 h-[350px] w-[450px] rounded-full bg-blue-600/[0.03] blur-[100px] dark:bg-blue-600/[0.025]" />
+        <div className="absolute -right-24 top-1/4 h-[300px] w-[400px] rounded-full bg-purple-600/[0.03] blur-[100px] dark:bg-purple-600/[0.025]" />
       </div>
 
       {/* Dot-grid pattern */}
@@ -269,7 +266,7 @@ export default function Home() {
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{
           backgroundImage:
-            "radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)",
+            "radial-gradient(circle, var(--dot-color) 1px, transparent 1px)",
           backgroundSize: "28px 28px",
           maskImage:
             "radial-gradient(ellipse 75% 65% at 50% 50%, black 30%, transparent 100%)",
@@ -282,9 +279,9 @@ export default function Home() {
       <header className="animate-fade-in-up relative mb-10 flex flex-col items-center gap-5 text-center">
         {/* Logo mark */}
         <div className="relative">
-          <div className="flex h-12 w-60 items-center justify-center rounded-[16px] border border-white/[0.10] bg-white/[0.05] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm">
-            <span className="font-mono text-sm font-bold tracking-widest text-white/65">
-            integration-CLI
+          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] border border-gray-900/[0.10] bg-gray-900/[0.05] shadow-[inset_0_1px_0_rgba(0,0,0,0.06)] backdrop-blur-sm dark:border-white/[0.10] dark:bg-white/[0.05] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <span className="font-mono text-sm font-bold tracking-widest text-gray-900/65 dark:text-white/65">
+              ji
             </span>
           </div>
           <div className="absolute -inset-2 rounded-[20px] bg-orange-500/10 blur-xl" />
@@ -294,23 +291,22 @@ export default function Home() {
           <h1
             className="text-[2.75rem] font-bold leading-none tracking-[-0.03em]"
             style={{
-              background:
-                "linear-gradient(160deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.4) 100%)",
+              background: "var(--heading-gradient)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
             }}
           >
-            JI-CLI
+            ji-cli
           </h1>
-          <p className="mt-2.5 text-[13px] font-medium tracking-[0.06em] text-white/28 uppercase">
+          <p className="mt-2.5 text-[13px] font-medium uppercase tracking-[0.06em] text-gray-900/28 dark:text-white/28">
             하나의 플랫폼에서 모든 AI CLI를 제어합니다
           </p>
         </div>
       </header>
 
       {/* Card list */}
-      <div className="relative flex flex-col w-full max-w-[460px] space-y-2">
+      <div className="relative w-full max-w-[460px] space-y-2">
         {isLoading
           ? AGENTS.map((_, i) => <SkeletonCard key={i} index={i} />)
           : AGENTS.map((agent, i) => (
@@ -324,7 +320,7 @@ export default function Home() {
       </div>
 
       {/* Bottom rule */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-gray-900/[0.05] to-transparent dark:via-white/[0.05]" />
     </div>
   );
 }

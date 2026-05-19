@@ -7,16 +7,13 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  /** 모달 최대 너비 (Tailwind class). 기본 max-w-lg */
   maxWidth?: string;
-  /** 닫기 버튼 없애기 */
   hideClose?: boolean;
 }
 
 export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", hideClose = false }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // ESC 키 닫기
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -24,7 +21,6 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", h
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // 열릴 때 body 스크롤 잠금
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
@@ -36,20 +32,25 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", h
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md dark:bg-black/70"
       onMouseDown={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
       <div
-        className={`relative flex w-full ${maxWidth} flex-col rounded-2xl border border-white/[0.08] bg-[#0a0c10] shadow-[0_24px_80px_rgba(0,0,0,0.7)]`}
+        className={[
+          "relative flex w-full flex-col rounded-2xl",
+          "border border-gray-900/[0.08] bg-white dark:border-white/[0.08] dark:bg-[#0a0c10]",
+          "shadow-[0_24px_80px_rgba(0,0,0,0.15)] dark:shadow-[0_24px_80px_rgba(0,0,0,0.7)]",
+          maxWidth,
+        ].join(" ")}
         style={{ animation: "modal-in 0.18s cubic-bezier(0.16,1,0.3,1) both" }}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-          <h2 className="text-sm font-semibold text-white/85">{title}</h2>
+        <div className="flex items-center justify-between border-b border-gray-900/[0.06] px-5 py-4 dark:border-white/[0.06]">
+          <h2 className="text-sm font-semibold text-gray-900/85 dark:text-white/85">{title}</h2>
           {!hideClose && (
             <button
               onClick={onClose}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-white/25 transition-colors hover:bg-white/[0.07] hover:text-white/70"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-gray-900/25 transition-colors hover:bg-gray-900/[0.07] hover:text-gray-900/70 dark:text-white/25 dark:hover:bg-white/[0.07] dark:hover:text-white/70"
               aria-label="닫기"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">

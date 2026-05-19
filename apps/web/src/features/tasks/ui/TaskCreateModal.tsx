@@ -46,7 +46,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
 
         {/* ── 작업 제목 ─────────────────────────────────────────────── */}
         <section className="flex flex-col gap-2">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-white/30">
+          <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
             작업 목표 <span className="text-orange-500">*</span>
           </label>
           <textarea
@@ -54,34 +54,34 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
             value={form.title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="예: 로그인 페이지 UI 구현 및 API 연동"
-            className="w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-sm text-white/80 placeholder-white/20 outline-none transition-colors focus:border-orange-500/50 focus:bg-white/[0.05]"
+            className="w-full resize-none rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2.5 text-sm text-gray-900/80 placeholder-gray-900/20 outline-none transition-colors focus:border-orange-500/50 focus:bg-gray-900/[0.05] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/80 dark:placeholder-white/20 dark:focus:bg-white/[0.05]"
           />
         </section>
 
         {/* ── 워크 디렉토리 ─────────────────────────────────────────── */}
         <section className="flex flex-col gap-2">
-          <label className="text-[11px] font-medium uppercase tracking-wider text-white/30">
-            워크 디렉토리 <span className="text-white/20 normal-case tracking-normal">(선택)</span>
+          <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
+            워크 디렉토리 <span className="text-gray-900/20 normal-case tracking-normal dark:text-white/20">(선택)</span>
           </label>
           <input
             type="text"
             value={form.workingDir}
             onChange={(e) => setWorkingDir(e.target.value)}
             placeholder="/path/to/project"
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 font-mono text-sm text-white/65 placeholder-white/20 outline-none transition-colors focus:border-orange-500/50 focus:bg-white/[0.05]"
+            className="w-full rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2 font-mono text-sm text-gray-900/65 placeholder-gray-900/20 outline-none transition-colors focus:border-orange-500/50 focus:bg-gray-900/[0.05] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/65 dark:placeholder-white/20 dark:focus:bg-white/[0.05]"
           />
         </section>
 
         {/* ── 요구사항 ──────────────────────────────────────────────── */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-white/30">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
               요구사항
             </label>
             <button
               type="button"
               onClick={addRequirement}
-              className="flex items-center gap-1 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-xs text-white/40 transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white/70"
+              className="flex items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                 <path d="M8.75 3.75a.75.75 0 00-1.5 0v3.5h-3.5a.75.75 0 000 1.5h3.5v3.5a.75.75 0 001.5 0v-3.5h3.5a.75.75 0 000-1.5h-3.5v-3.5z" />
@@ -91,25 +91,25 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
           </div>
 
           {form.requirements.length === 0 ? (
-            <div className="flex items-center justify-center rounded-xl border border-dashed border-white/[0.07] py-5">
-              <p className="text-xs text-white/20">요구사항을 추가하세요</p>
+            <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-900/[0.07] py-5 dark:border-white/[0.07]">
+              <p className="text-xs text-gray-900/20 dark:text-white/20">요구사항을 추가하세요</p>
             </div>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {form.requirements.map((req, idx) => (
                 <li key={req.id} className="flex items-center gap-2">
-                  <span className="w-5 shrink-0 text-center text-xs text-white/20">{idx + 1}</span>
+                  <span className="w-5 shrink-0 text-center text-xs text-gray-900/20 dark:text-white/20">{idx + 1}</span>
                   <input
                     type="text"
                     value={req.content}
                     onChange={(e) => updateRequirement(req.id, e.target.value)}
                     placeholder="요구사항 입력"
-                    className="flex-1 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-xs text-white/70 placeholder-white/20 outline-none transition-colors focus:border-white/[0.15] focus:bg-white/[0.05]"
+                    className="flex-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-3 py-1.5 text-xs text-gray-900/70 placeholder-gray-900/20 outline-none transition-colors focus:border-gray-900/[0.15] focus:bg-gray-900/[0.05] dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/70 dark:placeholder-white/20 dark:focus:border-white/[0.15] dark:focus:bg-white/[0.05]"
                   />
                   <button
                     type="button"
                     onClick={() => removeRequirement(req.id)}
-                    className="shrink-0 text-white/20 transition-colors hover:text-red-400"
+                    className="shrink-0 text-gray-900/20 transition-colors hover:text-red-500 dark:text-white/20 dark:hover:text-red-400"
                   >
                     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                       <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
@@ -124,13 +124,13 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
         {/* ── 서브 에이전트 ─────────────────────────────────────────── */}
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium uppercase tracking-wider text-white/30">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
               서브 에이전트
             </label>
             <button
               type="button"
               onClick={() => addAgent("frontend")}
-              className="flex items-center gap-1 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-xs text-white/40 transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white/70"
+              className="flex items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                 <path d="M8.75 3.75a.75.75 0 00-1.5 0v3.5h-3.5a.75.75 0 000 1.5h3.5v3.5a.75.75 0 001.5 0v-3.5h3.5a.75.75 0 000-1.5h-3.5v-3.5z" />
@@ -140,8 +140,8 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
           </div>
 
           {form.agents.length === 0 ? (
-            <div className="flex items-center justify-center rounded-xl border border-dashed border-white/[0.07] py-5">
-              <p className="text-xs text-white/20">서브 에이전트를 추가하세요</p>
+            <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-900/[0.07] py-5 dark:border-white/[0.07]">
+              <p className="text-xs text-gray-900/20 dark:text-white/20">서브 에이전트를 추가하세요</p>
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -160,18 +160,18 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
 
         {/* ── 에러 ──────────────────────────────────────────────────── */}
         {error && (
-          <p className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2.5 text-xs text-red-400">
+          <p className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2.5 text-xs text-red-500 dark:text-red-400">
             {error}
           </p>
         )}
 
         {/* ── 액션 ──────────────────────────────────────────────────── */}
-        <div className="flex justify-end gap-2 border-t border-white/[0.06] pt-4">
+        <div className="flex justify-end gap-2 border-t border-gray-900/[0.06] pt-4 dark:border-white/[0.06]">
           <button
             type="button"
             onClick={handleClose}
             disabled={submitting}
-            className="rounded-xl px-4 py-2 text-sm text-white/35 transition-colors hover:bg-white/[0.05] hover:text-white/70 disabled:opacity-40"
+            className="rounded-xl px-4 py-2 text-sm text-gray-900/35 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:opacity-40 dark:text-white/35 dark:hover:bg-white/[0.05] dark:hover:text-white/70"
           >
             취소
           </button>

@@ -38,7 +38,7 @@ function SlashMenu({ query, activeIndex, onSelect }: SlashMenuProps) {
   if (filtered.length === 0) return null;
 
   return (
-    <ul className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-white/[0.08] bg-[#0d1117] shadow-[0_8px_32px_-4px_rgba(0,0,0,0.5)]">
+    <ul className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-gray-900/[0.08] bg-gray-50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.12)] dark:border-white/[0.08] dark:bg-[#0d1117] dark:shadow-[0_8px_32px_-4px_rgba(0,0,0,0.5)]">
       {filtered.map((item, i) => (
         <li key={item.command}>
           <button
@@ -47,12 +47,12 @@ function SlashMenu({ query, activeIndex, onSelect }: SlashMenuProps) {
             className={[
               "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
               i === activeIndex
-                ? "bg-white/[0.06] text-white/90"
-                : "text-white/55 hover:bg-white/[0.03] hover:text-white/80",
+                ? "bg-gray-900/[0.06] text-gray-900/90 dark:bg-white/[0.06] dark:text-white/90"
+                : "text-gray-900/55 hover:bg-gray-900/[0.03] hover:text-gray-900/80 dark:text-white/55 dark:hover:bg-white/[0.03] dark:hover:text-white/80",
             ].join(" ")}
           >
-            <span className="font-mono text-orange-400">{item.command}</span>
-            <span className="text-xs text-white/25">{item.description}</span>
+            <span className="font-mono text-orange-500 dark:text-orange-400">{item.command}</span>
+            <span className="text-xs text-gray-900/25 dark:text-white/25">{item.description}</span>
           </button>
         </li>
       ))}
@@ -134,7 +134,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "메시지 �
       {slashQuery !== null && (
         <SlashMenu query={slashQuery} activeIndex={activeIndex} onSelect={selectCommand} />
       )}
-      <div className="flex items-end gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 transition-colors focus-within:border-white/[0.14]">
+      <div className="flex items-end gap-3 rounded-2xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-4 py-3 transition-colors focus-within:border-gray-900/[0.14] dark:border-white/[0.08] dark:bg-white/[0.03] dark:focus-within:border-white/[0.14]">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -144,7 +144,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "메시지 �
           onInput={handleInput}
           disabled={disabled}
           placeholder={placeholder}
-          className="max-h-[200px] flex-1 resize-none bg-transparent text-sm text-white/85 placeholder-white/25 outline-none disabled:cursor-not-allowed"
+          className="max-h-[200px] flex-1 resize-none bg-transparent text-sm text-gray-900/85 placeholder-gray-900/25 outline-none disabled:cursor-not-allowed dark:text-white/85 dark:placeholder-white/25"
         />
         <button
           onClick={submit}
