@@ -122,167 +122,174 @@ function TaskCard({
         </div>
       </button>
 
-      {/* 확장 영역 */}
-      {expanded && (
-        <div className="flex flex-col gap-3 px-4 pb-4">
-          {/* 요구사항 */}
-          {task.requirements.length > 0 && (
-            <ul className="flex flex-col gap-0.5">
-              {[...task.requirements]
-                .sort((a, b) => a.orderIndex - b.orderIndex)
-                .map((r) => (
-                  <li key={r.id} className="flex items-start gap-1.5 text-xs text-white/35">
-                    <span className="mt-0.5 text-white/15">•</span>
-                    <span>{r.content}</span>
-                  </li>
+      {/* 확장 영역 — grid-rows 트랜지션으로 height fade + opacity fade */}
+      <div
+        className={[
+          "grid transition-all duration-200 ease-out",
+          expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        ].join(" ")}
+      >
+        <div className="overflow-hidden">
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            {/* 요구사항 */}
+            {task.requirements.length > 0 && (
+              <ul className="flex flex-col gap-0.5">
+                {[...task.requirements]
+                  .sort((a, b) => a.orderIndex - b.orderIndex)
+                  .map((r) => (
+                    <li key={r.id} className="flex items-start gap-1.5 text-xs text-white/35">
+                      <span className="mt-0.5 text-white/15">•</span>
+                      <span>{r.content}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+
+            {/* 에이전트 역할 */}
+            {task.agents.length > 0 && !showLogs && (
+              <div className="flex flex-wrap gap-1.5">
+                {task.agents.map((a) => (
+                  <AgentRoleBadge key={a.id} role={a.role} customRole={a.customRole} />
                 ))}
-            </ul>
-          )}
+              </div>
+            )}
 
-          {/* 에이전트 역할 */}
-          {task.agents.length > 0 && !showLogs && (
-            <div className="flex flex-wrap gap-1.5">
-              {task.agents.map((a) => (
-                <AgentRoleBadge key={a.id} role={a.role} customRole={a.customRole} />
-              ))}
-            </div>
-          )}
-
-          {/* 실시간 에이전트 출력 */}
-          {showLogs && (
-            <AgentOutputPanel
-              agents={task.agents}
-              agentLogs={agentLogs}
-              connected={connected}
-            />
-          )}
-
-          {/* 재 실행 보완 입력 패널 */}
-          {rerunMode && (
-            <div className="flex flex-col gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.05] p-3">
-              <label className="text-xs font-medium text-blue-400/80">
-                보완할 점 입력
-                <span className="ml-1 text-[10px] font-normal text-white/25">(선택 — 비워두면 동일 조건으로 재 실행)</span>
-              </label>
-              <textarea
-                rows={3}
-                value={supplementNote}
-                onChange={(e) => setSupplementNote(e.target.value)}
-                placeholder="예: 에러 핸들링이 빠져 있습니다. 로딩 상태도 추가해주세요."
-                autoFocus
-                className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/70 placeholder-white/20 outline-none focus:border-blue-500/50"
+            {/* 실시간 에이전트 출력 */}
+            {showLogs && (
+              <AgentOutputPanel
+                agents={task.agents}
+                agentLogs={agentLogs}
+                connected={connected}
               />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={handleRerunCancel}
-                  className="rounded-lg px-3 py-1.5 text-xs text-white/35 transition-colors hover:text-white/70"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRerunConfirm}
-                  disabled={isActioning}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-40"
-                >
-                  {isActioning ? (
-                    <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-                  ) : (
+            )}
+
+            {/* 재 실행 보완 입력 패널 */}
+            {rerunMode && (
+              <div className="flex flex-col gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.05] p-3">
+                <label className="text-xs font-medium text-blue-400/80">
+                  보완할 점 입력
+                  <span className="ml-1 text-[10px] font-normal text-white/25">(선택 — 비워두면 동일 조건으로 재 실행)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={supplementNote}
+                  onChange={(e) => setSupplementNote(e.target.value)}
+                  placeholder="예: 에러 핸들링이 빠져 있습니다. 로딩 상태도 추가해주세요."
+                  autoFocus
+                  className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/70 placeholder-white/20 outline-none focus:border-blue-500/50"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRerunCancel}
+                    className="rounded-lg px-3 py-1.5 text-xs text-white/35 transition-colors hover:text-white/70"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRerunConfirm}
+                    disabled={isActioning}
+                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-40"
+                  >
+                    {isActioning ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+                    ) : (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    재 실행
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 액션 버튼 */}
+            <div className="flex items-center justify-between border-t border-white/[0.05] pt-3">
+              <span className="text-[10px] text-white/20">
+                {new Date(task.createdAt).toLocaleString("ko-KR", {
+                  month: "2-digit", day: "2-digit",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {/* 실행 (pending/stopped) */}
+                {canExecute && (
+                  <button
+                    onClick={onExecute}
+                    disabled={isActioning}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+                  >
+                    {isActioning ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+                    ) : (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11v7.78a1.5 1.5 0 002.3 1.269l5.773-3.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                      </svg>
+                    )}
+                    실행
+                  </button>
+                )}
+
+                {/* 중지 (running) */}
+                {canStop && (
+                  <button
+                    onClick={onStop}
+                    disabled={isActioning}
+                    className="flex items-center gap-1.5 rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-40"
+                  >
+                    {isActioning ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+                    ) : (
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                        <path d="M5.25 3A2.25 2.25 0 003 5.25v5.5A2.25 2.25 0 005.25 13h5.5A2.25 2.25 0 0013 10.75v-5.5A2.25 2.25 0 0010.75 3h-5.5z" />
+                      </svg>
+                    )}
+                    중지
+                  </button>
+                )}
+
+                {/* 재 실행 (completed/error) */}
+                {canRerun && !rerunMode && (
+                  <button
+                    onClick={() => setRerunMode(true)}
+                    disabled={isActioning}
+                    className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] hover:text-blue-300 disabled:opacity-40"
+                  >
                     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                       <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
                     </svg>
-                  )}
-                  재 실행
+                    재 실행
+                  </button>
+                )}
+
+                {/* 수정 */}
+                {!isFinished && (
+                  <button
+                    onClick={onEdit}
+                    disabled={isActioning || isRunning}
+                    className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-white/40 transition-colors hover:border-white/[0.15] hover:text-white/75 disabled:cursor-not-allowed disabled:opacity-30"
+                    title={isRunning ? "실행 중에는 수정할 수 없습니다" : "수정"}
+                  >
+                    수정
+                  </button>
+                )}
+
+                {/* 삭제 */}
+                <button
+                  onClick={onDelete}
+                  disabled={isActioning || isRunning}
+                  className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-white/25 transition-colors hover:border-red-500/30 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
+                  title={isRunning ? "실행 중에는 삭제할 수 없습니다" : "삭제"}
+                >
+                  삭제
                 </button>
               </div>
             </div>
-          )}
-
-          {/* 액션 버튼 */}
-          <div className="flex items-center justify-between border-t border-white/[0.05] pt-3">
-            <span className="text-[10px] text-white/20">
-              {new Date(task.createdAt).toLocaleString("ko-KR", {
-                month: "2-digit", day: "2-digit",
-                hour: "2-digit", minute: "2-digit",
-              })}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {/* 실행 (pending/stopped) */}
-              {canExecute && (
-                <button
-                  onClick={onExecute}
-                  disabled={isActioning}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
-                >
-                  {isActioning ? (
-                    <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-                  ) : (
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                      <path d="M6.3 2.841A1.5 1.5 0 004 4.11v7.78a1.5 1.5 0 002.3 1.269l5.773-3.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                    </svg>
-                  )}
-                  실행
-                </button>
-              )}
-
-              {/* 중지 (running) */}
-              {canStop && (
-                <button
-                  onClick={onStop}
-                  disabled={isActioning}
-                  className="flex items-center gap-1.5 rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-40"
-                >
-                  {isActioning ? (
-                    <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
-                  ) : (
-                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                      <path d="M5.25 3A2.25 2.25 0 003 5.25v5.5A2.25 2.25 0 005.25 13h5.5A2.25 2.25 0 0013 10.75v-5.5A2.25 2.25 0 0010.75 3h-5.5z" />
-                    </svg>
-                  )}
-                  중지
-                </button>
-              )}
-
-              {/* 재 실행 (completed/error) */}
-              {canRerun && !rerunMode && (
-                <button
-                  onClick={() => setRerunMode(true)}
-                  disabled={isActioning}
-                  className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] hover:text-blue-300 disabled:opacity-40"
-                >
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
-                    <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
-                  </svg>
-                  재 실행
-                </button>
-              )}
-
-              {/* 수정 */}
-              {!isFinished && (
-                <button
-                  onClick={onEdit}
-                  disabled={isActioning || isRunning}
-                  className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-white/40 transition-colors hover:border-white/[0.15] hover:text-white/75 disabled:cursor-not-allowed disabled:opacity-30"
-                  title={isRunning ? "실행 중에는 수정할 수 없습니다" : "수정"}
-                >
-                  수정
-                </button>
-              )}
-
-              {/* 삭제 */}
-              <button
-                onClick={onDelete}
-                disabled={isActioning || isRunning}
-                className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-white/25 transition-colors hover:border-red-500/30 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
-                title={isRunning ? "실행 중에는 삭제할 수 없습니다" : "삭제"}
-              >
-                삭제
-              </button>
-            </div>
           </div>
         </div>
-      )}
+      </div>
     </article>
   );
 }
