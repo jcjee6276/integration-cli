@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 
 import { Modal } from "@/components/ui/Modal";
+import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import type { Task } from "../api/tasks.api";
 import { useTaskCreate } from "../hooks/useTaskCreate";
 import { AgentRow } from "./AgentRoleSelect";
@@ -63,13 +64,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
           <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
             워크 디렉토리 <span className="text-gray-900/20 normal-case tracking-normal dark:text-white/20">(선택)</span>
           </label>
-          <input
-            type="text"
-            value={form.workingDir}
-            onChange={(e) => setWorkingDir(e.target.value)}
-            placeholder="/path/to/project"
-            className="w-full rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2 font-mono text-sm text-gray-900/65 placeholder-gray-900/20 outline-none transition-colors focus:border-orange-500/50 focus:bg-gray-900/[0.05] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/65 dark:placeholder-white/20 dark:focus:bg-white/[0.05]"
-          />
+          <WorkingDirPicker value={form.workingDir} onChange={setWorkingDir} />
         </section>
 
         {/* ── 요구사항 ──────────────────────────────────────────────── */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "@/components/ui/Modal";
+import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import type { Task } from "../api/tasks.api";
 import { useTaskEdit } from "../hooks/useTaskEdit";
 import { AgentRow } from "./AgentRoleSelect";
@@ -41,13 +42,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
             워크 디렉토리 <span className="text-gray-400 dark:text-gray-600">(선택)</span>
           </label>
-          <input
-            type="text"
-            value={form.workingDir}
-            onChange={(e) => setWorkingDir(e.target.value)}
-            placeholder="/path/to/project"
-            className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-700 placeholder-gray-400 outline-none focus:border-gray-400 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:placeholder-gray-600 dark:focus:border-gray-500"
-          />
+          <WorkingDirPicker value={form.workingDir} onChange={setWorkingDir} />
         </section>
 
         {/* 요구사항 */}

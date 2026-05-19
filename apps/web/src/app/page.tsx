@@ -247,7 +247,7 @@ export default function Home() {
   const isLoading = claudeBadge === "loading";
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#f4f6fb] px-6 py-12 dark:bg-[#07090e]">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#faf8f5] px-6 py-12 dark:bg-[#07090e]">
 
       {/* Theme toggle */}
       <div className="absolute right-4 top-4">

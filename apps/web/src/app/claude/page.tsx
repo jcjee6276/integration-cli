@@ -12,6 +12,7 @@ import { ChatMessage, StreamingMessage, SystemMessage } from "@/features/chat/ui
 import { PermissionCard } from "@/features/chat/ui/PermissionCard";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
+import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import { ThemeToggle } from "@/lib/theme";
 import type { PermissionPrompt } from "@/lib/ansi";
 
@@ -101,13 +102,19 @@ export default function ClaudePage() {
   const pendingDirRef = useRef("");
   const prevSessionCountRef = useRef(0);
 
-  const [newSessionOpen, setNewSessionOpen] = useState(false);
-  const [pendingDir, setPendingDir] = useState("");
+  // 세션별 워크 디렉토리 맵 (세션 생성 시 연결)
   const [sessionDirs, setSessionDirs] = useState<Record<string, string>>({});
+  // 푸터 dir picker가 편집하는 값 (세션 선택에 따라 동기화)
+  const [currentDir, setCurrentDir] = useState("");
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskListOpen, setTaskListOpen] = useState(false);
 
-  // 새 세션이 생기면 pendingDirRef에 저장했던 경로를 연결
+  // 세션 전환 시 해당 세션의 디렉토리로 picker 동기화
+  useEffect(() => {
+    setCurrentDir(selectedSessionId ? (sessionDirs[selectedSessionId] ?? "") : "");
+  }, [selectedSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 새 세션 생성 직후 pendingDirRef 값을 세션에 연결
   useEffect(() => {
     if (sessions.length > prevSessionCountRef.current && pendingDirRef.current) {
       const newest = sessions[0];
@@ -120,10 +127,16 @@ export default function ClaudePage() {
   }, [sessions]);
 
   const handleCreateSession = () => {
-    pendingDirRef.current = pendingDir;
-    createSession(pendingDir || undefined);
-    setPendingDir("");
-    setNewSessionOpen(false);
+    pendingDirRef.current = currentDir;
+    createSession(currentDir || undefined);
+  };
+
+  // 푸터에서 dir 변경 시 현재 세션 기록 업데이트
+  const handleDirChange = (path: string) => {
+    setCurrentDir(path);
+    if (selectedSessionId) {
+      setSessionDirs((prev) => ({ ...prev, [selectedSessionId]: path }));
+    }
   };
 
   useEffect(() => {
@@ -216,51 +229,13 @@ export default function ClaudePage() {
 
         {/* 새 세션 */}
         <div className="flex flex-col gap-2 p-3">
-          {newSessionOpen ? (
-            <div className="flex flex-col gap-2 rounded-xl border border-gray-900/[0.07] bg-gray-900/[0.02] p-3 dark:border-white/[0.07] dark:bg-white/[0.02]">
-              <label className="text-[10px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
-                워크 디렉토리
-                <span className="ml-1 normal-case tracking-normal text-gray-900/20 dark:text-white/20">(선택)</span>
-              </label>
-              <input
-                type="text"
-                value={pendingDir}
-                onChange={(e) => setPendingDir(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreateSession();
-                  if (e.key === "Escape") { setNewSessionOpen(false); setPendingDir(""); }
-                }}
-                placeholder="/Users/me/my-project"
-                autoFocus
-                className="w-full rounded-lg border border-gray-900/[0.07] bg-transparent px-3 py-1.5 font-mono text-xs text-gray-900/70 placeholder-gray-900/20 outline-none focus:border-orange-500/40 dark:border-white/[0.07] dark:text-white/70 dark:placeholder-white/20"
-              />
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => { setNewSessionOpen(false); setPendingDir(""); }}
-                  className="flex-1 rounded-lg border border-gray-900/[0.07] py-1.5 text-xs text-gray-900/35 transition-colors hover:border-gray-900/[0.13] hover:text-gray-900/70 dark:border-white/[0.07] dark:text-white/35 dark:hover:border-white/[0.13] dark:hover:text-white/70"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateSession}
-                  disabled={connectionStatus !== "connected"}
-                  className="flex-1 rounded-lg bg-orange-600 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-40"
-                >
-                  시작
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setNewSessionOpen(true)}
-              disabled={connectionStatus !== "connected"}
-              className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              + 새 세션
-            </button>
-          )}
+          <button
+            onClick={handleCreateSession}
+            disabled={connectionStatus !== "connected"}
+            className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            + 새 세션
+          </button>
 
           <div className="flex gap-2">
             <button
@@ -434,8 +409,19 @@ export default function ClaudePage() {
             </main>
 
             {/* 입력창 */}
-            <footer className="shrink-0 border-t border-gray-900/[0.07] px-4 py-4 dark:border-white/[0.07]">
-              <div className="mx-auto max-w-2xl">
+            <footer className="shrink-0 border-t border-gray-900/[0.07] px-4 pb-4 pt-3 dark:border-white/[0.07]">
+              <div className="mx-auto max-w-2xl space-y-2">
+                {/* 워크 디렉토리 */}
+                <div className="flex items-center gap-2 border-b border-gray-900/[0.05] pb-2 dark:border-white/[0.05]">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-900/25 dark:text-white/25">
+                    cwd
+                  </span>
+                  <WorkingDirPicker
+                    value={currentDir}
+                    onChange={handleDirChange}
+                    variant="inline"
+                  />
+                </div>
                 <ChatInput
                   onSend={handleSend}
                   disabled={inputDisabled}

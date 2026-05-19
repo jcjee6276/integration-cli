@@ -6,7 +6,7 @@
 
 /* ── Design tokens ──────────────────────────────────────────── */
 :root {
-  --background: #f4f6fb;
+  --background: #faf8f5;
   --foreground: rgba(15, 17, 23, 0.87);
 
   /* heading gradient */
