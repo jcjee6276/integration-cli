@@ -33,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function CheckingSkeleton() {
   return (
-    <div className="flex h-screen bg-[#f4f6fb] dark:bg-[#07090e]">
+    <div className="flex h-screen bg-[#faf8f5] dark:bg-[#07090e]">
       <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
         <div className="relative overflow-hidden border-b border-gray-900/[0.07] px-4 py-3.5 dark:border-white/[0.07]">
           <div className="animate-shimmer-bg absolute inset-0" />
@@ -43,7 +43,6 @@ function CheckingSkeleton() {
           </div>
         </div>
         <div className="flex flex-col gap-2 p-3">
-          <div className="h-9 rounded-lg bg-gray-900/[0.04] dark:bg-white/[0.04]" />
           <div className="h-9 rounded-lg bg-orange-500/[0.08]" />
           <div className="flex gap-2">
             <div className="h-9 flex-1 rounded-lg bg-gray-900/[0.04] dark:bg-white/[0.04]" />
@@ -99,14 +98,33 @@ export default function ClaudePage() {
   } = useClaudeSessions();
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const dirPickerRef = useRef<HTMLInputElement>(null);
-  const [workingDir, setWorkingDir] = useState("");
+  const pendingDirRef = useRef("");
+  const prevSessionCountRef = useRef(0);
+
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [pendingDir, setPendingDir] = useState("");
+  const [sessionDirs, setSessionDirs] = useState<Record<string, string>>({});
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskListOpen, setTaskListOpen] = useState(false);
 
-  const dirBasename = workingDir
-    ? workingDir.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? ""
-    : "";
+  // 새 세션이 생기면 pendingDirRef에 저장했던 경로를 연결
+  useEffect(() => {
+    if (sessions.length > prevSessionCountRef.current && pendingDirRef.current) {
+      const newest = sessions[0];
+      if (newest) {
+        setSessionDirs((prev) => ({ ...prev, [newest.info.id]: pendingDirRef.current }));
+      }
+      pendingDirRef.current = "";
+    }
+    prevSessionCountRef.current = sessions.length;
+  }, [sessions]);
+
+  const handleCreateSession = () => {
+    pendingDirRef.current = pendingDir;
+    createSession(pendingDir || undefined);
+    setPendingDir("");
+    setNewSessionOpen(false);
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -156,7 +174,7 @@ export default function ClaudePage() {
 
   if (authState === "unauthenticated") {
     return (
-      <div className="flex h-screen flex-col bg-[#f4f6fb] text-gray-900 dark:bg-[#07090e] dark:text-white">
+      <div className="flex h-screen flex-col bg-[#faf8f5] text-gray-900 dark:bg-[#07090e] dark:text-white">
         <header className="flex items-center gap-2 border-b border-gray-900/[0.07] px-4 py-3 dark:border-white/[0.07]">
           <Link href="/" className="text-gray-900/30 transition-colors hover:text-gray-900/60 dark:text-white/30 dark:hover:text-white/60">
             ←
@@ -178,7 +196,7 @@ export default function ClaudePage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#f4f6fb] text-gray-900 dark:bg-[#07090e] dark:text-white">
+    <div className="flex h-screen bg-[#faf8f5] text-gray-900 dark:bg-[#07090e] dark:text-white">
       {/* ── 사이드바 ────────────────────────────────────────────────────────── */}
       <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
         {/* 헤더 */}
@@ -196,47 +214,53 @@ export default function ClaudePage() {
           </div>
         </div>
 
-        {/* 워크 디렉토리 선택 + 새 세션 */}
+        {/* 새 세션 */}
         <div className="flex flex-col gap-2 p-3">
-          <button
-            type="button"
-            onClick={() => dirPickerRef.current?.click()}
-            className="flex w-full items-center gap-2 rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2 text-left transition-colors hover:border-gray-900/[0.13] hover:bg-gray-900/[0.05] dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-white/[0.13] dark:hover:bg-white/[0.05]"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="h-4 w-4 shrink-0 text-gray-900/30 dark:text-white/30"
+          {newSessionOpen ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-gray-900/[0.07] bg-gray-900/[0.02] p-3 dark:border-white/[0.07] dark:bg-white/[0.02]">
+              <label className="text-[10px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
+                워크 디렉토리
+                <span className="ml-1 normal-case tracking-normal text-gray-900/20 dark:text-white/20">(선택)</span>
+              </label>
+              <input
+                type="text"
+                value={pendingDir}
+                onChange={(e) => setPendingDir(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateSession();
+                  if (e.key === "Escape") { setNewSessionOpen(false); setPendingDir(""); }
+                }}
+                placeholder="/Users/me/my-project"
+                autoFocus
+                className="w-full rounded-lg border border-gray-900/[0.07] bg-transparent px-3 py-1.5 font-mono text-xs text-gray-900/70 placeholder-gray-900/20 outline-none focus:border-orange-500/40 dark:border-white/[0.07] dark:text-white/70 dark:placeholder-white/20"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setNewSessionOpen(false); setPendingDir(""); }}
+                  className="flex-1 rounded-lg border border-gray-900/[0.07] py-1.5 text-xs text-gray-900/35 transition-colors hover:border-gray-900/[0.13] hover:text-gray-900/70 dark:border-white/[0.07] dark:text-white/35 dark:hover:border-white/[0.13] dark:hover:text-white/70"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateSession}
+                  disabled={connectionStatus !== "connected"}
+                  className="flex-1 rounded-lg bg-orange-600 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-40"
+                >
+                  시작
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setNewSessionOpen(true)}
+              disabled={connectionStatus !== "connected"}
+              className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <path d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-            </svg>
-            {dirBasename ? (
-              <span className="truncate font-mono text-xs text-orange-500 dark:text-orange-400">{dirBasename}</span>
-            ) : (
-              <span className="text-xs text-gray-900/25 dark:text-white/25">워크 디렉토리 선택</span>
-            )}
-          </button>
-
-          <input
-            ref={dirPickerRef}
-            type="file"
-            className="hidden"
-            {...({ webkitdirectory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) setWorkingDir(file.webkitRelativePath.split("/")[0]);
-              e.target.value = "";
-            }}
-          />
-
-          <button
-            onClick={() => createSession(workingDir || undefined)}
-            disabled={connectionStatus !== "connected"}
-            className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            + 새 세션
-          </button>
+              + 새 세션
+            </button>
+          )}
 
           <div className="flex gap-2">
             <button
@@ -332,13 +356,23 @@ export default function ClaudePage() {
           <>
             {/* 채팅 헤더 */}
             <header className="flex shrink-0 items-center justify-between border-b border-gray-900/[0.07] px-5 py-3 dark:border-white/[0.07]">
-              <div className="flex flex-col">
+              <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-medium text-gray-900/80 dark:text-white/80">{selectedSession.info.title}</span>
-                <span className="font-mono text-[10px] text-gray-900/20 dark:text-white/20">{selectedSession.info.id}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-gray-900/20 dark:text-white/20">{selectedSession.info.id.slice(0, 8)}…</span>
+                  {sessionDirs[selectedSession.info.id] && (
+                    <span className="flex items-center gap-1 rounded-md border border-gray-900/[0.06] bg-gray-900/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-gray-900/40 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-white/40">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5 shrink-0">
+                        <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z" />
+                      </svg>
+                      <span className="max-w-[200px] truncate">{sessionDirs[selectedSession.info.id]}</span>
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => terminateSession(selectedSession.info.id)}
-                className="rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-1.5 text-xs font-medium text-gray-900/45 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/75 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/45 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/75"
+                className="shrink-0 rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-1.5 text-xs font-medium text-gray-900/45 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/75 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/45 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/75"
               >
                 종료
               </button>
