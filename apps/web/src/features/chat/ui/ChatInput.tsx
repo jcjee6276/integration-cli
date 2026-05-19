@@ -38,18 +38,21 @@ function SlashMenu({ query, activeIndex, onSelect }: SlashMenuProps) {
   if (filtered.length === 0) return null;
 
   return (
-    <ul className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-gray-700 bg-gray-900 shadow-xl">
+    <ul className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-white/[0.08] bg-[#0d1117] shadow-[0_8px_32px_-4px_rgba(0,0,0,0.5)]">
       {filtered.map((item, i) => (
         <li key={item.command}>
           <button
             type="button"
             onMouseDown={(e) => { e.preventDefault(); onSelect(item.command); }}
-            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
-              i === activeIndex ? "bg-gray-700 text-gray-100" : "text-gray-300 hover:bg-gray-800"
-            }`}
+            className={[
+              "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+              i === activeIndex
+                ? "bg-white/[0.06] text-white/90"
+                : "text-white/55 hover:bg-white/[0.03] hover:text-white/80",
+            ].join(" ")}
           >
             <span className="font-mono text-orange-400">{item.command}</span>
-            <span className="text-xs text-gray-500">{item.description}</span>
+            <span className="text-xs text-white/25">{item.description}</span>
           </button>
         </li>
       ))}
@@ -131,7 +134,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "메시지 �
       {slashQuery !== null && (
         <SlashMenu query={slashQuery} activeIndex={activeIndex} onSelect={selectCommand} />
       )}
-      <div className="flex items-end gap-3 rounded-2xl border border-gray-700 bg-gray-800 px-4 py-3 focus-within:border-gray-500">
+      <div className="flex items-end gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 transition-colors focus-within:border-white/[0.14]">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -141,12 +144,12 @@ export function ChatInput({ onSend, disabled = false, placeholder = "메시지 �
           onInput={handleInput}
           disabled={disabled}
           placeholder={placeholder}
-          className="max-h-[200px] flex-1 resize-none bg-transparent text-sm text-gray-100 placeholder-gray-500 outline-none disabled:cursor-not-allowed"
+          className="max-h-[200px] flex-1 resize-none bg-transparent text-sm text-white/85 placeholder-white/25 outline-none disabled:cursor-not-allowed"
         />
         <button
           onClick={submit}
           disabled={disabled || !value.trim()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-600 transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-25"
           aria-label="전송"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 rotate-90 text-white">
