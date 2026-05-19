@@ -140,7 +140,7 @@ function AgentCard({
       aria-disabled={!clickable}
       tabIndex={clickable ? undefined : -1}
       className={[
-        "animate-fade-in-up group relative overflow-hidden rounded-2xl",
+        "flex flex-col animate-fade-in-up group relative overflow-hidden rounded-2xl",
         "border border-gray-900/[0.07] bg-gray-900/[0.025] dark:border-white/[0.07] dark:bg-white/[0.025]",
         "p-6 transition-all duration-300",
         clickable
@@ -279,9 +279,9 @@ export default function Home() {
       <header className="animate-fade-in-up relative mb-10 flex flex-col items-center gap-5 text-center">
         {/* Logo mark */}
         <div className="relative">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] border border-gray-900/[0.10] bg-gray-900/[0.05] shadow-[inset_0_1px_0_rgba(0,0,0,0.06)] backdrop-blur-sm dark:border-white/[0.10] dark:bg-white/[0.05] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <div className="flex h-12 w-80 items-center justify-center rounded-[16px] border border-gray-900/[0.10] bg-gray-900/[0.05] shadow-[inset_0_1px_0_rgba(0,0,0,0.06)] backdrop-blur-sm dark:border-white/[0.10] dark:bg-white/[0.05] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
             <span className="font-mono text-sm font-bold tracking-widest text-gray-900/65 dark:text-white/65">
-              ji
+              INTEGRATION-CLI
             </span>
           </div>
           <div className="absolute -inset-2 rounded-[20px] bg-orange-500/10 blur-xl" />
@@ -297,7 +297,7 @@ export default function Home() {
               backgroundClip: "text",
             }}
           >
-            ji-cli
+            JI-CLI
           </h1>
           <p className="mt-2.5 text-[13px] font-medium uppercase tracking-[0.06em] text-gray-900/28 dark:text-white/28">
             하나의 플랫폼에서 모든 AI CLI를 제어합니다
