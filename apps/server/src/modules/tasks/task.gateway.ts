@@ -11,9 +11,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
-import {
-  TaskExecutionService,
-} from './task-execution.service';
+import { TaskExecutionService } from './task-execution.service';
 import type {
   AgentDoneEvent,
   AgentErrorEvent,
@@ -26,16 +24,23 @@ import type {
  * WebSocket 프로토콜 (/tasks 네임스페이스)
  *
  * Client → Server
- *   task:subscribe    { taskId }   해당 태스크 룸 구독
- *   task:unsubscribe  { taskId }   구독 해제
+ *   task:subscribe    { taskId }  특정 태스크 룸 구독 (에이전트 출력 수신)
+ *   task:unsubscribe  { taskId }  특정 태스크 룸 구독 해제
+ *   task:get-logs     { taskId }  버퍼된 로그 요청 (늦은 구독자)
+ *   task:watch-all              전역 알림 룸 구독 (모든 task:status 수신)
+ *   task:unwatch-all            전역 알림 룸 구독 해제
  *
  * Server → Client
- *   agent:output  { taskId, agentId, sessionId, text }
- *   agent:tool    { taskId, agentId, tool, input }
- *   agent:done    { taskId, agentId, result, isError, durationMs, costUsd }
- *   agent:error   { taskId, agentId, message }
- *   task:status   { taskId, status }
+ *   agent:output        { taskId, agentId, text }
+ *   agent:tool          { taskId, agentId, tool, input }
+ *   agent:done          { taskId, agentId, result, isError, durationMs, costUsd }
+ *   agent:error         { taskId, agentId, message }
+ *   task:status         { taskId, status, title? }  — 특정 룸 + 전역 알림 룸
+ *   task:buffered-logs  { taskId, logs }
  */
+
+const NOTIFICATIONS_ROOM = 'task:notifications';
+
 @WebSocketGateway({ namespace: '/tasks', cors: { origin: '*' } })
 export class TaskGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -63,7 +68,10 @@ export class TaskGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     });
 
     this.executionService.on('task:status', (e: TaskStatusEvent) => {
+      // 1. 특정 태스크 룸 (에이전트 출력 패널용)
       this.server.to(`task:${e.taskId}`).emit('task:status', e);
+      // 2. 전역 알림 룸 (useTaskNotification 구독자 전체)
+      this.server.to(NOTIFICATIONS_ROOM).emit('task:status', e);
     });
 
     this.logger.log('TaskGateway initialised — namespace: /tasks');
@@ -76,6 +84,8 @@ export class TaskGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   handleDisconnect(client: Socket): void {
     this.logger.debug(`Client disconnected: ${client.id}`);
   }
+
+  // ─── 특정 태스크 구독 ─────────────────────────────────────────────────────
 
   @SubscribeMessage('task:subscribe')
   handleSubscribe(
@@ -94,7 +104,7 @@ export class TaskGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     void client.leave(`task:${taskId}`);
   }
 
-  /** 구독 후 즉시 버퍼된 로그 요청 — 늦은 구독자가 이전 출력을 받는 용도 */
+  /** 늦은 구독자용 — 버퍼된 로그 즉시 전송 */
   @SubscribeMessage('task:get-logs')
   handleGetLogs(
     @ConnectedSocket() client: Socket,
@@ -102,5 +112,20 @@ export class TaskGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   ): void {
     const logs = this.executionService.getBufferedLogs(taskId);
     client.emit('task:buffered-logs', { taskId, logs });
+  }
+
+  // ─── 전역 알림 룸 ─────────────────────────────────────────────────────────
+
+  /** 모든 task:status 이벤트를 받는 전역 알림 룸 가입 */
+  @SubscribeMessage('task:watch-all')
+  handleWatchAll(@ConnectedSocket() client: Socket): void {
+    void client.join(NOTIFICATIONS_ROOM);
+    this.logger.debug(`${client.id} joined notifications room`);
+  }
+
+  /** 전역 알림 룸 탈퇴 */
+  @SubscribeMessage('task:unwatch-all')
+  handleUnwatchAll(@ConnectedSocket() client: Socket): void {
+    void client.leave(NOTIFICATIONS_ROOM);
   }
 }

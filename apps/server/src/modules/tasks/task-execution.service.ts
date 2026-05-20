@@ -24,7 +24,7 @@ export interface AgentOutputEvent { taskId: string; agentId: number; text: strin
 export interface AgentToolEvent   { taskId: string; agentId: number; tool: string; input: Record<string, unknown> }
 export interface AgentDoneEvent   { taskId: string; agentId: number; result: string; isError: boolean; durationMs: number; costUsd: number }
 export interface AgentErrorEvent  { taskId: string; agentId: number; message: string }
-export interface TaskStatusEvent  { taskId: string; status: string }
+export interface TaskStatusEvent  { taskId: string; status: string; title?: string }
 
 // ─── 버퍼 엔트리 (늦은 구독자 리플레이용) ───────────────────────────────────
 
@@ -45,6 +45,8 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
   /** 서비스 초기화 시 해석된 claude 절대경로 */
   private claudeBin = 'claude';
+  /** 서비스 초기화 시 해석된 gemini 절대경로 */
+  private geminiBin = 'gemini';
 
   /** taskId → agentId → 로그 버퍼 (최대 24h 유지) */
   private readonly logBuffer = new Map<string, Map<number, BufferedAgentLog>>();
@@ -67,6 +69,8 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   onModuleInit(): void {
     this.claudeBin = this.resolveClaude();
     this.logger.log(`claude 경로: ${this.claudeBin}`);
+    this.geminiBin = this.resolveGemini();
+    this.logger.log(`gemini 경로: ${this.geminiBin}`);
   }
 
   onModuleDestroy(): void {
@@ -127,6 +131,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     }
 
     await this.taskRepo.update(task.id, { status: 'running' });
+    this.emit('task:status', { taskId: task.id, status: 'running', title: task.title } as TaskStatusEvent);
   }
 
   /** 태스크 강제 중지 (TasksService에서 호출) */
@@ -147,7 +152,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     }
 
     await this.taskRepo.update(task.id, { status: 'stopped' });
-    this.emit('task:status', { taskId: task.id, status: 'stopped' } as TaskStatusEvent);
+    this.emit('task:status', { taskId: task.id, status: 'stopped', title: task.title } as TaskStatusEvent);
   }
 
   /** 늦은 구독자를 위한 버퍼 반환 */
@@ -229,9 +234,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     workingDir: string,
     prompt: string,
   ): void {
-    this.logger.log(`[Task:${taskTitle}] Gemini Agent ${agentId} 실행 — cwd: ${workingDir}`);
+    this.logger.log(`[Task:${taskTitle}] Gemini Agent ${agentId} 실행 — bin: ${this.geminiBin}, cwd: ${workingDir}`);
 
-    const proc = spawn('gemini', ['-p', prompt], {
+    const proc = spawn(this.geminiBin, ['-y', '-p', prompt], {
       cwd: workingDir,
       env: this.geminiAuthManager.getEnvForGemini(),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -239,17 +244,23 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     let output = '';
 
-    proc.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+    // Gemini CLI는 실제 응답을 stdout/stderr 모두에 출력하므로 두 스트림 모두 캡처
+    const handleChunk = (chunk: Buffer): void => {
+      const raw = chunk.toString();
+      // ANSI 이스케이프 및 색상 코드 제거
+      const text = raw
+        .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
+        .replace(/\x1b\][^\x07]*\x07/g, '')
+        .replace(/\r/g, '');
+      if (!text.trim()) return;
       output += text;
       const prev = this.getAgentBuffer(taskId, agentId);
       this.updateAgentBuffer(taskId, agentId, { output: prev.output + text });
       this.emit('agent:output', { taskId, agentId, text } as AgentOutputEvent);
-    });
+    };
 
-    proc.stderr.on('data', (chunk: Buffer) => {
-      this.logger.warn(`[Task:${taskId}] Gemini Agent ${agentId} stderr: ${chunk.toString().slice(0, 200)}`);
-    });
+    proc.stdout.on('data', handleChunk);
+    proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
       const isError = (exitCode ?? 0) !== 0;
@@ -257,6 +268,10 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
       void this.agentRepo.update(agentId, { status });
       this.updateAgentBuffer(taskId, agentId, { status });
+
+      if (isError) {
+        this.updateAgentBuffer(taskId, agentId, { errorMessage: `종료 코드: ${exitCode}` });
+      }
 
       const doneEv: AgentDoneEvent = {
         taskId,
@@ -349,13 +364,16 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (pending.size > 0) return; // 아직 실행 중인 에이전트 존재
     this.pendingMap.delete(taskId);
 
-    const agents = await this.agentRepo.find({ where: { taskId } });
+    const [agents, taskEntity] = await Promise.all([
+      this.agentRepo.find({ where: { taskId } }),
+      this.taskRepo.findOne({ where: { id: taskId } }),
+    ]);
     const hasError = agents.some((a) => a.status === 'error');
     const newStatus = hasError ? 'error' : 'completed';
 
     await this.taskRepo.update(taskId, { status: newStatus });
 
-    this.emit('task:status', { taskId, status: newStatus } as TaskStatusEvent);
+    this.emit('task:status', { taskId, status: newStatus, title: taskEntity?.title } as TaskStatusEvent);
     this.logger.log(`Task ${taskId} → ${newStatus}`);
   }
 
@@ -432,6 +450,35 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     this.logger.warn('claude 바이너리 경로를 자동 탐지하지 못했습니다. "claude"로 폴백합니다.');
     return 'claude';
+  }
+
+  /** gemini 바이너리 절대경로 해석 (resolveClaude와 동일한 패턴) */
+  private resolveGemini(): string {
+    const candidates = [
+      (): string => execSync('which gemini', { encoding: 'utf8', timeout: 2000 }).trim(),
+      (): string => {
+        const home = process.env.HOME ?? '';
+        const nvmDefault = `${home}/.nvm/versions/node/${process.version}/bin/gemini`;
+        if (fs.existsSync(nvmDefault)) return nvmDefault;
+        throw new Error('not found');
+      },
+      (): string => {
+        const npmBin = execSync('npm bin -g', { encoding: 'utf8', timeout: 2000 }).trim();
+        const p = `${npmBin}/gemini`;
+        if (fs.existsSync(p)) return p;
+        throw new Error('not found');
+      },
+    ];
+
+    for (const fn of candidates) {
+      try {
+        const p = fn();
+        if (p) return p;
+      } catch {}
+    }
+
+    this.logger.warn('gemini 바이너리 경로를 자동 탐지하지 못했습니다. "gemini"로 폴백합니다.');
+    return 'gemini';
   }
 
   /**
