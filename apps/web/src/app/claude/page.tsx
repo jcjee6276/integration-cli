@@ -15,7 +15,9 @@ import { AgentSelectModal, AGENT_META } from "@/features/chat/ui/AgentSelectModa
 import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
+import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import { isQuotaExceeded } from "@/lib/quota";
 import { ThemeToggle } from "@/lib/theme";
 import type { PermissionPrompt } from "@/lib/ansi";
 
@@ -134,6 +136,13 @@ export default function ClaudePage() {
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskListOpen, setTaskListOpen] = useState(false);
   const [agentSelectOpen, setAgentSelectOpen] = useState(false);
+
+  const { hasNew, clearNew } = useTaskNotification();
+
+  const handleOpenTaskList = () => {
+    setTaskListOpen(true);
+    clearNew();
+  };
 
   // 세션 전환 시 해당 세션의 디렉토리로 picker 동기화
   useEffect(() => {
@@ -284,13 +293,16 @@ export default function ClaudePage() {
             </button>
             <button
               type="button"
-              onClick={() => setTaskListOpen(true)}
+              onClick={handleOpenTaskList}
               title="작업 목록"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] text-gray-900/35 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/35 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] text-gray-900/35 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/35 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
                 <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 3.5A.75.75 0 012.75 7.5h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 8.25zm0 3.5A.75.75 0 012.75 11h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 11.75z" clipRule="evenodd" />
               </svg>
+              {hasNew && (
+                <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-[#faf8f5] dark:ring-[#07090e]" />
+              )}
             </button>
           </div>
         </div>
@@ -310,6 +322,9 @@ export default function ClaudePage() {
                 const lastMsg = s.messages[s.messages.length - 1];
                 const isSelected = selectedSessionId === s.info.id;
                 const agentMeta = AGENT_META[s.agentId];
+                const quotaDetected =
+                  isQuotaExceeded(s.streaming) ||
+                  (!!lastMsg && isQuotaExceeded(lastMsg.content));
                 return (
                   <li key={s.info.id}>
                     <button
@@ -326,9 +341,13 @@ export default function ClaudePage() {
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`} />
                           <span className="truncate text-xs font-medium">{s.info.title}</span>
                         </div>
-                        {s.isWaiting && (
+                        {quotaDetected ? (
+                          <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/[0.08] px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
+                            ⚠ 한도
+                          </span>
+                        ) : s.isWaiting ? (
                           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-orange-400" />
-                        )}
+                        ) : null}
                       </div>
                       <p className="mt-0.5 pl-3 text-[10px] text-gray-900/20 dark:text-white/20">
                         {agentMeta.label} · {new Date(s.info.createdAt).toLocaleString()}
