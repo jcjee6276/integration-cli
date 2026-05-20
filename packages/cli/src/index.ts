@@ -16,12 +16,12 @@ async function main(): Promise<void> {
 
   program
     .name('jccli')
-    .description('Claude Code web integration CLI')
+    .description('Claude Code & Gemini CLI web integration CLI')
     .version('0.1.0');
 
   program
     .command('init')
-    .description('Claude Code를 설치하고 환경을 초기화합니다')
+    .description('Claude Code & Gemini CLI를 설치하고 환경을 초기화합니다')
     .action(async () => {
       await runInit();
     });
