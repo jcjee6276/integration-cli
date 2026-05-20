@@ -69,7 +69,7 @@ const AGENTS: AgentDef[] = [
     name: "Gemini CLI",
     vendor: "Google",
     description: "Google Gemini 기반 코딩 어시스턴트",
-    available: false,
+    available: true,
     iconBg: "bg-blue-500/[0.08]",
     hoverBorder: "hover:border-blue-500/20",
     hoverBg: "hover:bg-blue-500/[0.03]",

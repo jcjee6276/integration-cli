@@ -7,6 +7,7 @@ import { useClaudeAuth } from "@/features/auth/hooks/useClaudeAuth";
 import { LoginPanel } from "@/features/auth/ui/LoginPanel";
 import { getClaudeStatus } from "@/features/auth/api/auth.api";
 import { useClaudeSessions } from "@/features/chat/hooks/useClaudeSessions";
+import { useGeminiSessions } from "@/features/chat/hooks/useGeminiSessions";
 import { ChatInput } from "@/features/chat/ui/ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "@/features/chat/ui/ChatMessage";
 import { PermissionCard } from "@/features/chat/ui/PermissionCard";
@@ -87,18 +88,42 @@ export default function ClaudePage() {
     if (loginState === "done") void checkAuth();
   }, [loginState, checkAuth]);
 
-  const {
-    connectionStatus,
-    sessions,
-    selectedSession,
-    selectedSessionId,
-    error,
-    createSession,
-    selectSession,
-    sendMessage,
-    terminateSession,
-    injectMessage,
-  } = useClaudeSessions();
+  const claude = useClaudeSessions();
+  const gemini = useGeminiSessions();
+
+  // ── 통합 세션 뷰 ──────────────────────────────────────────────────────────
+  const sessions = [...claude.sessions, ...gemini.sessions].sort(
+    (a, b) => new Date(b.info.createdAt).getTime() - new Date(a.info.createdAt).getTime(),
+  );
+
+  const connectionStatus = claude.connectionStatus;
+  const error = claude.error ?? gemini.error;
+
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const selectedSession = sessions.find((s) => s.info.id === selectedSessionId) ?? null;
+
+  const selectSession = (id: string) => {
+    setSelectedSessionId(id);
+    claude.selectSession(id);
+    gemini.selectSession(id);
+  };
+
+  const sendMessage = (sessionId: string, text: string) => {
+    const session = sessions.find((s) => s.info.id === sessionId);
+    if (!session) return;
+    if (session.agentId === "gemini") gemini.sendMessage(sessionId, text);
+    else claude.sendMessage(sessionId, text);
+  };
+
+  const terminateSession = async (sessionId: string) => {
+    const session = sessions.find((s) => s.info.id === sessionId);
+    if (!session) return;
+    if (session.agentId === "gemini") await gemini.terminateSession(sessionId);
+    else await claude.terminateSession(sessionId);
+    setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+  };
+
+  const injectMessage = claude.injectMessage;
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const pendingDirRef = useRef("");
@@ -129,7 +154,11 @@ export default function ClaudePage() {
 
   const handleAgentSelect = (agentId: AgentId) => {
     pendingDirRef.current = currentDir;
-    void createSession(agentId, currentDir || undefined);
+    if (agentId === "gemini") {
+      void gemini.createSession(currentDir || undefined);
+    } else {
+      void claude.createSession(agentId, currentDir || undefined);
+    }
   };
 
   const handleDirChange = (path: string) => {
@@ -147,7 +176,7 @@ export default function ClaudePage() {
     const trimmed = text.trim();
     if (!selectedSessionId || !trimmed) return;
 
-    if (trimmed === "/status") {
+    if (trimmed === "/status" && selectedSession?.agentId !== "gemini") {
       injectMessage(selectedSessionId, { role: "user", content: "/status" });
       try {
         const data = await getClaudeStatus();
