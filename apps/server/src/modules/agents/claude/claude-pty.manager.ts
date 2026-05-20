@@ -47,24 +47,29 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       workingDirectory,
       createdAt: now,
       lastActivity: now,
+      persisted: false,
     };
     this.sessions.set(id, session);
 
-    const title = path.basename(workingDirectory) || workingDirectory;
-
-    // Claude 프로세스 세션 저장 (agent_sessions)
-    void this.agentSessionRepo.save({
-      id,
-      claudeSessionId: null,
-      status: 'idle',
-      workingDirectory,
-    });
-
-    // 사용자 대면 세션 저장 (sessions)
-    void this.sessionRepo.save({ sessionId: id, title });
-
-    this.logger.log(`Created session ${id} (${title})`);
+    // DB 적재는 첫 메시지 전송 시 수행 (sendMessage 참고)
+    this.logger.log(`Created in-memory session ${id} (workingDirectory: ${workingDirectory})`);
     return this.toSessionInfo(session);
+  }
+
+  /** 세션을 DB에 처음으로 적재한다. persisted 플래그를 세우기 전에 호출해야 한다. */
+  private async persistSession(session: ClaudeSession): Promise<void> {
+    const title = path.basename(session.workingDirectory) || session.workingDirectory;
+    await Promise.all([
+      this.agentSessionRepo.save({
+        id: session.id,
+        claudeSessionId: null,
+        status: 'processing',
+        workingDirectory: session.workingDirectory,
+      }),
+      this.sessionRepo.save({ sessionId: session.id, title }),
+    ]);
+    session.persisted = true;
+    this.logger.log(`Persisted session ${session.id} (${title})`);
   }
 
   terminateSession(sessionId: string): void {
@@ -72,7 +77,9 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     session.status = 'terminated';
     this.sessions.delete(sessionId);
 
-    void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
+    if (session.persisted) {
+      void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
+    }
 
     this.logger.log(`Terminated session ${sessionId}`);
   }
@@ -88,7 +95,18 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     session.status = 'processing';
     session.lastActivity = new Date();
 
+    if (!session.persisted) {
+      // 첫 메시지 전송: DB 적재 후 claude 실행
+      void this.persistSession(session).then(() => this.spawnClaude(session, message));
+      return;
+    }
+
     void this.agentSessionRepo.update(sessionId, { status: 'processing' });
+    this.spawnClaude(session, message);
+  }
+
+  private spawnClaude(session: ClaudeSession, message: string): void {
+    const sessionId = session.id;
 
     const args = ['--output-format', 'stream-json', '--verbose', '--print', '-p', message];
     if (session.claudeSessionId) {
