@@ -477,11 +477,11 @@ export default function ClaudePage() {
                   if (msg.role === "system") {
                     return <SystemMessage key={msg.id} content={msg.content} />;
                   }
-                  return <ChatMessage key={msg.id} message={msg} />;
+                  return <ChatMessage key={msg.id} message={msg} agentId={selectedSession.agentId} />;
                 })}
 
                 {selectedSession.isWaiting && (
-                  <StreamingMessage content={selectedSession.streaming} />
+                  <StreamingMessage content={selectedSession.streaming} agentId={selectedSession.agentId} />
                 )}
 
                 <div ref={bottomRef} />

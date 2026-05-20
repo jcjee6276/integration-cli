@@ -4,6 +4,8 @@ import remarkGfm from "remark-gfm";
 
 import { isQuotaExceeded } from "@/lib/quota";
 import type { ChatMessage as ChatMessageType, ToolUseBlock } from "../hooks/useClaudeSessions";
+import { AGENT_AVATAR } from "./AgentSelectModal";
+import type { AgentId } from "./AgentSelectModal";
 
 // ─── Markdown ────────────────────────────────────────────────────────────────
 
@@ -113,9 +115,20 @@ function QuotaBadge() {
   );
 }
 
+// ─── AgentAvatar ─────────────────────────────────────────────────────────────
+
+function AgentAvatar({ agentId }: { agentId?: AgentId }) {
+  const cfg = agentId ? AGENT_AVATAR[agentId] : AGENT_AVATAR.claude;
+  return (
+    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden ${cfg.bg}`}>
+      {cfg.icon}
+    </div>
+  );
+}
+
 // ─── ChatMessage ─────────────────────────────────────────────────────────────
 
-export function ChatMessage({ message }: { message: ChatMessageType }) {
+export function ChatMessage({ message, agentId }: { message: ChatMessageType; agentId?: AgentId }) {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -133,7 +146,7 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
 
   return (
     <div className="flex w-full justify-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500/80 text-xs font-bold text-white">C</div>
+      <AgentAvatar agentId={agentId} />
       <div className="max-w-[75%] min-w-0 rounded-2xl rounded-tl-sm border border-gray-900/[0.06] bg-gray-900/[0.04] px-4 py-3 text-sm text-gray-900/80 dark:border-white/[0.06] dark:bg-white/[0.04] dark:text-white/80">
         {message.toolUses?.map((t, i) => <ToolUseCard key={i} toolUse={t} />)}
         {message.content && <MarkdownContent content={message.content} />}
@@ -150,12 +163,12 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
 
 // ─── StreamingMessage ────────────────────────────────────────────────────────
 
-export function StreamingMessage({ content }: { content: string }) {
+export function StreamingMessage({ content, agentId }: { content: string; agentId?: AgentId }) {
   const quota = isQuotaExceeded(content);
 
   return (
     <div className="flex w-full justify-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500/80 text-xs font-bold text-white">C</div>
+      <AgentAvatar agentId={agentId} />
       <div className="max-w-[75%] min-w-0 rounded-2xl rounded-tl-sm border border-gray-900/[0.06] bg-gray-900/[0.04] px-4 py-3 text-sm text-gray-900/80 dark:border-white/[0.06] dark:bg-white/[0.04] dark:text-white/80">
         {content ? (
           <>
