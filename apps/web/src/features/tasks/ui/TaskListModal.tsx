@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
+import { isQuotaExceeded } from "@/lib/quota";
 import type { Task, TaskStatus } from "../api/tasks.api";
 import { useTaskExecution } from "../hooks/useTaskExecution";
 import { useTaskList } from "../hooks/useTaskList";
@@ -86,6 +87,10 @@ function TaskCard({
     onTaskStatusChange,
   );
 
+  const hasQuotaError = Object.values(agentLogs).some((log) =>
+    isQuotaExceeded((log.output ?? "") + (log.errorMessage ?? "")),
+  );
+
   return (
     <article className={[
       "flex flex-col rounded-xl border transition-colors",
@@ -112,6 +117,14 @@ function TaskCard({
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={task.status as TaskStatus} />
+          {hasQuotaError && (
+            <span className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/[0.08] px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5">
+                <path fillRule="evenodd" d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575L6.457 1.047zM9 11a1 1 0 11-2 0 1 1 0 012 0zm-.25-5.25a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z" clipRule="evenodd" />
+              </svg>
+              한도 초과
+            </span>
+          )}
           <svg
             viewBox="0 0 16 16"
             fill="currentColor"
