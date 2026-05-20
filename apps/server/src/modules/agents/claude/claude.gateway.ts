@@ -12,6 +12,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
+import { ClaudeAuthManager } from './claude-auth.manager';
 import { ClaudePtyManager } from './claude-pty.manager';
 import type { CreateSessionDto } from './dto/create-session.dto';
 import type { SendInputDto } from './dto/send-input.dto';
@@ -47,7 +48,10 @@ export class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   private readonly logger = new Logger(ClaudeGateway.name);
   private readonly subscriptions = new Map<string, Set<string>>();
 
-  constructor(private readonly ptyManager: ClaudePtyManager) {}
+  constructor(
+    private readonly ptyManager: ClaudePtyManager,
+    private readonly authManager: ClaudeAuthManager,
+  ) {}
 
   // ─── Gateway hooks ───────────────────────────────────────────────────
 
@@ -80,6 +84,7 @@ export class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   handleDisconnect(client: Socket): void {
+    this.authManager.cancelLogin(client.id);
     this.subscriptions.delete(client.id);
   }
 
@@ -124,6 +129,22 @@ export class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     } catch (err) {
       this.emitError(client, err);
     }
+  }
+
+  // ─── Auth ────────────────────────────────────────────────────────────
+
+  @SubscribeMessage('auth:login:start')
+  handleAuthLoginStart(@ConnectedSocket() client: Socket): void {
+    this.authManager.startLogin(
+      client.id,
+      (text) => client.emit('auth:output', { text }),
+      (success) => client.emit('auth:done', { success }),
+    );
+  }
+
+  @SubscribeMessage('auth:login:cancel')
+  handleAuthLoginCancel(@ConnectedSocket() client: Socket): void {
+    this.authManager.cancelLogin(client.id);
   }
 
   // ─── Private ─────────────────────────────────────────────────────────
