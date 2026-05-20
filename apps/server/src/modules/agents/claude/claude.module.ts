@@ -13,6 +13,6 @@ import { ClaudeService } from './claude.service';
   imports: [TypeOrmModule.forFeature([AgentSessionEntity, SessionEntity])],
   controllers: [ClaudeController],
   providers: [ClaudeService, ClaudePtyManager, ClaudeAuthManager, ClaudeGateway],
-  exports: [ClaudeService],
+  exports: [ClaudeService, ClaudePtyManager],
 })
 export class ClaudeModule {}

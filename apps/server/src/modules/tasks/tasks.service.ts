@@ -6,7 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
 import { TaskRequirementEntity } from '../../database/entities/task-requirement.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
+import { TaskExecutionService } from './task-execution.service';
 import type { CreateTaskDto } from './dto/create-task.dto';
+import type { UpdateTaskDto } from './dto/update-task.dto';
 
 @Injectable()
 export class TasksService {
@@ -17,58 +19,118 @@ export class TasksService {
     private readonly requirementRepo: Repository<TaskRequirementEntity>,
     @InjectRepository(TaskAgentEntity)
     private readonly agentRepo: Repository<TaskAgentEntity>,
+    private readonly executionService: TaskExecutionService,
   ) {}
+
+  // ─── 생성 ────────────────────────────────────────────────────────────
 
   async create(dto: CreateTaskDto): Promise<TaskEntity> {
     const id = uuidv4();
-
-    const task = this.taskRepo.create({
-      id,
-      title: dto.title,
-      workingDir: dto.workingDir ?? null,
-      status: 'pending',
-    });
+    const task = this.taskRepo.create({ id, title: dto.title, workingDir: dto.workingDir ?? null, status: 'pending' });
     await this.taskRepo.save(task);
 
     if (dto.requirements?.length) {
-      const reqs = dto.requirements.map((r, i) =>
-        this.requirementRepo.create({
-          taskId: id,
-          content: r.content,
-          orderIndex: r.orderIndex ?? i,
-          status: 'pending',
-        }),
+      await this.requirementRepo.save(
+        dto.requirements.map((r, i) =>
+          this.requirementRepo.create({ taskId: id, content: r.content, orderIndex: r.orderIndex ?? i, status: 'pending' }),
+        ),
       );
-      await this.requirementRepo.save(reqs);
     }
-
     if (dto.agents?.length) {
-      const agents = dto.agents.map((a) =>
-        this.agentRepo.create({
-          taskId: id,
-          role: a.role as TaskAgentEntity['role'],
-          customRole: a.customRole ?? null,
-          status: 'pending',
-        }),
+      await this.agentRepo.save(
+        dto.agents.map((a) =>
+          this.agentRepo.create({
+            taskId: id,
+            role: a.role as TaskAgentEntity['role'],
+            customRole: a.customRole ?? null,
+            status: 'pending',
+          }),
+        ),
       );
-      await this.agentRepo.save(agents);
     }
-
     return this.findOne(id);
   }
 
+  // ─── 수정 ────────────────────────────────────────────────────────────
+
+  async update(id: string, dto: UpdateTaskDto): Promise<TaskEntity> {
+    const task = await this.findOne(id);
+
+    if (dto.title !== undefined) task.title = dto.title;
+    if (dto.workingDir !== undefined) task.workingDir = dto.workingDir ?? null;
+    await this.taskRepo.save(task);
+
+    if (dto.requirements !== undefined) {
+      await this.requirementRepo.delete({ taskId: id });
+      if (dto.requirements.length) {
+        await this.requirementRepo.save(
+          dto.requirements.map((r, i) =>
+            this.requirementRepo.create({ taskId: id, content: r.content, orderIndex: r.orderIndex ?? i, status: 'pending' }),
+          ),
+        );
+      }
+    }
+    if (dto.agents !== undefined) {
+      await this.agentRepo.delete({ taskId: id });
+      if (dto.agents.length) {
+        await this.agentRepo.save(
+          dto.agents.map((a) =>
+            this.agentRepo.create({
+              taskId: id,
+              role: a.role as TaskAgentEntity['role'],
+              customRole: a.customRole ?? null,
+              status: 'pending',
+            }),
+          ),
+        );
+      }
+    }
+    return this.findOne(id);
+  }
+
+  // ─── 실행 ────────────────────────────────────────────────────────────
+
+  async execute(id: string): Promise<TaskEntity> {
+    const task = await this.findOne(id);
+    if (task.status === 'running') return task;
+
+    await this.executionService.spawnTask(task);
+    return this.findOne(id);
+  }
+
+  // ─── 재 실행 ─────────────────────────────────────────────────────────
+
+  async rerun(id: string, supplementNote?: string): Promise<TaskEntity> {
+    const task = await this.findOne(id);
+    if (task.status === 'running') return task;
+
+    // 에이전트 상태 초기화
+    for (const agent of task.agents) {
+      await this.agentRepo.update(agent.id, { status: 'pending', claudeSessionId: null });
+    }
+    await this.taskRepo.update(id, { status: 'pending' });
+
+    const refreshed = await this.findOne(id);
+    await this.executionService.spawnTask(refreshed, supplementNote);
+    return this.findOne(id);
+  }
+
+  // ─── 중지 ────────────────────────────────────────────────────────────
+
+  async stop(id: string): Promise<TaskEntity> {
+    const task = await this.findOne(id);
+    await this.executionService.stopTask(task);
+    return this.findOne(id);
+  }
+
+  // ─── 조회 ────────────────────────────────────────────────────────────
+
   findAll(): Promise<TaskEntity[]> {
-    return this.taskRepo.find({
-      relations: ['requirements', 'agents'],
-      order: { createdAt: 'DESC' },
-    });
+    return this.taskRepo.find({ relations: ['requirements', 'agents'], order: { createdAt: 'DESC' } });
   }
 
   async findOne(id: string): Promise<TaskEntity> {
-    const task = await this.taskRepo.findOne({
-      where: { id },
-      relations: ['requirements', 'agents'],
-    });
+    const task = await this.taskRepo.findOne({ where: { id }, relations: ['requirements', 'agents'] });
     if (!task) throw new NotFoundException(`Task ${id} not found`);
     return task;
   }

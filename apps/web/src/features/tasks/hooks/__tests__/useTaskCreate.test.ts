@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Task } from "../../api/tasks.api";
 import * as tasksApi from "../../api/tasks.api";
 import { useTaskCreate } from "../useTaskCreate";
 
@@ -10,7 +11,7 @@ vi.mock("../../api/tasks.api", () => ({
 
 const mockCreateTask = vi.mocked(tasksApi.createTask);
 
-const stubTask = {
+const stubTask: Task = {
   id: "t1",
   title: "test",
   status: "pending",

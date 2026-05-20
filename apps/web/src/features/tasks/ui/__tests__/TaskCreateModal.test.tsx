@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { Task } from "../../api/tasks.api";
 import * as tasksApi from "../../api/tasks.api";
 import { TaskCreateModal } from "../TaskCreateModal";
 
@@ -11,7 +12,7 @@ vi.mock("../../api/tasks.api", () => ({
 
 const mockCreateTask = vi.mocked(tasksApi.createTask);
 
-const stubTask = {
+const stubTask: Task = {
   id: "t1",
   title: "Test",
   status: "pending",
