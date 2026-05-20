@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { updateTask } from "../api/tasks.api";
 import type { AgentRole, Task, UpdateTaskPayload } from "../api/tasks.api";
 import type { AgentDraft, RequirementDraft } from "./useTaskCreate";
+import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 
 let draftId = 1000; // useTaskCreate와 충돌 방지
 const nextDraftId = () => String(++draftId);
@@ -25,6 +26,7 @@ function toRequirementDrafts(reqs: Task["requirements"]): RequirementDraft[] {
 function toAgentDrafts(agents: Task["agents"]): AgentDraft[] {
   return agents.map((a) => ({
     id: nextDraftId(),
+    agentType: "claude" as AgentId,
     role: a.role,
     customRole: a.customRole ?? "",
   }));
@@ -71,8 +73,8 @@ export function useTaskEdit(task: Task, onSuccess?: (updated: Task) => void) {
 
   // ─── agents ──────────────────────────────────────────────────────────
 
-  const addAgent = useCallback((role: AgentRole = "frontend") => {
-    setForm((f) => ({ ...f, agents: [...f.agents, { id: nextDraftId(), role, customRole: "" }] }));
+  const addAgent = useCallback((agentType: AgentId, role: AgentRole = "frontend") => {
+    setForm((f) => ({ ...f, agents: [...f.agents, { id: nextDraftId(), agentType, role, customRole: "" }] }));
   }, []);
 
   const updateAgent = useCallback((id: string, patch: Partial<Omit<AgentDraft, "id">>) => {
@@ -97,6 +99,7 @@ export function useTaskEdit(task: Task, onSuccess?: (updated: Task) => void) {
           .filter((r) => r.content.trim())
           .map((r, i) => ({ content: r.content.trim(), orderIndex: i })),
         agents: form.agents.map((a) => ({
+          agentType: a.agentType,
           role: a.role,
           customRole: a.role === "other" && a.customRole.trim() ? a.customRole.trim() : undefined,
         })),

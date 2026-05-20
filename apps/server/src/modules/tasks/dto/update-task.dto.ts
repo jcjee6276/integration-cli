@@ -10,6 +10,10 @@ export class UpdateRequirementDto {
 }
 
 export class UpdateAgentDto {
+  @IsOptional()
+  @IsString()
+  agentType?: string;
+
   @IsString()
   role!: string;
 

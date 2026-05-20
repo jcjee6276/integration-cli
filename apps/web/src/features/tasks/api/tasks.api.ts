@@ -12,8 +12,11 @@ export interface TaskRequirement {
   orderIndex: number;
 }
 
+export type AgentType = "claude" | "gemini" | "codex" | "opencode";
+
 export interface TaskAgent {
   id: number;
+  agentType: AgentType;
   role: AgentRole;
   customRole: string | null;
   status: AgentStatus;
@@ -35,7 +38,7 @@ export interface CreateTaskPayload {
   title: string;
   workingDir?: string;
   requirements: { content: string; orderIndex: number }[];
-  agents: { role: AgentRole; customRole?: string }[];
+  agents: { agentType: AgentType; role: AgentRole; customRole?: string }[];
 }
 
 export type UpdateTaskPayload = Partial<CreateTaskPayload>;

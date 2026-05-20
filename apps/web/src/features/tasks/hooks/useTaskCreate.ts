@@ -4,9 +4,11 @@ import { useCallback, useState } from "react";
 
 import { createTask } from "../api/tasks.api";
 import type { AgentRole, CreateTaskPayload, Task } from "../api/tasks.api";
+import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 
 export interface AgentDraft {
   id: string; // 로컬 임시 key
+  agentType: AgentId;
   role: AgentRole;
   customRole: string;
 }
@@ -68,10 +70,10 @@ export function useTaskCreate(onSuccess?: (task: Task) => void) {
 
   // ─── agents ──────────────────────────────────────────────────────────
 
-  const addAgent = useCallback((role: AgentRole = "frontend") => {
+  const addAgent = useCallback((agentType: AgentId, role: AgentRole = "frontend") => {
     setForm((f) => ({
       ...f,
-      agents: [...f.agents, { id: nextDraftId(), role, customRole: "" }],
+      agents: [...f.agents, { id: nextDraftId(), agentType, role, customRole: "" }],
     }));
   }, []);
 
@@ -100,6 +102,7 @@ export function useTaskCreate(onSuccess?: (task: Task) => void) {
           .filter((r) => r.content.trim())
           .map((r, i) => ({ content: r.content.trim(), orderIndex: i })),
         agents: form.agents.map((a) => ({
+          agentType: a.agentType,
           role: a.role,
           customRole: a.role === "other" && a.customRole.trim() ? a.customRole.trim() : undefined,
         })),

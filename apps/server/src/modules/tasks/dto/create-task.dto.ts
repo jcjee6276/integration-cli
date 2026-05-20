@@ -10,6 +10,10 @@ export class CreateRequirementDto {
 }
 
 export class CreateAgentDto {
+  @IsOptional()
+  @IsString()
+  agentType?: string;
+
   @IsString()
   role!: string;
 

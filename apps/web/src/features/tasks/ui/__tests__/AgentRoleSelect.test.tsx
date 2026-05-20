@@ -6,7 +6,7 @@ import { AgentRoleBadge, AgentRow } from "../AgentRoleSelect";
 import type { AgentDraft } from "../../hooks/useTaskCreate";
 
 function draft(overrides: Partial<AgentDraft> = {}): AgentDraft {
-  return { id: "d1", role: "frontend", customRole: "", ...overrides };
+  return { id: "d1", agentType: "claude", role: "frontend", customRole: "", ...overrides };
 }
 
 describe("AgentRow — role buttons", () => {

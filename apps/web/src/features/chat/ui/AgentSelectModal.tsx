@@ -180,7 +180,7 @@ interface AgentSelectModalProps {
 
 export function AgentSelectModal({ open, onClose, onSelect }: AgentSelectModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="에이전트 선택" maxWidth="max-w-md">
+    <Modal open={open} onClose={onClose} title="에이전트 선택" maxWidth="max-w-md" zIndex="z-[60]">
       <div className="flex flex-col gap-2.5">
         {AGENTS.map((agent) => (
           <AgentCard

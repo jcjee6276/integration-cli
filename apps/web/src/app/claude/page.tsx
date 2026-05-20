@@ -154,10 +154,11 @@ export default function ClaudePage() {
 
   const handleAgentSelect = (agentId: AgentId) => {
     pendingDirRef.current = currentDir;
+    const dir = currentDir || undefined;
     if (agentId === "gemini") {
-      void gemini.createSession(currentDir || undefined);
+      gemini.createSession(dir).then((id) => { if (id) setSelectedSessionId(id); });
     } else {
-      void claude.createSession(agentId, currentDir || undefined);
+      claude.createSession(agentId, dir).then((id) => { if (id) setSelectedSessionId(id); });
     }
   };
 

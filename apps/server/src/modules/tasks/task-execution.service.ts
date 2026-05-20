@@ -1,4 +1,5 @@
 import { execSync, spawn } from 'child_process';
+import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 
@@ -8,6 +9,9 @@ import { Repository } from 'typeorm';
 
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
+import { GeminiAuthManager } from '../agents/gemini/gemini-auth.manager';
+import { ConversationService } from '../conversations/conversation.service';
+import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
 import type {
   ClaudeAssistantEvent,
   ClaudeResultEvent,
@@ -46,12 +50,16 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   private readonly logBuffer = new Map<string, Map<number, BufferedAgentLog>>();
   /** taskId → pendingAgentId 집합 */
   private readonly pendingMap = new Map<string, Set<number>>();
+  /** `${taskId}-${agentId}` → promptId */
+  private readonly promptIdMap = new Map<string, string>();
 
   constructor(
     @InjectRepository(TaskAgentEntity)
     private readonly agentRepo: Repository<TaskAgentEntity>,
     @InjectRepository(TaskEntity)
     private readonly taskRepo: Repository<TaskEntity>,
+    private readonly geminiAuthManager: GeminiAuthManager,
+    private readonly conversationService: ConversationService,
   ) {
     super();
   }
@@ -64,6 +72,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   onModuleDestroy(): void {
     this.logBuffer.clear();
     this.pendingMap.clear();
+    this.promptIdMap.clear();
   }
 
   // ─── 공개 API ─────────────────────────────────────────────────────────
@@ -98,7 +107,23 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       await this.agentRepo.update(agent.id, { status: 'running' });
       this.initAgentBuffer(task.id, agent.id);
 
-      this.spawnAgent(task.id, task.title, agent.id, workingDir, prompt);
+      // user_message 저장 (프롬프트)
+
+      const promptId = uuidv4();
+      this.promptIdMap.set(`${task.id}-${agent.id}`, promptId);
+      void this.conversationService.create({
+        sessionId: task.id,
+        promptId,
+        content: prompt,
+        agentModel: (agent.agentType === 'gemini' ? AgentModel.GEMINI : AgentModel.CLAUDE),
+        type: ConversationType.USER_MESSAGE,
+      });
+
+      if (agent.agentType === 'gemini') {
+        this.spawnGeminiAgent(task.id, task.title, agent.id, workingDir, prompt);
+      } else {
+        this.spawnClaudeAgent(task.id, task.title, agent.id, workingDir, prompt);
+      }
     }
 
     await this.taskRepo.update(task.id, { status: 'running' });
@@ -132,9 +157,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     return Array.from(agentMap.values());
   }
 
-  // ─── 내부 스폰 로직 ───────────────────────────────────────────────────
+  // ─── Claude 스폰 ──────────────────────────────────────────────────────
 
-  private spawnAgent(
+  private spawnClaudeAgent(
     taskId: string,
     taskTitle: string,
     agentId: number,
@@ -149,15 +174,13 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       '-p', prompt,
     ];
 
-    this.logger.log(`[Task:${taskTitle}] Agent ${agentId} 실행 — claude: ${this.claudeBin}, cwd: ${workingDir}`);
+    this.logger.log(`[Task:${taskTitle}] Claude Agent ${agentId} 실행 — cwd: ${workingDir}`);
 
     const proc = spawn(this.claudeBin, args, {
       cwd: workingDir,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-
-    this.logger.log(`[Task:${taskTitle}] Agent ${agentId} spawned (pid: ${proc.pid})`);
 
     let buffer = '';
 
@@ -167,44 +190,98 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       buffer = lines.pop() ?? '';
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed) this.handleLine(taskId, agentId, trimmed);
+        if (trimmed) this.handleClaudeLine(taskId, agentId, trimmed);
       }
     });
 
     proc.stderr.on('data', (chunk: Buffer) => {
-      this.logger.warn(`[Task:${taskId}] Agent ${agentId} stderr: ${chunk.toString().slice(0, 200)}`);
+      this.logger.warn(`[Task:${taskId}] Claude Agent ${agentId} stderr: ${chunk.toString().slice(0, 200)}`);
     });
 
     proc.on('close', (exitCode) => {
-      if (buffer.trim()) this.handleLine(taskId, agentId, buffer.trim());
+      if (buffer.trim()) this.handleClaudeLine(taskId, agentId, buffer.trim());
 
       const pending = this.pendingMap.get(taskId);
-      if (!pending?.has(agentId)) return; // already handled by result event
+      if (!pending?.has(agentId)) return;
 
-      // result 없이 종료 → 비정상
-      this.logger.warn(`[Task:${taskId}] Agent ${agentId} exited (code: ${exitCode}) without result`);
+      this.logger.warn(`[Task:${taskId}] Claude Agent ${agentId} exited (code: ${exitCode}) without result`);
       void this.agentRepo.update(agentId, { status: 'error' });
       this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: `종료 코드: ${exitCode}` });
-
-      const ev: AgentErrorEvent = { taskId, agentId, message: `프로세스가 코드 ${exitCode}로 종료됐습니다.` };
-      this.emit('agent:error', ev);
+      this.emit('agent:error', { taskId, agentId, message: `프로세스가 코드 ${exitCode}로 종료됐습니다.` } as AgentErrorEvent);
       void this.checkTaskCompletion(taskId, agentId);
     });
 
     proc.on('error', (err) => {
-      this.logger.error(`[Task:${taskId}] Agent ${agentId} spawn error: ${err.message}`);
+      this.logger.error(`[Task:${taskId}] Claude Agent ${agentId} spawn error: ${err.message}`);
       void this.agentRepo.update(agentId, { status: 'error' });
       this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
+      this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
+      void this.checkTaskCompletion(taskId, agentId);
+    });
+  }
 
-      const ev: AgentErrorEvent = { taskId, agentId, message: err.message };
-      this.emit('agent:error', ev);
+  // ─── Gemini 스폰 ──────────────────────────────────────────────────────
+
+  private spawnGeminiAgent(
+    taskId: string,
+    taskTitle: string,
+    agentId: number,
+    workingDir: string,
+    prompt: string,
+  ): void {
+    this.logger.log(`[Task:${taskTitle}] Gemini Agent ${agentId} 실행 — cwd: ${workingDir}`);
+
+    const proc = spawn('gemini', ['-p', prompt], {
+      cwd: workingDir,
+      env: this.geminiAuthManager.getEnvForGemini(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let output = '';
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      output += text;
+      const prev = this.getAgentBuffer(taskId, agentId);
+      this.updateAgentBuffer(taskId, agentId, { output: prev.output + text });
+      this.emit('agent:output', { taskId, agentId, text } as AgentOutputEvent);
+    });
+
+    proc.stderr.on('data', (chunk: Buffer) => {
+      this.logger.warn(`[Task:${taskId}] Gemini Agent ${agentId} stderr: ${chunk.toString().slice(0, 200)}`);
+    });
+
+    proc.on('close', (exitCode) => {
+      const isError = (exitCode ?? 0) !== 0;
+      const status = isError ? 'error' : 'completed';
+
+      void this.agentRepo.update(agentId, { status });
+      this.updateAgentBuffer(taskId, agentId, { status });
+
+      const doneEv: AgentDoneEvent = {
+        taskId,
+        agentId,
+        result: output.trim(),
+        isError,
+        durationMs: 0,
+        costUsd: 0,
+      };
+      this.emit('agent:done', doneEv);
+      void this.checkTaskCompletion(taskId, agentId);
+    });
+
+    proc.on('error', (err) => {
+      this.logger.error(`[Task:${taskId}] Gemini Agent ${agentId} spawn error: ${err.message}`);
+      void this.agentRepo.update(agentId, { status: 'error' });
+      this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
+      this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
       void this.checkTaskCompletion(taskId, agentId);
     });
   }
 
   // ─── Stream-JSON 파싱 ─────────────────────────────────────────────────
 
-  private handleLine(taskId: string, agentId: number, line: string): void {
+  private handleClaudeLine(taskId: string, agentId: number, line: string): void {
     let event: ClaudeStreamEvent;
     try { event = JSON.parse(line) as ClaudeStreamEvent; }
     catch { return; }
@@ -266,6 +343,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (!pending) return;
     pending.delete(agentId);
 
+    // agent_message 저장 (에이전트 완료 시)
+    await this.saveAgentMessage(taskId, agentId);
+
     if (pending.size > 0) return; // 아직 실행 중인 에이전트 존재
     this.pendingMap.delete(taskId);
 
@@ -277,6 +357,26 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     this.emit('task:status', { taskId, status: newStatus } as TaskStatusEvent);
     this.logger.log(`Task ${taskId} → ${newStatus}`);
+  }
+
+  private async saveAgentMessage(taskId: string, agentId: number): Promise<void> {
+    const promptId = this.promptIdMap.get(`${taskId}-${agentId}`);
+    if (!promptId) return;
+    this.promptIdMap.delete(`${taskId}-${agentId}`);
+
+    const buf = this.getAgentBuffer(taskId, agentId);
+    if (!buf.output.trim()) return;
+
+    const agent = await this.agentRepo.findOne({ where: { id: agentId } });
+    const agentModel = agent?.agentType === 'gemini' ? AgentModel.GEMINI : AgentModel.CLAUDE;
+
+    void this.conversationService.create({
+      sessionId: taskId,
+      promptId,
+      content: buf.output.trim(),
+      agentModel,
+      type: ConversationType.AGENT_MESSAGE,
+    });
   }
 
   // ─── 버퍼 헬퍼 ────────────────────────────────────────────────────────

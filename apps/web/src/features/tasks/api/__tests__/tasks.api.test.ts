@@ -30,7 +30,7 @@ describe("createTask", () => {
   const payload: CreateTaskPayload = {
     title: "로그인 구현",
     requirements: [{ content: "UI 디자인", orderIndex: 0 }],
-    agents: [{ role: "frontend" }],
+    agents: [{ agentType: "claude", role: "frontend" }],
   };
 
   it("sends POST with correct body", async () => {
