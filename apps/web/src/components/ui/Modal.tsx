@@ -9,9 +9,10 @@ interface ModalProps {
   children: React.ReactNode;
   maxWidth?: string;
   hideClose?: boolean;
+  zIndex?: string;
 }
 
-export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", hideClose = false }: ModalProps) {
+export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", hideClose = false, zIndex = "z-50" }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +33,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", h
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md dark:bg-black/70"
+      className={`fixed inset-0 flex items-center justify-center bg-black/50 p-4 backdrop-blur-md dark:bg-black/70 ${zIndex}`}
       onMouseDown={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
       <div
