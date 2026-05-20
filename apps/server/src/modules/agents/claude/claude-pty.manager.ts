@@ -66,7 +66,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
         status: 'processing',
         workingDirectory: session.workingDirectory,
       }),
-      this.sessionRepo.save({ sessionId: session.id, title }),
+      this.sessionRepo.save({ sessionId: session.id, title, agentType: 'claude' }),
     ]);
     session.persisted = true;
     this.logger.log(`Persisted session ${session.id} (${title})`);

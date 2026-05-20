@@ -2,13 +2,14 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeor
 
 @Entity('sessions')
 export class SessionEntity {
-  /** 세션 고유 ID (UUID, PK) */
   @PrimaryGeneratedColumn('uuid', { name: 'session_id' })
   sessionId!: string;
 
-  /** 세션 제목 */
   @Column({ type: 'text' })
   title!: string;
+
+  @Column({ type: 'text', default: 'claude' })
+  agentType!: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

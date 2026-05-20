@@ -12,6 +12,6 @@ import { GeminiSessionManager } from './gemini-session.manager';
   imports: [TypeOrmModule.forFeature([AgentSessionEntity, SessionEntity])],
   controllers: [GeminiController],
   providers: [GeminiAuthManager, GeminiSessionManager, GeminiGateway],
-  exports: [GeminiSessionManager],
+  exports: [GeminiSessionManager, GeminiAuthManager],
 })
 export class GeminiModule {}

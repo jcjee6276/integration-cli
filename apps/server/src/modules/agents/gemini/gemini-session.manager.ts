@@ -113,7 +113,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleDestro
         status: 'processing',
         workingDirectory: session.workingDirectory,
       }),
-      this.sessionRepo.save({ sessionId: session.id, title }),
+      this.sessionRepo.save({ sessionId: session.id, title, agentType: 'gemini' }),
     ]);
     session.persisted = true;
     this.logger.log(`Persisted Gemini session ${session.id} (${title})`);
