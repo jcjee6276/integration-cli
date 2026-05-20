@@ -47,7 +47,7 @@ export function useGeminiSessions() {
 
   const loadSessionsFromDB = useCallback(async () => {
     try {
-      const dbSessions = await fetchDBSessions();
+      const dbSessions = await fetchDBSessions('gemini');
       setSessions((prev) => {
         const existingIds = new Set(prev.map((s) => s.info.id));
         // Gemini 세션만 필터링 (agentModel='gemini' 인 conversation이 있는 sessionId)
@@ -169,7 +169,7 @@ export function useGeminiSessions() {
 
   // ─── 공개 API ─────────────────────────────────────────────────────────────
 
-  const createSession = useCallback(async (workingDirectory?: string) => {
+  const createSession = useCallback(async (workingDirectory?: string): Promise<string | null> => {
     setError(null);
     try {
       const raw = await apiCreateSession(workingDirectory);
@@ -188,8 +188,10 @@ export function useGeminiSessions() {
 
       setSessions((prev) => [newState, ...prev]);
       setSelectedSessionId(raw.id);
+      return raw.id;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gemini 세션 생성 실패");
+      return null;
     }
   }, []);
 

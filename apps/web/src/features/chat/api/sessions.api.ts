@@ -31,8 +31,11 @@ export type ConversationType = "user_message" | "agent_message";
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
-export async function fetchDBSessions(): Promise<DBSession[]> {
-  const res = await fetch(`${SERVER_URL}/sessions`);
+export async function fetchDBSessions(agentType?: string): Promise<DBSession[]> {
+  const url = agentType
+    ? `${SERVER_URL}/sessions?agentType=${agentType}`
+    : `${SERVER_URL}/sessions`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

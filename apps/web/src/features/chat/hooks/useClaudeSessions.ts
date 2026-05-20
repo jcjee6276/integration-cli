@@ -85,7 +85,7 @@ export function useClaudeSessions() {
 
   const loadSessionsFromDB = useCallback(async () => {
     try {
-      const dbSessions = await fetchDBSessions();
+      const dbSessions = await fetchDBSessions('claude');
       setSessions((prev) => {
         const existingIds = new Set(prev.map((s) => s.info.id));
         const newStates: SessionState[] = dbSessions
@@ -214,7 +214,7 @@ export function useClaudeSessions() {
 
   // ─── 공개 API ─────────────────────────────────────────────────────────────
 
-  const createSession = useCallback(async (agentId: AgentId, workingDirectory?: string) => {
+  const createSession = useCallback(async (agentId: AgentId, workingDirectory?: string): Promise<string | null> => {
     setError(null);
     try {
       const raw = await apiCreateSession(workingDirectory);
@@ -233,8 +233,10 @@ export function useClaudeSessions() {
 
       setSessions((prev) => [newState, ...prev]);
       setSelectedSessionId(raw.id);
+      return raw.id;
     } catch (e) {
       setError(e instanceof Error ? e.message : "세션 생성 실패");
+      return null;
     }
   }, []);
 
