@@ -1,8 +1,9 @@
-import { spawn } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
 import * as path from 'path';
 
-import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,9 +15,10 @@ import type { GeminiSession, SessionInfo } from './interfaces/gemini-session.int
 import type { ResultEvent, SessionExitEvent, TextDeltaEvent } from './interfaces/stream-event.interface';
 
 @Injectable()
-export class GeminiSessionManager extends EventEmitter implements OnModuleDestroy {
+export class GeminiSessionManager extends EventEmitter implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GeminiSessionManager.name);
   private readonly sessions = new Map<string, GeminiSession>();
+  private geminiBin = 'gemini';
 
   constructor(
     @InjectRepository(AgentSessionEntity)
@@ -26,6 +28,11 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleDestro
     private readonly authManager: GeminiAuthManager,
   ) {
     super();
+  }
+
+  onModuleInit(): void {
+    this.geminiBin = this.resolveGemini();
+    this.logger.log(`gemini 경로: ${this.geminiBin}`);
   }
 
   // ─── 세션 생명주기 ───────────────────────────────────────────────────
@@ -43,7 +50,6 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleDestro
     };
     this.sessions.set(id, session);
 
-    // DB 적재는 첫 메시지 전송 시 수행
     this.logger.log(`Created in-memory Gemini session ${id}`);
     return this.toSessionInfo(session);
   }
@@ -122,24 +128,33 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleDestro
   private spawnGemini(session: GeminiSession, message: string): void {
     const sessionId = session.id;
 
-    const proc = spawn('gemini', ['-p', message], {
+    this.logger.log(`[${sessionId}] spawning: ${this.geminiBin} -y -p <message>`);
+
+    const proc = spawn(this.geminiBin, ['-y', '-p', message], {
       cwd: session.workingDirectory,
       env: this.authManager.getEnvForGemini(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    proc.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      if (!text) return;
+    // Gemini CLI는 stdout/stderr 모두에 출력 — 두 스트림 합산 캡처
+    // ANSI 이스케이프 시퀀스(색상, 커서 이동 등) 전체 제거
+    const handleChunk = (chunk: Buffer): void => {
+      const raw = chunk.toString();
+      const text = raw
+        .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')  // CSI 시퀀스
+        .replace(/\x1b\][^\x07]*\x07/g, '')         // OSC 시퀀스
+        .replace(/\x1b[()][AB]/g, '')                // charset 지정
+        .replace(/\r/g, '');
+      if (!text.trim()) return;
       const event: TextDeltaEvent = { sessionId, text };
       this.emit('text-delta', event);
-    });
+    };
 
-    proc.stderr.on('data', (chunk: Buffer) => {
-      this.logger.warn(`[${sessionId}] stderr: ${chunk.toString()}`);
-    });
+    proc.stdout.on('data', handleChunk);
+    proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      this.logger.log(`[${sessionId}] gemini exited with code ${exitCode}`);
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
 
@@ -151,11 +166,38 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleDestro
     });
 
     proc.on('error', (err) => {
+      this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
-      this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
-      this.emit('error', { sessionId, message: err.message });
+      // 에러도 텍스트로 전달해서 UI에 표시
+      this.emit('text-delta', { sessionId, text: `\n⚠ 실행 오류: ${err.message}\n` } as TextDeltaEvent);
+      this.emit('result', { sessionId, isError: true } as ResultEvent);
     });
+  }
+
+  private resolveGemini(): string {
+    const candidates = [
+      (): string => execSync('which gemini', { encoding: 'utf8', timeout: 2000 }).trim(),
+      (): string => {
+        const home = process.env.HOME ?? '';
+        const p = `${home}/.nvm/versions/node/${process.version}/bin/gemini`;
+        if (fs.existsSync(p)) return p;
+        throw new Error('not found');
+      },
+      (): string => {
+        const npmBin = execSync('npm bin -g', { encoding: 'utf8', timeout: 2000 }).trim();
+        const p = `${npmBin}/gemini`;
+        if (fs.existsSync(p)) return p;
+        throw new Error('not found');
+      },
+    ];
+
+    for (const fn of candidates) {
+      try { const p = fn(); if (p) return p; } catch {}
+    }
+
+    this.logger.warn('gemini 경로 탐지 실패 — "gemini"로 폴백');
+    return 'gemini';
   }
 
   private requireSession(sessionId: string): GeminiSession {
