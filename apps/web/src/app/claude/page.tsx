@@ -16,6 +16,7 @@ import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
 import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
+import { AgentStatusModal } from "@/features/status/ui/AgentStatusModal";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import { isQuotaExceeded } from "@/lib/quota";
 import { ThemeToggle } from "@/lib/theme";
@@ -136,6 +137,7 @@ export default function ClaudePage() {
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskListOpen, setTaskListOpen] = useState(false);
   const [agentSelectOpen, setAgentSelectOpen] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
 
   const { hasNew, clearNew } = useTaskNotification();
 
@@ -256,6 +258,11 @@ export default function ClaudePage() {
         onSelect={handleAgentSelect}
       />
 
+      <AgentStatusModal
+        open={statusModalOpen}
+        onClose={() => setStatusModalOpen(false)}
+      />
+
       {/* ── 사이드바 ────────────────────────────────────────────────────────── */}
       <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
         {/* 헤더 */}
@@ -265,10 +272,17 @@ export default function ClaudePage() {
           </Link>
           <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">JI CLI</span>
           <div className="ml-auto flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${STATUS_DOT[connectionStatus]}`} />
-            <span className="text-xs text-gray-900/25 dark:text-white/25">
-              {STATUS_LABEL[connectionStatus] ?? ""}
-            </span>
+            <button
+              type="button"
+              onClick={() => setStatusModalOpen(true)}
+              title="에이전트 상태"
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors hover:bg-gray-900/[0.05] dark:hover:bg-white/[0.05]"
+            >
+              <span className={`h-2 w-2 rounded-full ${STATUS_DOT[connectionStatus]}`} />
+              <span className="text-xs text-gray-900/25 hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50">
+                {STATUS_LABEL[connectionStatus] ?? ""}
+              </span>
+            </button>
             <ThemeToggle />
           </div>
         </div>
