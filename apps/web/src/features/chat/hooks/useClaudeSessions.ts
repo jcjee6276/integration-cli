@@ -12,6 +12,7 @@ import {
   saveConversation,
 } from "../api/sessions.api";
 import type { DBConversation, SessionInfo } from "../api/sessions.api";
+import type { AgentId } from "../ui/AgentSelectModal";
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,10 @@ export interface SessionState {
   streaming: string;
   isWaiting: boolean;
   messagesLoaded: boolean;
+  agentId: AgentId;
 }
+
+export type { AgentId };
 
 export { SessionInfo };
 
@@ -92,6 +96,7 @@ export function useClaudeSessions() {
             streaming: "",
             isWaiting: false,
             messagesLoaded: false,
+            agentId: "claude" as AgentId,
           }));
         return [...prev, ...newStates].sort(
           (a, b) => new Date(b.info.createdAt).getTime() - new Date(a.info.createdAt).getTime(),
@@ -209,7 +214,7 @@ export function useClaudeSessions() {
 
   // ─── 공개 API ─────────────────────────────────────────────────────────────
 
-  const createSession = useCallback(async (workingDirectory?: string) => {
+  const createSession = useCallback(async (agentId: AgentId, workingDirectory?: string) => {
     setError(null);
     try {
       const raw = await apiCreateSession(workingDirectory);
@@ -223,6 +228,7 @@ export function useClaudeSessions() {
         streaming: "",
         isWaiting: false,
         messagesLoaded: true,
+        agentId,
       };
 
       setSessions((prev) => [newState, ...prev]);

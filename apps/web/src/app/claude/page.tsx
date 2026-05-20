@@ -10,6 +10,8 @@ import { useClaudeSessions } from "@/features/chat/hooks/useClaudeSessions";
 import { ChatInput } from "@/features/chat/ui/ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "@/features/chat/ui/ChatMessage";
 import { PermissionCard } from "@/features/chat/ui/PermissionCard";
+import { AgentSelectModal, AGENT_META } from "@/features/chat/ui/AgentSelectModal";
+import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
@@ -102,12 +104,11 @@ export default function ClaudePage() {
   const pendingDirRef = useRef("");
   const prevSessionCountRef = useRef(0);
 
-  // 세션별 워크 디렉토리 맵 (세션 생성 시 연결)
   const [sessionDirs, setSessionDirs] = useState<Record<string, string>>({});
-  // 푸터 dir picker가 편집하는 값 (세션 선택에 따라 동기화)
   const [currentDir, setCurrentDir] = useState("");
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [taskListOpen, setTaskListOpen] = useState(false);
+  const [agentSelectOpen, setAgentSelectOpen] = useState(false);
 
   // 세션 전환 시 해당 세션의 디렉토리로 picker 동기화
   useEffect(() => {
@@ -126,12 +127,11 @@ export default function ClaudePage() {
     prevSessionCountRef.current = sessions.length;
   }, [sessions]);
 
-  const handleCreateSession = () => {
+  const handleAgentSelect = (agentId: AgentId) => {
     pendingDirRef.current = currentDir;
-    createSession(currentDir || undefined);
+    void createSession(agentId, currentDir || undefined);
   };
 
-  // 푸터에서 dir 변경 시 현재 세션 기록 업데이트
   const handleDirChange = (path: string) => {
     setCurrentDir(path);
     if (selectedSessionId) {
@@ -192,7 +192,7 @@ export default function ClaudePage() {
           <Link href="/" className="text-gray-900/30 transition-colors hover:text-gray-900/60 dark:text-white/30 dark:hover:text-white/60">
             ←
           </Link>
-          <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">Claude CLI</span>
+          <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">JI CLI</span>
           <div className="ml-auto">
             <ThemeToggle />
           </div>
@@ -210,6 +210,13 @@ export default function ClaudePage() {
 
   return (
     <div className="flex h-screen bg-[#faf8f5] text-gray-900 dark:bg-[#07090e] dark:text-white">
+
+      <AgentSelectModal
+        open={agentSelectOpen}
+        onClose={() => setAgentSelectOpen(false)}
+        onSelect={handleAgentSelect}
+      />
+
       {/* ── 사이드바 ────────────────────────────────────────────────────────── */}
       <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
         {/* 헤더 */}
@@ -217,7 +224,7 @@ export default function ClaudePage() {
           <Link href="/" className="text-gray-900/30 transition-colors hover:text-gray-900/60 dark:text-white/30 dark:hover:text-white/60">
             ←
           </Link>
-          <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">Claude CLI</span>
+          <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">JI CLI</span>
           <div className="ml-auto flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${STATUS_DOT[connectionStatus]}`} />
             <span className="text-xs text-gray-900/25 dark:text-white/25">
@@ -230,7 +237,7 @@ export default function ClaudePage() {
         {/* 새 세션 */}
         <div className="flex flex-col gap-2 p-3">
           <button
-            onClick={handleCreateSession}
+            onClick={() => setAgentSelectOpen(true)}
             disabled={connectionStatus !== "connected"}
             className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -272,6 +279,7 @@ export default function ClaudePage() {
               {sessions.map((s) => {
                 const lastMsg = s.messages[s.messages.length - 1];
                 const isSelected = selectedSessionId === s.info.id;
+                const agentMeta = AGENT_META[s.agentId];
                 return (
                   <li key={s.info.id}>
                     <button
@@ -284,16 +292,19 @@ export default function ClaudePage() {
                       ].join(" ")}
                     >
                       <div className="flex items-center justify-between gap-1">
-                        <span className="truncate text-xs font-medium">{s.info.title}</span>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`} />
+                          <span className="truncate text-xs font-medium">{s.info.title}</span>
+                        </div>
                         {s.isWaiting && (
                           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-orange-400" />
                         )}
                       </div>
-                      <p className="mt-0.5 text-[10px] text-gray-900/20 dark:text-white/20">
-                        {new Date(s.info.createdAt).toLocaleString()}
+                      <p className="mt-0.5 pl-3 text-[10px] text-gray-900/20 dark:text-white/20">
+                        {agentMeta.label} · {new Date(s.info.createdAt).toLocaleString()}
                       </p>
                       {lastMsg && (
-                        <p className="mt-0.5 truncate text-[11px] text-gray-900/25 dark:text-white/25">
+                        <p className="mt-0.5 pl-3 truncate text-[11px] text-gray-900/25 dark:text-white/25">
                           {lastMsg.content.slice(0, 40) || "…"}
                         </p>
                       )}
@@ -314,12 +325,12 @@ export default function ClaudePage() {
               <div className="absolute left-1/2 top-1/2 h-[500px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/[0.04] blur-[120px]" />
             </div>
             <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-900/[0.08] bg-orange-500/[0.08] dark:border-white/[0.08]">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-7 w-7 text-orange-500 dark:text-orange-400/80">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7 text-[#D97757]">
+                <path d="M13.827 3.816L20.05 20.2h-3.672l-1.234-3.365H8.856L7.622 20.2H3.95L10.173 3.816h3.654zm-1.827 4.91l-1.989 5.453h3.978l-1.989-5.453z" />
               </svg>
             </div>
             <div className="relative text-center">
-              <p className="font-semibold text-gray-900/75 dark:text-white/75">Claude CLI</p>
+              <p className="font-semibold text-gray-900/75 dark:text-white/75">JI CLI</p>
               <p className="mt-1 text-sm text-gray-900/30 dark:text-white/30">
                 {connectionStatus !== "connected"
                   ? "서버에 연결 중…"
@@ -332,8 +343,14 @@ export default function ClaudePage() {
             {/* 채팅 헤더 */}
             <header className="flex shrink-0 items-center justify-between border-b border-gray-900/[0.07] px-5 py-3 dark:border-white/[0.07]">
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-medium text-gray-900/80 dark:text-white/80">{selectedSession.info.title}</span>
                 <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${AGENT_META[selectedSession.agentId].dotColor}`} />
+                  <span className="text-sm font-medium text-gray-900/80 dark:text-white/80">{selectedSession.info.title}</span>
+                  <span className="rounded-md border border-gray-900/[0.06] bg-gray-900/[0.03] px-1.5 py-0.5 text-[10px] font-medium text-gray-900/35 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-white/35">
+                    {AGENT_META[selectedSession.agentId].label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pl-4">
                   <span className="font-mono text-[10px] text-gray-900/20 dark:text-white/20">{selectedSession.info.id.slice(0, 8)}…</span>
                   {sessionDirs[selectedSession.info.id] && (
                     <span className="flex items-center gap-1 rounded-md border border-gray-900/[0.06] bg-gray-900/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-gray-900/40 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-white/40">
@@ -375,7 +392,7 @@ export default function ClaudePage() {
                   !selectedSession.isWaiting && (
                     <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
                       <p className="text-sm text-gray-900/25 dark:text-white/25">
-                        Claude가 준비되었습니다. 메시지를 보내보세요.
+                        {AGENT_META[selectedSession.agentId].label}이 준비되었습니다. 메시지를 보내보세요.
                       </p>
                     </div>
                   )}
@@ -411,7 +428,6 @@ export default function ClaudePage() {
             {/* 입력창 */}
             <footer className="shrink-0 border-t border-gray-900/[0.07] px-4 pb-4 pt-3 dark:border-white/[0.07]">
               <div className="mx-auto max-w-2xl space-y-2">
-                {/* 워크 디렉토리 */}
                 <div className="flex items-center gap-2 border-b border-gray-900/[0.05] pb-2 dark:border-white/[0.05]">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-gray-900/25 dark:text-white/25">
                     cwd
