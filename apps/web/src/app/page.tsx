@@ -3,23 +3,36 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { getAuthStatus } from "@/features/auth/api/auth.api";
+import { getAuthStatus, getGeminiAuthStatus } from "@/features/auth/api/auth.api";
 import { ThemeToggle } from "@/lib/theme";
 
 type AuthBadge = "loading" | "authenticated" | "unauthenticated" | "unavailable";
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-function useClaudeAuthBadge(): AuthBadge {
-  const [badge, setBadge] = useState<AuthBadge>("loading");
+interface AgentAuthBadges {
+  claudeBadge: AuthBadge;
+  geminiBadge: AuthBadge;
+}
+
+function useAgentAuthBadges(): AgentAuthBadges {
+  const [claudeBadge, setClaudeBadge] = useState<AuthBadge>("loading");
+  const [geminiBadge, setGeminiBadge] = useState<AuthBadge>("loading");
 
   useEffect(() => {
     getAuthStatus()
-      .then((d) => setBadge(d.loggedIn ? "authenticated" : "unauthenticated"))
-      .catch(() => setBadge("unavailable"));
+      .then((d) => setClaudeBadge(d.loggedIn ? "authenticated" : "unauthenticated"))
+      .catch(() => setClaudeBadge("unavailable"));
+
+    getGeminiAuthStatus()
+      .then((d) => {
+        if (!d.installed) setGeminiBadge("unavailable");
+        else setGeminiBadge(d.loggedIn ? "authenticated" : "unauthenticated");
+      })
+      .catch(() => setGeminiBadge("unavailable"));
   }, []);
 
-  return badge;
+  return { claudeBadge, geminiBadge };
 }
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
@@ -200,10 +213,12 @@ function AgentCard({
 
 // ─── Agent Definitions ────────────────────────────────────────────────────────
 
-type AgentDef = Omit<AgentCardProps, "badge" | "index"> & {
-  isDynamic: boolean;
-  staticBadge?: AuthBadge;
-};
+type AgentKey = "claude" | "gemini";
+
+type AgentDef = Omit<AgentCardProps, "badge" | "index"> & (
+  | { isDynamic: true; agentKey: AgentKey }
+  | { isDynamic: false; staticBadge: AuthBadge }
+);
 
 const AGENTS: AgentDef[] = [
   {
@@ -215,17 +230,18 @@ const AGENTS: AgentDef[] = [
     hoverShadow: "hover:shadow-[0_8px_32px_-4px_rgba(249,115,22,0.12)]",
     clickable: true,
     isDynamic: true,
+    agentKey: "claude" as const,
   },
   {
-    href: "#",
+    href: "/gemini",
     name: "Gemini CLI",
-    description: "Google Gemini 통합 (준비 중)",
+    description: "Google Gemini를 터미널에서 실행",
     accentFrom: "from-blue-500/[0.13]",
     accentVia: "via-blue-400/40",
     hoverShadow: "hover:shadow-[0_8px_32px_-4px_rgba(59,130,246,0.12)]",
-    clickable: false,
-    isDynamic: false,
-    staticBadge: "unavailable",
+    clickable: true,
+    isDynamic: true,
+    agentKey: "gemini" as const,
   },
   {
     href: "#",
@@ -242,9 +258,14 @@ const AGENTS: AgentDef[] = [
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const BADGE_BY_KEY: Record<AgentKey, keyof AgentAuthBadges> = {
+  claude: "claudeBadge",
+  gemini: "geminiBadge",
+};
+
 export default function Home() {
-  const claudeBadge = useClaudeAuthBadge();
-  const isLoading = claudeBadge === "loading";
+  const badges = useAgentAuthBadges();
+  const isLoading = badges.claudeBadge === "loading" || badges.geminiBadge === "loading";
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#faf8f5] px-6 py-12 dark:bg-[#07090e]">
@@ -314,7 +335,11 @@ export default function Home() {
                 key={agent.name}
                 {...agent}
                 index={i}
-                badge={agent.isDynamic ? claudeBadge : (agent.staticBadge ?? "unavailable")}
+                badge={
+                  agent.isDynamic
+                    ? badges[BADGE_BY_KEY[agent.agentKey]]
+                    : agent.staticBadge
+                }
               />
             ))}
       </div>

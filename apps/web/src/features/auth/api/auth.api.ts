@@ -16,6 +16,13 @@ export interface ClaudeStatus {
   platform: string;
 }
 
+export interface GeminiAuthStatus {
+  loggedIn: boolean;
+  authMethod: string;
+  installed: boolean;
+  email?: string;
+}
+
 export async function getAuthStatus(): Promise<AuthStatus> {
   const res = await fetch(`${SERVER_URL}/agents/claude/auth/status`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -24,6 +31,12 @@ export async function getAuthStatus(): Promise<AuthStatus> {
 
 export async function getClaudeStatus(): Promise<ClaudeStatus> {
   const res = await fetch(`${SERVER_URL}/agents/claude/status`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function getGeminiAuthStatus(): Promise<GeminiAuthStatus> {
+  const res = await fetch(`${SERVER_URL}/agents/gemini/auth/status`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
