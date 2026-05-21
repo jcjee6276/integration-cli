@@ -2,13 +2,18 @@
 import { Command } from 'commander';
 
 import { runInit } from './commands/init';
+import { runCheck } from './commands/check';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
-  // Commander 없이 --init 플래그를 직접 처리
+  // 단축 플래그 처리
   if (args.includes('--init') || args[0] === 'init') {
     await runInit();
+    return;
+  }
+  if (args.includes('--check') || args[0] === 'check') {
+    runCheck();
     return;
   }
 
@@ -21,14 +26,21 @@ async function main(): Promise<void> {
 
   program
     .command('init')
-    .description('Claude Code & Gemini CLI를 설치하고 환경을 초기화합니다')
+    .description('Claude Code, Gemini CLI, Codex를 설치하고 환경을 초기화합니다')
     .action(async () => {
       await runInit();
     });
 
+  program
+    .command('check')
+    .description('Claude Code, Gemini CLI, Codex 설치 상태를 확인합니다')
+    .action(() => {
+      runCheck();
+    });
+
   program.addHelpText(
     'after',
-    '\nExamples:\n  jccli --init\n  jccli init\n',
+    '\nExamples:\n  jccli --init\n  jccli init\n  jccli check\n',
   );
 
   if (args.length === 0) {

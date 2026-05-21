@@ -6,6 +6,7 @@ import ora from 'ora';
 
 const CLAUDE_CODE_PACKAGE = '@anthropic-ai/claude-code';
 const GEMINI_CLI_PACKAGE = '@google/gemini-cli';
+const CODEX_PACKAGE = '@openai/codex';
 const MIN_NODE_MAJOR = 18;
 
 function getPlatform(): 'mac' | 'windows' | 'linux' {
@@ -155,10 +156,37 @@ export async function runInit(): Promise<void> {
     }
   }
 
+  // ── Codex ─────────────────────────────────────────────────────
+  console.log(chalk.bold('\n[ OpenAI Codex ]'));
+  const codexCmd = platform === 'windows' ? 'codex.cmd' : 'codex';
+  if (isCommandAvailable('codex')) {
+    let codexVersion = 'unknown';
+    try {
+      codexVersion = execSync(`${codexCmd} --version`, { encoding: 'utf8' }).trim();
+    } catch {}
+    console.log(chalk.green(`✓ 이미 설치됨: ${codexVersion}`));
+  } else {
+    console.log(chalk.yellow('  설치되어 있지 않습니다. 설치를 시작합니다...'));
+    const ok = installPackage(CODEX_PACKAGE, platform);
+    if (!ok) process.exit(1);
+
+    const verifySpinner = ora('설치 확인 중...').start();
+    if (isCommandAvailable('codex')) {
+      let installedVersion = 'unknown';
+      try {
+        installedVersion = execSync(`${codexCmd} --version`, { encoding: 'utf8' }).trim();
+      } catch {}
+      verifySpinner.succeed(`Codex 설치 확인: ${installedVersion}`);
+    } else {
+      verifySpinner.warn('codex 명령어를 찾을 수 없습니다. PATH를 확인해 주세요.');
+    }
+  }
+
   console.log(chalk.bold('\n✅ 설치가 완료되었습니다!\n'));
   console.log(chalk.cyan('다음 명령어로 시작할 수 있습니다:'));
   console.log(chalk.gray('  claude   # Claude Code'));
-  console.log(chalk.gray('  gemini   # Gemini CLI\n'));
+  console.log(chalk.gray('  gemini   # Gemini CLI'));
+  console.log(chalk.gray('  codex    # OpenAI Codex\n'));
 
   if (platform !== 'windows') {
     console.log(chalk.yellow('명령어를 찾을 수 없는 경우 터미널을 재시작하거나 다음을 실행해 보세요:'));

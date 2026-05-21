@@ -57,3 +57,25 @@ export async function configureGeminiAuth(
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
+
+// ─── Codex ────────────────────────────────────────────────────────────────────
+
+export interface CodexAuthStatus {
+  installed: boolean;
+  loggedIn: boolean;
+}
+
+export async function getCodexAuthStatus(): Promise<CodexAuthStatus> {
+  const res = await fetch(`${SERVER_URL}/agents/codex/auth/status`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function configureCodexAuth(apiKey: string): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/agents/codex/auth/configure`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiKey }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
