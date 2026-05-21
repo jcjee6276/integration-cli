@@ -131,7 +131,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       let agentWorkDir = workingDir;
       if (isGitRepo) {
         try {
-          const { worktreePath, branchName } = this.gitChangelogService.createWorktree(workingDir, agent.id);
+          const { worktreePath, branchName } = this.gitChangelogService.createWorktree(workingDir, agent.agentType);
           const startCommitHash = this.gitChangelogService.getCurrentHead(workingDir);
           await this.agentRepo.update(agent.id, { worktreePath, startCommitHash });
           this.worktreeMap.set(`${task.id}-${agent.id}`, { worktreePath, branchName, mainRepoDir: workingDir });

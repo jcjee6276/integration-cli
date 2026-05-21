@@ -53,11 +53,22 @@ export class GitChangelogService {
     return execSync('git rev-parse HEAD', { cwd: repoDir, encoding: 'utf8', timeout: 3000 }).trim();
   }
 
+  getCurrentBranch(repoDir: string): string {
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoDir, encoding: 'utf8', timeout: 3000 }).trim();
+      // detached HEAD나 특수문자 제거하여 브랜치명을 파일시스템 안전하게 변환
+      return branch.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 40);
+    } catch {
+      return 'unknown';
+    }
+  }
+
   // ─── Worktree 생성/제거 ───────────────────────────────────────────────
 
-  createWorktree(repoDir: string, agentId: number): { worktreePath: string; branchName: string } {
+  createWorktree(repoDir: string, agentType: string): { worktreePath: string; branchName: string } {
     const ts = Date.now();
-    const branchName = `ji-agent-${agentId}-${ts}`;
+    const currentBranch = this.getCurrentBranch(repoDir);
+    const branchName = `${agentType}-${currentBranch}-${ts}`;
     const worktreePath = path.join(os.tmpdir(), 'ji-worktrees', branchName);
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
     execSync(`git worktree add "${worktreePath}" -b "${branchName}" HEAD`, {
