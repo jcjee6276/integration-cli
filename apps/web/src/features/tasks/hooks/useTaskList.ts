@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { deleteTask, executeTask, fetchTasks, rerunTask, stopTask } from "../api/tasks.api";
+import { archiveTask, deleteTask, executeTask, fetchTasks, rerunTask, stopTask } from "../api/tasks.api";
 import type { Task, TaskStatus } from "../api/tasks.api";
 
 export function useTaskList(open: boolean) {
@@ -88,6 +88,18 @@ export function useTaskList(open: boolean) {
     }
   }, []);
 
+  const archive = useCallback(async (id: string) => {
+    setActioningId(id);
+    try {
+      await archiveTask(id);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "보관 실패");
+    } finally {
+      setActioningId(null);
+    }
+  }, []);
+
   const remove = useCallback(async (id: string) => {
     setActioningId(id);
     try {
@@ -126,6 +138,7 @@ export function useTaskList(open: boolean) {
     execute,
     stop,
     rerun,
+    archive,
     remove,
     onEditDone,
     updateTaskStatus,

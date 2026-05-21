@@ -67,6 +67,13 @@ export class TasksController {
     return this.tasksService.rerun(id, dto.supplementNote);
   }
 
+  /** POST /tasks/:id/archive */
+  @Post(':id/archive')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  archive(@Param('id') id: string) {
+    return this.tasksService.archive(id);
+  }
+
   /** DELETE /tasks/:id */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)

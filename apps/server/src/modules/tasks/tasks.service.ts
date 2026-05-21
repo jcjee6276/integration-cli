@@ -128,7 +128,16 @@ export class TasksService {
   // ─── 조회 ────────────────────────────────────────────────────────────
 
   findAll(): Promise<TaskEntity[]> {
-    return this.taskRepo.find({ relations: ['requirements', 'agents'], order: { createdAt: 'DESC' } });
+    return this.taskRepo.find({
+      where: { archived: false },
+      relations: ['requirements', 'agents'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async archive(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.taskRepo.update(id, { archived: true });
   }
 
   async findOne(id: string): Promise<TaskEntity> {
