@@ -16,8 +16,31 @@ export interface AgentChangelog {
   files: ChangelogFile[];
 }
 
+export interface MergeResult {
+  success: boolean;
+  message: string;
+}
+
 export async function fetchTaskChangelog(taskId: string): Promise<AgentChangelog[]> {
   const res = await fetch(`${SERVER_URL}/tasks/${taskId}/changelog`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function mergeAgentAll(taskId: string, agentId: number): Promise<MergeResult> {
+  const res = await fetch(`${SERVER_URL}/tasks/${taskId}/agents/${agentId}/merge`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function mergeAgentFile(taskId: string, agentId: number, filePath: string): Promise<MergeResult> {
+  const res = await fetch(`${SERVER_URL}/tasks/${taskId}/agents/${agentId}/merge-file`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filePath }),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
