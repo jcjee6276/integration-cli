@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import { Modal } from "@/components/ui/Modal";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import { AgentSelectModal } from "@/features/chat/ui/AgentSelectModal";
+import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 import type { Task } from "../api/tasks.api";
 import { useTaskEdit } from "../hooks/useTaskEdit";
 import { AgentRow } from "./AgentRoleSelect";
@@ -21,7 +25,16 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
     submit,
   } = useTaskEdit(task, (updated) => { onSaved(updated); onClose(); });
 
+  const [agentSelectOpen, setAgentSelectOpen] = useState(false);
+  const handleAgentSelect = (agentId: AgentId) => { addAgent(agentId); setAgentSelectOpen(false); };
+
   return (
+    <>
+    <AgentSelectModal
+      open={agentSelectOpen}
+      onClose={() => setAgentSelectOpen(false)}
+      onSelect={handleAgentSelect}
+    />
     <Modal open onClose={onClose} title="작업 수정" maxWidth="max-w-xl">
       <div className="flex flex-col gap-6">
 
@@ -94,7 +107,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400">서브 에이전트</label>
             <button
               type="button"
-              onClick={() => addAgent("frontend")}
+              onClick={() => setAgentSelectOpen(true)}
               className="flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
             >
               <span className="text-base leading-none">+</span> 에이전트 추가
@@ -147,5 +160,6 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
         </div>
       </div>
     </Modal>
+    </>
   );
 }

@@ -95,6 +95,24 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(calc(100% + 16px)); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0); max-height: 100px; margin-bottom: 0; }
+  to   { opacity: 0; transform: translateX(calc(100% + 16px)); max-height: 0; margin-bottom: -8px; }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-toast-out {
+  animation: toast-out 0.2s ease-in forwards;
+}
+
 @keyframes shimmer {
   from { background-position: 200% 0; }
   to   { background-position: -200% 0; }

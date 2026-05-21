@@ -85,20 +85,20 @@ describe("useTaskCreate — requirements", () => {
 describe("useTaskCreate — agents", () => {
   it("addAgent appends with default role frontend", () => {
     const { result } = renderHook(() => useTaskCreate());
-    act(() => { result.current.addAgent(); });
+    act(() => { result.current.addAgent("claude"); });
     expect(result.current.form.agents).toHaveLength(1);
     expect(result.current.form.agents[0].role).toBe("frontend");
   });
 
   it("addAgent respects explicit role", () => {
     const { result } = renderHook(() => useTaskCreate());
-    act(() => { result.current.addAgent("backend"); });
+    act(() => { result.current.addAgent("claude", "backend"); });
     expect(result.current.form.agents[0].role).toBe("backend");
   });
 
   it("updateAgent changes the role", () => {
     const { result } = renderHook(() => useTaskCreate());
-    act(() => { result.current.addAgent(); });
+    act(() => { result.current.addAgent("claude"); });
     const id = result.current.form.agents[0].id;
     act(() => { result.current.updateAgent(id, { role: "doc" }); });
     expect(result.current.form.agents[0].role).toBe("doc");
@@ -106,7 +106,7 @@ describe("useTaskCreate — agents", () => {
 
   it("updateAgent changes customRole", () => {
     const { result } = renderHook(() => useTaskCreate());
-    act(() => { result.current.addAgent("other"); });
+    act(() => { result.current.addAgent("claude", "other"); });
     const id = result.current.form.agents[0].id;
     act(() => { result.current.updateAgent(id, { customRole: "DevOps" }); });
     expect(result.current.form.agents[0].customRole).toBe("DevOps");
@@ -114,7 +114,7 @@ describe("useTaskCreate — agents", () => {
 
   it("removeAgent removes by id", () => {
     const { result } = renderHook(() => useTaskCreate());
-    act(() => { result.current.addAgent(); result.current.addAgent("backend"); });
+    act(() => { result.current.addAgent("claude"); result.current.addAgent("claude", "backend"); });
     const id = result.current.form.agents[0].id;
     act(() => { result.current.removeAgent(id); });
     expect(result.current.form.agents).toHaveLength(1);
@@ -156,7 +156,7 @@ describe("useTaskCreate — submit", () => {
 
   it("omits customRole for non-other agents", async () => {
     const { result } = renderHook(() => useTaskCreate());
-    act(() => { result.current.setTitle("Task"); result.current.addAgent("backend"); });
+    act(() => { result.current.setTitle("Task"); result.current.addAgent("claude", "backend"); });
     await act(async () => { await result.current.submit(); });
     expect(mockCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -169,7 +169,7 @@ describe("useTaskCreate — submit", () => {
     const { result } = renderHook(() => useTaskCreate());
     act(() => {
       result.current.setTitle("Task");
-      result.current.addAgent("other");
+      result.current.addAgent("claude", "other");
     });
     const id = result.current.form.agents[0].id;
     act(() => { result.current.updateAgent(id, { customRole: "DevOps" }); });
@@ -205,7 +205,7 @@ describe("useTaskCreate — reset", () => {
     act(() => {
       result.current.setTitle("X");
       result.current.addRequirement();
-      result.current.addAgent();
+      result.current.addAgent("claude");
     });
     await act(async () => { await result.current.submit(); }); // trigger error (no, title set)
     act(() => { result.current.reset(); });

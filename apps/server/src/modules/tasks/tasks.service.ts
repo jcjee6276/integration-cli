@@ -41,6 +41,7 @@ export class TasksService {
         dto.agents.map((a) =>
           this.agentRepo.create({
             taskId: id,
+            agentType: (a.agentType ?? 'claude') as TaskAgentEntity['agentType'],
             role: a.role as TaskAgentEntity['role'],
             customRole: a.customRole ?? null,
             status: 'pending',
@@ -77,6 +78,7 @@ export class TasksService {
           dto.agents.map((a) =>
             this.agentRepo.create({
               taskId: id,
+              agentType: (a.agentType ?? 'claude') as TaskAgentEntity['agentType'],
               role: a.role as TaskAgentEntity['role'],
               customRole: a.customRole ?? null,
               status: 'pending',

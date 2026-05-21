@@ -3,6 +3,7 @@ import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn } f
 import { TaskEntity } from './task.entity';
 
 export type AgentRole = 'frontend' | 'backend' | 'doc' | 'operation' | 'other';
+export type AgentType = 'claude' | 'gemini' | 'codex' | 'opencode';
 
 @Entity('task_agents')
 export class TaskAgentEntity {
@@ -14,6 +15,9 @@ export class TaskAgentEntity {
 
   @ManyToOne(() => TaskEntity, (t) => t.agents, { onDelete: 'CASCADE' })
   task!: TaskEntity;
+
+  @Column('text', { default: 'claude' })
+  agentType!: AgentType;
 
   @Column('text')
   role!: AgentRole;

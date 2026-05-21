@@ -11,9 +11,12 @@ export class SessionService {
     private readonly repo: Repository<SessionEntity>,
   ) {}
 
-  /** 전체 세션 목록 (최신순) */
-  findAll(): Promise<SessionEntity[]> {
-    return this.repo.find({ order: { createdAt: 'DESC' } });
+  /** 전체 세션 목록 (최신순), agentType 필터 옵션 */
+  findAll(agentType?: string): Promise<SessionEntity[]> {
+    return this.repo.find({
+      where: agentType ? { agentType } : undefined,
+      order: { createdAt: 'DESC' },
+    });
   }
 
   /** 단건 조회 */

@@ -31,8 +31,11 @@ export type ConversationType = "user_message" | "agent_message";
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
-export async function fetchDBSessions(): Promise<DBSession[]> {
-  const res = await fetch(`${SERVER_URL}/sessions`);
+export async function fetchDBSessions(agentType?: string): Promise<DBSession[]> {
+  const url = agentType
+    ? `${SERVER_URL}/sessions?agentType=${agentType}`
+    : `${SERVER_URL}/sessions`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -49,6 +52,33 @@ export async function createSession(workingDirectory?: string): Promise<SessionI
 
 export async function deleteSession(id: string): Promise<void> {
   await fetch(`${SERVER_URL}/agents/claude/sessions/${id}`, { method: "DELETE" });
+}
+
+export async function createGeminiSession(workingDirectory?: string): Promise<SessionInfo> {
+  const res = await fetch(`${SERVER_URL}/agents/gemini/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(workingDirectory ? { workingDirectory } : {}),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteGeminiSession(id: string): Promise<void> {
+  await fetch(`${SERVER_URL}/agents/gemini/sessions/${id}`, { method: "DELETE" });
+}
+
+export function saveGeminiConversation(
+  sessionId: string,
+  promptId: string,
+  content: string,
+  type: ConversationType,
+): void {
+  void fetch(`${SERVER_URL}/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, promptId, content, agentModel: "gemini", type }),
+  }).catch(() => undefined);
 }
 
 // ─── Conversations ───────────────────────────────────────────────────────────

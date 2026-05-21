@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import { AgentSelectModal } from "@/features/chat/ui/AgentSelectModal";
+import type { AgentId } from "@/features/chat/ui/AgentSelectModal";
 import type { Task } from "../api/tasks.api";
 import { useTaskCreate } from "../hooks/useTaskCreate";
 import { AgentRow } from "./AgentRoleSelect";
@@ -39,9 +41,22 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
     ),
   );
 
+  const [agentSelectOpen, setAgentSelectOpen] = useState(false);
+
+  const handleAgentSelect = (agentId: AgentId) => {
+    addAgent(agentId);
+    setAgentSelectOpen(false);
+  };
+
   const handleClose = () => { reset(); onClose(); };
 
   return (
+    <>
+    <AgentSelectModal
+      open={agentSelectOpen}
+      onClose={() => setAgentSelectOpen(false)}
+      onSelect={handleAgentSelect}
+    />
     <Modal open={open} onClose={handleClose} title="새 작업 추가" maxWidth="max-w-xl">
       <div className="flex flex-col gap-5">
 
@@ -124,7 +139,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
             </label>
             <button
               type="button"
-              onClick={() => addAgent("frontend")}
+              onClick={() => setAgentSelectOpen(true)}
               className="flex items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
@@ -185,5 +200,6 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
 
       </div>
     </Modal>
+    </>
   );
 }

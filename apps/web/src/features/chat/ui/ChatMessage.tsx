@@ -2,7 +2,10 @@ import rehypeHighlight from "rehype-highlight";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { isQuotaExceeded } from "@/lib/quota";
 import type { ChatMessage as ChatMessageType, ToolUseBlock } from "../hooks/useClaudeSessions";
+import { AGENT_AVATAR } from "./AgentSelectModal";
+import type { AgentId } from "./AgentSelectModal";
 
 // ─── Markdown ────────────────────────────────────────────────────────────────
 
@@ -99,9 +102,33 @@ function ToolUseCard({ toolUse }: { toolUse: ToolUseBlock }) {
   );
 }
 
+// ─── QuotaBadge ──────────────────────────────────────────────────────────────
+
+function QuotaBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/[0.08] px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+      <svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5 shrink-0">
+        <path fillRule="evenodd" d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575L6.457 1.047zM9 11a1 1 0 11-2 0 1 1 0 012 0zm-.25-5.25a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z" clipRule="evenodd" />
+      </svg>
+      한도 초과
+    </span>
+  );
+}
+
+// ─── AgentAvatar ─────────────────────────────────────────────────────────────
+
+function AgentAvatar({ agentId }: { agentId?: AgentId }) {
+  const cfg = agentId ? AGENT_AVATAR[agentId] : AGENT_AVATAR.claude;
+  return (
+    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden ${cfg.bg}`}>
+      {cfg.icon}
+    </div>
+  );
+}
+
 // ─── ChatMessage ─────────────────────────────────────────────────────────────
 
-export function ChatMessage({ message }: { message: ChatMessageType }) {
+export function ChatMessage({ message, agentId }: { message: ChatMessageType; agentId?: AgentId }) {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -115,13 +142,16 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
     );
   }
 
+  const quota = isQuotaExceeded(message.content);
+
   return (
     <div className="flex w-full justify-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500/80 text-xs font-bold text-white">C</div>
+      <AgentAvatar agentId={agentId} />
       <div className="max-w-[75%] min-w-0 rounded-2xl rounded-tl-sm border border-gray-900/[0.06] bg-gray-900/[0.04] px-4 py-3 text-sm text-gray-900/80 dark:border-white/[0.06] dark:bg-white/[0.04] dark:text-white/80">
         {message.toolUses?.map((t, i) => <ToolUseCard key={i} toolUse={t} />)}
         {message.content && <MarkdownContent content={message.content} />}
-        {message.meta && (
+        {quota && <div className="mt-2"><QuotaBadge /></div>}
+        {!quota && message.meta && (
           <p className="mt-2 text-right text-xs text-gray-900/20 dark:text-white/20">
             {(message.meta.durationMs / 1000).toFixed(1)}s · ${message.meta.costUsd.toFixed(4)}
           </p>
@@ -133,13 +163,18 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
 
 // ─── StreamingMessage ────────────────────────────────────────────────────────
 
-export function StreamingMessage({ content }: { content: string }) {
+export function StreamingMessage({ content, agentId }: { content: string; agentId?: AgentId }) {
+  const quota = isQuotaExceeded(content);
+
   return (
     <div className="flex w-full justify-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500/80 text-xs font-bold text-white">C</div>
+      <AgentAvatar agentId={agentId} />
       <div className="max-w-[75%] min-w-0 rounded-2xl rounded-tl-sm border border-gray-900/[0.06] bg-gray-900/[0.04] px-4 py-3 text-sm text-gray-900/80 dark:border-white/[0.06] dark:bg-white/[0.04] dark:text-white/80">
         {content ? (
-          <MarkdownContent content={content} />
+          <>
+            <MarkdownContent content={content} />
+            {quota && <div className="mt-2"><QuotaBadge /></div>}
+          </>
         ) : (
           <span className="flex gap-1 py-1">
             <span className="animate-bounce text-gray-900/40 dark:text-white/40">●</span>
