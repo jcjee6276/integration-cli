@@ -1,7 +1,8 @@
 import { execFileSync, execSync } from 'child_process';
-import * as os from 'os';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
+
+import { JI_PATHS } from '../../common/ji-paths';
 
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -79,7 +80,7 @@ export class GitChangelogService {
     const ts = Date.now();
     const currentBranch = this.getCurrentBranch(workingDir);
     const branchName = `${agentType}-${currentBranch}-${ts}`;
-    const worktreePath = path.join(os.tmpdir(), 'ji-worktrees', branchName);
+    const worktreePath = path.join(JI_PATHS.worktrees, branchName);
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
     execFileSync('git', ['worktree', 'add', worktreePath, '-b', branchName, 'HEAD'], {
       cwd: repoRoot,
