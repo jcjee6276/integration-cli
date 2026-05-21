@@ -5,11 +5,12 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { ConversationModule } from './modules/conversations/conversation.module';
+import { HarnessModule } from './modules/harness/harness.module';
 import { SessionModule } from './modules/sessions/session.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 
 @Module({
-  imports: [DatabaseModule, AgentsModule, ConversationModule, SessionModule, TasksModule],
+  imports: [DatabaseModule, AgentsModule, ConversationModule, HarnessModule, SessionModule, TasksModule],
   controllers: [AppController],
   providers: [AppService],
 })
