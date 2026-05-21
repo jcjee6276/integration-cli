@@ -9,6 +9,7 @@ import { useTaskExecution } from "../hooks/useTaskExecution";
 import { useTaskList } from "../hooks/useTaskList";
 import { AgentRoleBadge } from "./AgentRoleSelect";
 import { AgentOutputPanel } from "./AgentOutputPanel";
+import { ChangelogPanel } from "./ChangelogPanel";
 import { TaskEditModal } from "./TaskEditModal";
 
 // ─── 상태 뱃지 ───────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ function TaskCard({
 
   const [rerunMode, setRerunMode] = useState(false);
   const [supplementNote, setSupplementNote] = useState("");
+  const [activeTab, setActiveTab] = useState<"logs" | "changelog">("logs");
 
   const handleRerunConfirm = () => {
     onRerun(supplementNote);
@@ -167,13 +169,40 @@ function TaskCard({
               </div>
             )}
 
-            {/* 실시간 에이전트 출력 */}
+            {/* 실행 로그 / 변경사항 탭 */}
             {showLogs && (
-              <AgentOutputPanel
-                agents={task.agents}
-                agentLogs={agentLogs}
-                connected={connected}
-              />
+              <div className="flex flex-col gap-2">
+                {isFinished && (
+                  <div className="flex gap-1 rounded-lg border border-gray-900/[0.06] bg-gray-900/[0.02] p-0.5 dark:border-white/[0.06] dark:bg-white/[0.02]">
+                    {(["logs", "changelog"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveTab(tab)}
+                        className={[
+                          "flex-1 rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                          activeTab === tab
+                            ? "bg-white text-gray-900/70 shadow-sm dark:bg-white/[0.08] dark:text-white/70"
+                            : "text-gray-900/35 hover:text-gray-900/60 dark:text-white/35 dark:hover:text-white/60",
+                        ].join(" ")}
+                      >
+                        {tab === "logs" ? "실행 로그" : "변경사항"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === "logs" && (
+                  <AgentOutputPanel
+                    agents={task.agents}
+                    agentLogs={agentLogs}
+                    connected={connected}
+                  />
+                )}
+                {activeTab === "changelog" && isFinished && (
+                  <ChangelogPanel taskId={task.id} agents={task.agents} />
+                )}
+              </div>
             )}
 
             {/* 재 실행 보완 입력 패널 */}

@@ -104,14 +104,23 @@ export class TaskGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     void client.leave(`task:${taskId}`);
   }
 
-  /** 늦은 구독자용 — 버퍼된 로그 즉시 전송 */
+  /** 늦은 구독자용 — 버퍼 우선, 없으면 DB에서 복원 */
   @SubscribeMessage('task:get-logs')
   handleGetLogs(
     @ConnectedSocket() client: Socket,
     @MessageBody('taskId') taskId: string,
   ): void {
-    const logs = this.executionService.getBufferedLogs(taskId);
-    client.emit('task:buffered-logs', { taskId, logs });
+    const buffered = this.executionService.getBufferedLogs(taskId);
+
+    if (buffered.length > 0) {
+      client.emit('task:buffered-logs', { taskId, logs: buffered });
+      return;
+    }
+
+    // 서버 재시작 후 버퍼 소실 — DB에서 복원
+    void this.executionService.getLogsFromDb(taskId).then((logs) => {
+      client.emit('task:buffered-logs', { taskId, logs });
+    });
   }
 
   // ─── 전역 알림 룸 ─────────────────────────────────────────────────────────

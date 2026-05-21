@@ -6,6 +6,7 @@ import { TaskRequirementEntity } from '../../database/entities/task-requirement.
 import { TaskEntity } from '../../database/entities/task.entity';
 import { GeminiModule } from '../agents/gemini/gemini.module';
 import { ConversationModule } from '../conversations/conversation.module';
+import { ChangelogModule } from '../changelog/changelog.module';
 import { TaskExecutionService } from './task-execution.service';
 import { TaskGateway } from './task.gateway';
 import { TasksController } from './tasks.controller';
@@ -16,6 +17,7 @@ import { TasksService } from './tasks.service';
     TypeOrmModule.forFeature([TaskEntity, TaskRequirementEntity, TaskAgentEntity]),
     GeminiModule,
     ConversationModule,
+    ChangelogModule,
   ],
   controllers: [TasksController],
   providers: [TasksService, TaskExecutionService, TaskGateway],
