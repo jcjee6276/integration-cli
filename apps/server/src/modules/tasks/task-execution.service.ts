@@ -381,13 +381,23 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (worktreeInfo) {
       const { worktreePath } = worktreeInfo;
 
-      const agent = await this.agentRepo.findOne({ where: { id: agentId } });
+      const [agent, task] = await Promise.all([
+        this.agentRepo.findOne({ where: { id: agentId } }),
+        this.taskRepo.findOne({ where: { id: taskId } }),
+      ]);
+
       if (agent?.startCommitHash) {
+        const roleLabel = agent.role === 'other' && agent.customRole
+          ? agent.customRole
+          : agent.role;
+        const commitMessage = `feat(${agent.agentType}/${roleLabel}): ${task?.title ?? taskId}`;
+
         await this.gitChangelogService.captureAndSave(
           taskId,
           agentId,
           worktreePath,
           agent.startCommitHash,
+          commitMessage,
         );
       }
     }

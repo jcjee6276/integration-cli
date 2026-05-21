@@ -111,14 +111,16 @@ export class GitChangelogService {
     agentId: number,
     worktreePath: string,
     startCommitHash: string,
+    commitMessage: string,
   ): Promise<string | null> {
     try {
       // 미커밋 변경사항 전부 스테이징
       execSync('git add -A', { cwd: worktreePath, stdio: 'ignore', timeout: 10000 });
 
-      // 스냅샷 커밋
+      // task 기반 커밋 메시지로 스냅샷 커밋
+      const safeMsg = commitMessage.replace(/'/g, "'\\''");
       execSync(
-        'git -c core.hooksPath=/dev/null commit --allow-empty -m "_ji_snapshot"',
+        `git -c core.hooksPath=/dev/null commit --allow-empty -m '${safeMsg}'`,
         { cwd: worktreePath, stdio: 'ignore', timeout: 10000 },
       );
 
