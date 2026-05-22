@@ -129,6 +129,7 @@ export class GitChangelogService {
     worktreePath: string,
     startCommitHash: string,
     commitMessage: string,
+    runId?: number,
   ): Promise<string | null> {
     try {
       // 미커밋 변경사항 전부 스테이징
@@ -167,6 +168,7 @@ export class GitChangelogService {
             this.changelogRepo.create({
               taskId,
               agentId,
+              runId: runId ?? null,
               filePath: f.filePath,
               changeType: f.changeType,
               patch: f.patch,
@@ -268,9 +270,20 @@ export class GitChangelogService {
 
   // ─── 조회 ─────────────────────────────────────────────────────────────
 
-  async getByTask(taskId: string): Promise<AgentChangelog[]> {
-    const rows = await this.changelogRepo.find({
+  async getLatestRunId(taskId: string): Promise<number | null> {
+    const row = await this.changelogRepo.findOne({
       where: { taskId },
+      order: { runId: 'DESC' },
+      select: ['runId'],
+    });
+    return row?.runId ?? null;
+  }
+
+  async getByTask(taskId: string, runId?: number): Promise<AgentChangelog[]> {
+    const targetRunId = runId ?? (await this.getLatestRunId(taskId));
+
+    const rows = await this.changelogRepo.find({
+      where: targetRunId != null ? { taskId, runId: targetRunId } : { taskId },
       order: { agentId: 'ASC', id: 'ASC' },
     });
 

@@ -6,8 +6,10 @@ import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
+import { TaskAgentRunEntity } from '../../database/entities/task-agent-run.entity';
 import { TaskRequirementEntity } from '../../database/entities/task-requirement.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
+import { TaskRunEntity } from '../../database/entities/task-run.entity';
 import { GitChangelogService } from '../changelog/changelog.service';
 import { TaskExecutionService } from './task-execution.service';
 import type { CreateTaskDto } from './dto/create-task.dto';
@@ -22,6 +24,10 @@ export class TasksService {
     private readonly requirementRepo: Repository<TaskRequirementEntity>,
     @InjectRepository(TaskAgentEntity)
     private readonly agentRepo: Repository<TaskAgentEntity>,
+    @InjectRepository(TaskRunEntity)
+    private readonly runRepo: Repository<TaskRunEntity>,
+    @InjectRepository(TaskAgentRunEntity)
+    private readonly agentRunRepo: Repository<TaskAgentRunEntity>,
     private readonly executionService: TaskExecutionService,
     private readonly gitChangelogService: GitChangelogService,
   ) {}
@@ -100,7 +106,8 @@ export class TasksService {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
-    await this.executionService.spawnTask(task);
+    const run = await this.createRun(id, 1, null);
+    await this.executionService.spawnTask(task, undefined, run.id);
     return this.findOne(id);
   }
 
@@ -116,8 +123,17 @@ export class TasksService {
     }
     await this.taskRepo.update(id, { status: 'pending' });
 
+    // 다음 버전 번호 계산
+    const lastRun = await this.runRepo.findOne({
+      where: { taskId: id },
+      order: { version: 'DESC' },
+    });
+    const nextVersion = (lastRun?.version ?? 0) + 1;
+
+    const run = await this.createRun(id, nextVersion, supplementNote ?? null);
+
     const refreshed = await this.findOne(id);
-    await this.executionService.spawnTask(refreshed, supplementNote);
+    await this.executionService.spawnTask(refreshed, supplementNote, run.id);
     return this.findOne(id);
   }
 
@@ -126,6 +142,13 @@ export class TasksService {
   async stop(id: string): Promise<TaskEntity> {
     const task = await this.findOne(id);
     await this.executionService.stopTask(task);
+
+    // 진행 중인 run을 stopped으로 업데이트
+    await this.runRepo.update(
+      { taskId: id, status: 'running' },
+      { status: 'stopped', completedAt: new Date() },
+    );
+
     return this.findOne(id);
   }
 
@@ -136,6 +159,14 @@ export class TasksService {
       where: { archived: false },
       relations: ['requirements', 'agents'],
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getRuns(taskId: string): Promise<TaskRunEntity[]> {
+    return this.runRepo.find({
+      where: { taskId },
+      relations: ['agentRuns'],
+      order: { version: 'DESC' },
     });
   }
 
@@ -181,5 +212,17 @@ export class TasksService {
 
   async remove(id: string): Promise<void> {
     await this.taskRepo.delete(id);
+  }
+
+  // ─── 내부 헬퍼 ────────────────────────────────────────────────────────
+
+  private async createRun(taskId: string, version: number, supplementNote: string | null): Promise<TaskRunEntity> {
+    const run = this.runRepo.create({
+      taskId,
+      version,
+      supplementNote,
+      status: 'running',
+    });
+    return this.runRepo.save(run);
   }
 }

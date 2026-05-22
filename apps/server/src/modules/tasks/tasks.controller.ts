@@ -68,6 +68,12 @@ export class TasksController {
     return this.tasksService.rerun(id, dto.supplementNote);
   }
 
+  /** GET /tasks/:id/runs — 실행 버전 이력 */
+  @Get(':id/runs')
+  getRuns(@Param('id') id: string) {
+    return this.tasksService.getRuns(id);
+  }
+
   /** POST /tasks/:id/archive */
   @Post(':id/archive')
   @HttpCode(HttpStatus.NO_CONTENT)
