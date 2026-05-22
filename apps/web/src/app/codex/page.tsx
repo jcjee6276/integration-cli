@@ -69,16 +69,23 @@ function AuthenticatedView() {
 export default function CodexPage() {
   const {
     authState,
+    loginMethod,
+    setLoginMethod,
     loginState,
+    loginOutput,
+    loginUrls,
+    deviceCode,
+    startDeviceLogin,
+    cancelDeviceLogin,
+    apiKeyLoginState,
     configError,
     saveApiKey,
-    resetLogin,
     checkAuth,
   } = useCodexAuth();
 
   useEffect(() => {
-    if (loginState === "done") void checkAuth();
-  }, [loginState, checkAuth]);
+    if (loginState === "done" || apiKeyLoginState === "done") void checkAuth();
+  }, [loginState, apiKeyLoginState, checkAuth]);
 
   const pageHeader = (
     <header className="flex items-center gap-2 border-b border-gray-900/[0.07] px-4 py-3 dark:border-white/[0.07]">
@@ -100,10 +107,17 @@ export default function CodexPage() {
       {authState === "not-installed" && <NotInstalledView />}
       {authState === "unauthenticated" && (
         <CodexLoginPanel
+          loginMethod={loginMethod}
+          onMethodChange={setLoginMethod}
           loginState={loginState}
+          loginOutput={loginOutput}
+          loginUrls={loginUrls}
+          deviceCode={deviceCode}
+          onStartDeviceLogin={startDeviceLogin}
+          onCancelDeviceLogin={cancelDeviceLogin}
+          apiKeyLoginState={apiKeyLoginState}
           configError={configError}
           onSaveApiKey={saveApiKey}
-          onReset={resetLogin}
         />
       )}
       {authState === "authenticated" && <AuthenticatedView />}
