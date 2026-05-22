@@ -13,6 +13,8 @@ import { GeminiAuthManager } from '../agents/gemini/gemini-auth.manager';
 import { ConversationService } from '../conversations/conversation.service';
 import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
 import { GitChangelogService } from '../changelog/changelog.service';
+import { HarnessService } from '../harness/harness.service';
+import type { HarnessRole } from '../harness/harness.service';
 import type {
   ClaudeAssistantEvent,
   ClaudeResultEvent,
@@ -66,6 +68,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     private readonly geminiAuthManager: GeminiAuthManager,
     private readonly conversationService: ConversationService,
     private readonly gitChangelogService: GitChangelogService,
+    private readonly harnessService: HarnessService,
   ) {
     super();
   }
@@ -105,7 +108,17 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     for (const agent of task.agents) {
       const roleLabel = agent.role === 'other' && agent.customRole ? agent.customRole : agent.role;
+
+      // 공통 하네스 + 역할별 하네스 로드
+      const commonHarness = this.harnessService.findOne('common');
+      const roleHarness = this.harnessService.findOne(agent.role as HarnessRole);
+      const harnessSection = [
+        commonHarness?.content?.trim() ? `[공통 하네스]\n${commonHarness.content.trim()}` : '',
+        roleHarness?.content?.trim()   ? `[${roleLabel} 하네스]\n${roleHarness.content.trim()}` : '',
+      ].filter(Boolean).join('\n\n');
+
       const prompt = [
+        harnessSection ? `${harnessSection}\n\n` : '',
         `당신은 ${roleLabel} 역할의 AI 에이전트입니다.`,
         `\n\n[작업 목표]\n${task.title}`,
         reqList ? `\n\n[요구사항]\n${reqList}` : '',
