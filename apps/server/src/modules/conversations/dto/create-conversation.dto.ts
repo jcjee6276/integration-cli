@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 import { AgentModel, ConversationType } from '../enums/conversation.enum';
 
@@ -20,4 +20,8 @@ export class CreateConversationDto {
 
   @IsEnum(ConversationType)
   type!: ConversationType;
+
+  @IsInt()
+  @IsOptional()
+  agentId?: number | null;
 }

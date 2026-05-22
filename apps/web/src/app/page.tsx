@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { getAuthStatus, getGeminiAuthStatus } from "@/features/auth/api/auth.api";
+import { getAuthStatus, getCodexAuthStatus, getGeminiAuthStatus } from "@/features/auth/api/auth.api";
 import { ThemeToggle } from "@/lib/theme";
 
 type AuthBadge = "loading" | "authenticated" | "unauthenticated" | "unavailable";
@@ -13,11 +13,13 @@ type AuthBadge = "loading" | "authenticated" | "unauthenticated" | "unavailable"
 interface AgentAuthBadges {
   claudeBadge: AuthBadge;
   geminiBadge: AuthBadge;
+  codexBadge: AuthBadge;
 }
 
 function useAgentAuthBadges(): AgentAuthBadges {
   const [claudeBadge, setClaudeBadge] = useState<AuthBadge>("loading");
   const [geminiBadge, setGeminiBadge] = useState<AuthBadge>("loading");
+  const [codexBadge, setCodexBadge] = useState<AuthBadge>("loading");
 
   useEffect(() => {
     getAuthStatus()
@@ -30,9 +32,13 @@ function useAgentAuthBadges(): AgentAuthBadges {
         else setGeminiBadge(d.loggedIn ? "authenticated" : "unauthenticated");
       })
       .catch(() => setGeminiBadge("unavailable"));
+
+    getCodexAuthStatus()
+      .then((d) => setCodexBadge(d.loggedIn ? "authenticated" : "unauthenticated"))
+      .catch(() => setCodexBadge("unavailable"));
   }, []);
 
-  return { claudeBadge, geminiBadge };
+  return { claudeBadge, geminiBadge, codexBadge };
 }
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
@@ -213,7 +219,7 @@ function AgentCard({
 
 // ─── Agent Definitions ────────────────────────────────────────────────────────
 
-type AgentKey = "claude" | "gemini";
+type AgentKey = "claude" | "gemini" | "codex";
 
 type AgentDef = Omit<AgentCardProps, "badge" | "index"> & (
   | { isDynamic: true; agentKey: AgentKey }
@@ -244,15 +250,15 @@ const AGENTS: AgentDef[] = [
     agentKey: "gemini" as const,
   },
   {
-    href: "#",
+    href: "/codex",
     name: "Codex CLI",
-    description: "OpenAI Codex 통합 (준비 중)",
-    accentFrom: "from-emerald-500/[0.13]",
-    accentVia: "via-emerald-400/40",
-    hoverShadow: "hover:shadow-[0_8px_32px_-4px_rgba(16,185,129,0.12)]",
-    clickable: false,
-    isDynamic: false,
-    staticBadge: "unavailable",
+    description: "OpenAI Codex를 터미널에서 실행",
+    accentFrom: "from-gray-500/[0.10]",
+    accentVia: "via-gray-400/30",
+    hoverShadow: "hover:shadow-[0_8px_32px_-4px_rgba(107,114,128,0.10)]",
+    clickable: true,
+    isDynamic: true,
+    agentKey: "codex" as const,
   },
 ];
 
@@ -261,11 +267,12 @@ const AGENTS: AgentDef[] = [
 const BADGE_BY_KEY: Record<AgentKey, keyof AgentAuthBadges> = {
   claude: "claudeBadge",
   gemini: "geminiBadge",
+  codex: "codexBadge",
 };
 
 export default function Home() {
   const badges = useAgentAuthBadges();
-  const isLoading = badges.claudeBadge === "loading" || badges.geminiBadge === "loading";
+  const isLoading = badges.claudeBadge === "loading" || badges.geminiBadge === "loading" || badges.codexBadge === "loading";
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#faf8f5] px-6 py-12 dark:bg-[#07090e]">

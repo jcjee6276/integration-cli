@@ -16,6 +16,10 @@ export class ConversationEntity {
   @Column({ type: 'text', name: 'prompt_id' })
   promptId!: string;
 
+  /** 태스크 에이전트 ID (task_agents.id) — 태스크 실행 시에만 존재 */
+  @Column({ type: 'integer', name: 'agent_id', nullable: true })
+  agentId!: number | null;
+
   /** 메시지 내용 */
   @Column({ type: 'text' })
   content!: string;

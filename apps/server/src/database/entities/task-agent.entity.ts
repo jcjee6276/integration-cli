@@ -28,6 +28,12 @@ export class TaskAgentEntity {
   @Column('text', { nullable: true })
   claudeSessionId!: string | null;
 
+  @Column('text', { nullable: true })
+  worktreePath!: string | null;
+
+  @Column('text', { nullable: true })
+  startCommitHash!: string | null;
+
   @Column('text', { default: 'pending' })
   status!: string;
 

@@ -81,6 +81,33 @@ export function saveGeminiConversation(
   }).catch(() => undefined);
 }
 
+export async function createCodexSession(workingDirectory?: string): Promise<SessionInfo> {
+  const res = await fetch(`${SERVER_URL}/agents/codex/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(workingDirectory ? { workingDirectory } : {}),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteCodexSession(id: string): Promise<void> {
+  await fetch(`${SERVER_URL}/agents/codex/sessions/${id}`, { method: "DELETE" });
+}
+
+export function saveCodexConversation(
+  sessionId: string,
+  promptId: string,
+  content: string,
+  type: ConversationType,
+): void {
+  void fetch(`${SERVER_URL}/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, promptId, content, agentModel: "codex", type }),
+  }).catch(() => undefined);
+}
+
 // ─── Conversations ───────────────────────────────────────────────────────────
 
 export async function fetchConversations(sessionId: string): Promise<DBConversation[]> {

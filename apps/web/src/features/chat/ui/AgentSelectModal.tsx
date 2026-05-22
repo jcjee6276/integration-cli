@@ -79,7 +79,7 @@ const AGENTS: AgentDef[] = [
     name: "Codex CLI",
     vendor: "OpenAI",
     description: "OpenAI Codex 기반 터미널 에이전트",
-    available: false,
+    available: true,
     iconBg: "bg-gray-900/[0.05] dark:bg-white/[0.06]",
     hoverBorder: "hover:border-gray-900/20 dark:hover:border-white/20",
     hoverBg: "hover:bg-gray-900/[0.03] dark:hover:bg-white/[0.03]",
