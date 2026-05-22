@@ -200,6 +200,7 @@ function TaskCard({
                     agents={task.agents}
                     agentLogs={agentLogs}
                     connected={connected}
+                    taskStatus={task.status as TaskStatus}
                   />
                 </div>
                 {changelogMounted && isFinished && (

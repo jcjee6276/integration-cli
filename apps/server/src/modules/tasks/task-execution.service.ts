@@ -581,14 +581,15 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     const byAgent = new Map<number, string>();
     for (const msg of agentMessages) {
-      const id = msg.agentId!;
+      const id = Number(msg.agentId!);
       byAgent.set(id, (byAgent.get(id) ?? '') + msg.content);
     }
 
-    return Array.from(byAgent.entries()).map(([agentId, output]) => ({
-      agentId,
-      status: statusMap.get(agentId) ?? 'completed',
-      output,
+    // 대화 유무와 관계없이 모든 에이전트 항목을 반환
+    return agents.map((agent) => ({
+      agentId: agent.id,
+      status: agent.status,
+      output: byAgent.get(agent.id) ?? '',
     }));
   }
 

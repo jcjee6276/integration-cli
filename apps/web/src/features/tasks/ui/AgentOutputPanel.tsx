@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { isQuotaExceeded } from "@/lib/quota";
-import type { AgentStatus } from "../api/tasks.api";
+import type { AgentStatus, TaskStatus } from "../api/tasks.api";
 import type { AgentLog } from "../hooks/useTaskExecution";
 import { AgentRoleBadge } from "./AgentRoleSelect";
 import type { AgentRole } from "../api/tasks.api";
@@ -120,9 +120,15 @@ interface AgentOutputPanelProps {
   agents: Agent[];
   agentLogs: Record<number, AgentLog>;
   connected: boolean;
+  taskStatus?: TaskStatus;
 }
 
-export function AgentOutputPanel({ agents, agentLogs, connected }: AgentOutputPanelProps) {
+export function AgentOutputPanel({ agents, agentLogs, connected, taskStatus }: AgentOutputPanelProps) {
+  const fallbackStatus: AgentStatus =
+    taskStatus === "completed" ? "completed" :
+    taskStatus === "error"     ? "error" :
+    taskStatus === "stopped"   ? "stopped" :
+    "running";
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -138,7 +144,7 @@ export function AgentOutputPanel({ agents, agentLogs, connected }: AgentOutputPa
       {agents.map((agent) => {
         const log = agentLogs[agent.id] ?? {
           agentId: agent.id,
-          status: "running" as AgentStatus,
+          status: fallbackStatus,
           output: "",
         };
         return (
