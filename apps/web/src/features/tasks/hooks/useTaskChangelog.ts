@@ -16,13 +16,16 @@ export function useTaskChangelog(taskId: string | null) {
       return;
     }
 
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    fetchTaskChangelog(taskId)
-      .then(setChangelogs)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetchTaskChangelog(taskId, controller.signal)
+      .then((data) => { if (!controller.signal.aborted) setChangelogs(data); })
+      .catch((e: Error) => { if (!controller.signal.aborted) setError(e.message); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+
+    return () => { controller.abort(); };
   }, [taskId]);
 
   return { changelogs, loading, error };

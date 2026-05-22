@@ -74,6 +74,7 @@ function TaskCard({
   const [rerunMode, setRerunMode] = useState(false);
   const [supplementNote, setSupplementNote] = useState("");
   const [activeTab, setActiveTab] = useState<"logs" | "changelog">("logs");
+  const [changelogMounted, setChangelogMounted] = useState(false);
 
   const handleRerunConfirm = () => {
     onRerun(supplementNote);
@@ -180,7 +181,7 @@ function TaskCard({
                       <button
                         key={tab}
                         type="button"
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => { setActiveTab(tab); if (tab === "changelog") setChangelogMounted(true); }}
                         className={[
                           "flex-1 rounded-md px-3 py-1 text-xs font-medium transition-colors",
                           activeTab === tab
@@ -194,15 +195,17 @@ function TaskCard({
                   </div>
                 )}
 
-                {activeTab === "logs" && (
+                <div className={activeTab !== "logs" ? "hidden" : ""}>
                   <AgentOutputPanel
                     agents={task.agents}
                     agentLogs={agentLogs}
                     connected={connected}
                   />
-                )}
-                {activeTab === "changelog" && isFinished && (
-                  <ChangelogPanel taskId={task.id} agents={task.agents} />
+                </div>
+                {changelogMounted && isFinished && (
+                  <div className={activeTab !== "changelog" ? "hidden" : ""}>
+                    <ChangelogPanel taskId={task.id} agents={task.agents} />
+                  </div>
                 )}
               </div>
             )}
