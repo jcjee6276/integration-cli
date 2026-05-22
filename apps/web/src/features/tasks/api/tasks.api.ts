@@ -2,6 +2,26 @@ import { SERVER_URL } from "@/lib/constants";
 
 export type AgentRole = "frontend" | "backend" | "doc" | "operation" | "other";
 
+export interface TaskAgentRun {
+  id: number;
+  agentId: number;
+  status: string;
+  worktreePath: string | null;
+  startCommitHash: string | null;
+  durationMs: number | null;
+  costUsd: number | null;
+}
+
+export interface TaskRun {
+  id: number;
+  version: number;
+  supplementNote: string | null;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  agentRuns: TaskAgentRun[];
+}
+
 export type TaskStatus = "pending" | "running" | "stopped" | "completed" | "error";
 export type AgentStatus = "pending" | "running" | "stopped" | "completed" | "error";
 
@@ -96,6 +116,12 @@ export async function executeTask(id: string): Promise<Task> {
 
 export async function stopTask(id: string): Promise<Task> {
   const res = await fetch(`${SERVER_URL}/tasks/${id}/stop`, { method: "POST" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTaskRuns(id: string): Promise<TaskRun[]> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/runs`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

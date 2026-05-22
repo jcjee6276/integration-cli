@@ -14,7 +14,7 @@ import { Server, Socket } from 'socket.io';
 
 import { ClaudeAuthManager } from './claude-auth.manager';
 import { ClaudePtyManager } from './claude-pty.manager';
-import type { CreateSessionDto } from './dto/create-session.dto';
+import type { ClaudeCreateSessionDto as CreateSessionDto } from './dto/create-session.dto';
 import type { SendInputDto } from './dto/send-input.dto';
 import type {
   ResultEvent,
