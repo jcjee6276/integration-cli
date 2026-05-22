@@ -23,6 +23,76 @@ interface CodexSession extends CodexSessionInfo {
 
 const ANSI_STRIP = /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g;
 
+/**
+ * codex exec 출력 형식:
+ *   Reading additional input from stdin...
+ *   OpenAI Codex vX.Y.Z
+ *   --------
+ *   workdir: ... / model: ... / ...
+ *   --------
+ *   user
+ *   <user prompt echo>
+ *   codex
+ *   <actual response lines>
+ *   tokens used
+ *   <token count>
+ *   <response duplicate>
+ *
+ * "codex" 섹션 내용만 emit하고, 나머지는 모두 버린다.
+ */
+type ParseState = 'header' | 'user_echo' | 'response' | 'done';
+
+class CodexOutputParser {
+  private state: ParseState = 'header';
+  private lineBuffer = '';
+
+  /** 청크를 받아 emit할 텍스트만 반환한다 (없으면 빈 문자열). */
+  feed(raw: string): string {
+    const text = raw.replace(ANSI_STRIP, '').replace(/\r/g, '');
+    this.lineBuffer += text;
+
+    const lines = this.lineBuffer.split('\n');
+    this.lineBuffer = lines.pop() ?? '';
+
+    let out = '';
+    for (const line of lines) {
+      out += this.handleLine(line);
+    }
+    return out;
+  }
+
+  /** 프로세스 종료 시 버퍼 플러시 */
+  flush(): string {
+    if (!this.lineBuffer) return '';
+    const out = this.handleLine(this.lineBuffer);
+    this.lineBuffer = '';
+    return out;
+  }
+
+  private handleLine(line: string): string {
+    if (this.state === 'done') return '';
+
+    // 헤더 구간: 두 번째 '--------' 까지 모두 버림
+    if (this.state === 'header') {
+      if (line === '--------') this.state = 'user_echo';
+      return '';
+    }
+
+    // 섹션 헤더 감지
+    if (line === 'user') { this.state = 'user_echo'; return ''; }
+    if (line === 'codex') { this.state = 'response'; return ''; }
+    if (line === 'tokens used') { this.state = 'done'; return ''; }
+
+    // user echo 줄 → 스킵하고 다음 섹션 헤더 대기
+    if (this.state === 'user_echo') return '';
+
+    // response 구간 → 그대로 출력
+    if (this.state === 'response') return line + '\n';
+
+    return '';
+  }
+}
+
 @Injectable()
 export class CodexSessionManager extends EventEmitter implements OnModuleDestroy {
   private readonly logger = new Logger(CodexSessionManager.name);
@@ -95,6 +165,7 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
 
   private spawnCodex(session: CodexSession, message: string): void {
     const sessionId = session.id;
+    const parser = new CodexOutputParser();
 
     const proc = spawn(
       'codex',
@@ -114,16 +185,19 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     let output = '';
 
     const handleChunk = (chunk: Buffer) => {
-      const text = chunk.toString().replace(ANSI_STRIP, '').replace(/\r/g, '');
-      if (!text.trim()) return;
-      output += text;
-      this.emit('session:text', { sessionId, text });
+      const filtered = parser.feed(chunk.toString());
+      if (!filtered) return;
+      output += filtered;
+      this.emit('session:text', { sessionId, text: filtered });
     };
 
     proc.stdout.on('data', handleChunk);
     proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      const tail = parser.flush();
+      if (tail) { output += tail; this.emit('session:text', { sessionId, text: tail }); }
+
       session.status = 'idle';
       const isError = (exitCode ?? 0) !== 0;
       this.emit('session:result', { sessionId, result: output.trim(), isError, durationMs: 0, costUsd: 0 });
