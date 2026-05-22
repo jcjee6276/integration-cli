@@ -8,6 +8,7 @@ import { LoginPanel } from "@/features/auth/ui/LoginPanel";
 import { getClaudeStatus } from "@/features/auth/api/auth.api";
 import { useClaudeSessions } from "@/features/chat/hooks/useClaudeSessions";
 import { useGeminiSessions } from "@/features/chat/hooks/useGeminiSessions";
+import { useCodexSessions } from "@/features/chat/hooks/useCodexSessions";
 import { ChatInput } from "@/features/chat/ui/ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "@/features/chat/ui/ChatMessage";
 import { PermissionCard } from "@/features/chat/ui/PermissionCard";
@@ -94,14 +95,15 @@ export default function ClaudePage() {
 
   const claude = useClaudeSessions();
   const gemini = useGeminiSessions();
+  const codex = useCodexSessions();
 
   // ── 통합 세션 뷰 ──────────────────────────────────────────────────────────
-  const sessions = [...claude.sessions, ...gemini.sessions].sort(
+  const sessions = [...claude.sessions, ...gemini.sessions, ...codex.sessions].sort(
     (a, b) => new Date(b.info.createdAt).getTime() - new Date(a.info.createdAt).getTime(),
   );
 
   const connectionStatus = claude.connectionStatus;
-  const error = claude.error ?? gemini.error;
+  const error = claude.error ?? gemini.error ?? codex.error;
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const selectedSession = sessions.find((s) => s.info.id === selectedSessionId) ?? null;
@@ -110,12 +112,14 @@ export default function ClaudePage() {
     setSelectedSessionId(id);
     claude.selectSession(id);
     gemini.selectSession(id);
+    codex.selectSession(id);
   };
 
   const sendMessage = (sessionId: string, text: string) => {
     const session = sessions.find((s) => s.info.id === sessionId);
     if (!session) return;
     if (session.agentId === "gemini") gemini.sendMessage(sessionId, text);
+    else if (session.agentId === "codex") codex.sendMessage(sessionId, text);
     else claude.sendMessage(sessionId, text);
   };
 
@@ -123,6 +127,7 @@ export default function ClaudePage() {
     const session = sessions.find((s) => s.info.id === sessionId);
     if (!session) return;
     if (session.agentId === "gemini") await gemini.terminateSession(sessionId);
+    else if (session.agentId === "codex") await codex.terminateSession(sessionId);
     else await claude.terminateSession(sessionId);
     setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
   };
@@ -170,6 +175,8 @@ export default function ClaudePage() {
     const dir = currentDir || undefined;
     if (agentId === "gemini") {
       gemini.createSession(dir).then((id) => { if (id) setSelectedSessionId(id); });
+    } else if (agentId === "codex") {
+      codex.createSession(dir).then((id) => { if (id) setSelectedSessionId(id); });
     } else {
       claude.createSession(agentId, dir).then((id) => { if (id) setSelectedSessionId(id); });
     }

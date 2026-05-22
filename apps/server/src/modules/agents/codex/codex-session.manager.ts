@@ -1,0 +1,223 @@
+import { spawn } from 'child_process';
+import { EventEmitter } from 'events';
+
+import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
+
+import { SessionEntity } from '../../../database/entities/session.entity';
+import { CodexAuthManager } from './codex-auth.manager';
+
+export interface CodexSessionInfo {
+  id: string;
+  status: 'idle' | 'processing' | 'terminated';
+  workingDirectory: string;
+  createdAt: Date;
+  lastActivity: Date;
+}
+
+interface CodexSession extends CodexSessionInfo {
+  persisted: boolean;
+}
+
+const ANSI_STRIP = /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g;
+
+/**
+ * codex exec 출력 형식:
+ *   Reading additional input from stdin...
+ *   OpenAI Codex vX.Y.Z
+ *   --------
+ *   workdir: ... / model: ... / ...
+ *   --------
+ *   user
+ *   <user prompt echo>
+ *   codex
+ *   <actual response lines>
+ *   tokens used
+ *   <token count>
+ *   <response duplicate>
+ *
+ * "codex" 섹션 내용만 emit하고, 나머지는 모두 버린다.
+ */
+type ParseState = 'header' | 'user_echo' | 'response' | 'done';
+
+class CodexOutputParser {
+  private state: ParseState = 'header';
+  private lineBuffer = '';
+
+  /** 청크를 받아 emit할 텍스트만 반환한다 (없으면 빈 문자열). */
+  feed(raw: string): string {
+    const text = raw.replace(ANSI_STRIP, '').replace(/\r/g, '');
+    this.lineBuffer += text;
+
+    const lines = this.lineBuffer.split('\n');
+    this.lineBuffer = lines.pop() ?? '';
+
+    let out = '';
+    for (const line of lines) {
+      out += this.handleLine(line);
+    }
+    return out;
+  }
+
+  /** 프로세스 종료 시 버퍼 플러시 */
+  flush(): string {
+    if (!this.lineBuffer) return '';
+    const out = this.handleLine(this.lineBuffer);
+    this.lineBuffer = '';
+    return out;
+  }
+
+  private handleLine(line: string): string {
+    if (this.state === 'done') return '';
+
+    // 헤더 구간: 두 번째 '--------' 까지 모두 버림
+    if (this.state === 'header') {
+      if (line === '--------') this.state = 'user_echo';
+      return '';
+    }
+
+    // 섹션 헤더 감지
+    if (line === 'user') { this.state = 'user_echo'; return ''; }
+    if (line === 'codex') { this.state = 'response'; return ''; }
+    if (line === 'tokens used') { this.state = 'done'; return ''; }
+
+    // user echo 줄 → 스킵하고 다음 섹션 헤더 대기
+    if (this.state === 'user_echo') return '';
+
+    // response 구간 → 그대로 출력
+    if (this.state === 'response') return line + '\n';
+
+    return '';
+  }
+}
+
+@Injectable()
+export class CodexSessionManager extends EventEmitter implements OnModuleDestroy {
+  private readonly logger = new Logger(CodexSessionManager.name);
+  private readonly sessions = new Map<string, CodexSession>();
+
+  constructor(
+    @InjectRepository(SessionEntity)
+    private readonly sessionRepo: Repository<SessionEntity>,
+    private readonly authManager: CodexAuthManager,
+  ) {
+    super();
+  }
+
+  createSession(workingDirectory = process.cwd()): CodexSessionInfo {
+    const id = uuidv4();
+    const now = new Date();
+    const session: CodexSession = {
+      id,
+      status: 'idle',
+      workingDirectory,
+      createdAt: now,
+      lastActivity: now,
+      persisted: false,
+    };
+    this.sessions.set(id, session);
+    this.logger.log(`Created Codex session ${id} (cwd: ${workingDirectory})`);
+    return this.toInfo(session);
+  }
+
+  getSession(id: string): CodexSessionInfo {
+    const session = this.sessions.get(id);
+    if (!session) throw new NotFoundException(`Session ${id} not found`);
+    return this.toInfo(session);
+  }
+
+  listSessions(): CodexSessionInfo[] {
+    return [...this.sessions.values()].map((s) => this.toInfo(s));
+  }
+
+  terminateSession(id: string): void {
+    const session = this.sessions.get(id);
+    if (!session) throw new NotFoundException(`Session ${id} not found`);
+    session.status = 'terminated';
+    this.sessions.delete(id);
+    this.logger.log(`Terminated Codex session ${id}`);
+  }
+
+  sendMessage(sessionId: string, message: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
+    if (session.status === 'processing') throw new Error(`Session ${sessionId} is already processing`);
+
+    session.status = 'processing';
+    session.lastActivity = new Date();
+
+    if (!session.persisted) {
+      void this.persistSession(session).then(() => this.spawnCodex(session, message));
+      return;
+    }
+
+    this.spawnCodex(session, message);
+  }
+
+  private async persistSession(session: CodexSession): Promise<void> {
+    const title = session.workingDirectory.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).at(-1) ?? 'Codex';
+    await this.sessionRepo.save({ sessionId: session.id, title, agentType: 'codex' });
+    session.persisted = true;
+    this.logger.log(`Persisted Codex session ${session.id} (${title})`);
+  }
+
+  private spawnCodex(session: CodexSession, message: string): void {
+    const sessionId = session.id;
+    const parser = new CodexOutputParser();
+
+    const proc = spawn(
+      'codex',
+      [
+        'exec',
+        '-c', 'approval_policy="never"',
+        '-c', 'sandbox_mode="danger-full-access"',
+        message,
+      ],
+      {
+        cwd: session.workingDirectory,
+        env: this.authManager.getEnvForCodex(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+
+    let output = '';
+
+    const handleChunk = (chunk: Buffer) => {
+      const filtered = parser.feed(chunk.toString());
+      if (!filtered) return;
+      output += filtered;
+      this.emit('session:text', { sessionId, text: filtered });
+    };
+
+    proc.stdout.on('data', handleChunk);
+    proc.stderr.on('data', handleChunk);
+
+    proc.on('close', (exitCode) => {
+      const tail = parser.flush();
+      if (tail) { output += tail; this.emit('session:text', { sessionId, text: tail }); }
+
+      session.status = 'idle';
+      const isError = (exitCode ?? 0) !== 0;
+      this.emit('session:result', { sessionId, result: output.trim(), isError, durationMs: 0, costUsd: 0 });
+      this.emit('session:exit', { sessionId, exitCode: exitCode ?? -1 });
+      this.logger.log(`Codex session ${sessionId} finished (exit: ${exitCode})`);
+    });
+
+    proc.on('error', (err) => {
+      session.status = 'idle';
+      this.logger.error(`Codex session ${sessionId} spawn error: ${err.message}`);
+      this.emit('error', { sessionId, message: err.message });
+    });
+  }
+
+  onModuleDestroy(): void {
+    this.sessions.clear();
+  }
+
+  private toInfo(session: CodexSession): CodexSessionInfo {
+    const { persisted: _p, ...info } = session;
+    return info;
+  }
+}
