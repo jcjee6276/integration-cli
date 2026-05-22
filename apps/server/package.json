@@ -76,6 +76,10 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "moduleNameMapper": {
+      "^uuid$": "<rootDir>/__mocks__/uuid.js",
+      "^glob$": "<rootDir>/__mocks__/glob.js"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

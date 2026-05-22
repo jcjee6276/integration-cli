@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createTask, deleteTask, fetchTasks } from "../tasks.api";
+import {
+  archiveTask,
+  createTask,
+  deleteTask,
+  executeTask,
+  fetchTask,
+  fetchTaskRuns,
+  fetchTasks,
+  rerunTask,
+  stopTask,
+  updateTask,
+} from "../tasks.api";
 import type { CreateTaskPayload } from "../tasks.api";
 
 const mockFetch = vi.fn();
@@ -94,6 +105,62 @@ describe("fetchTasks", () => {
   });
 });
 
+describe("fetchTask", () => {
+  it("returns one task", async () => {
+    mockFetch.mockReturnValueOnce(ok(mockTask));
+
+    const result = await fetchTask("task-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/tasks/task-1"));
+    expect(result).toEqual(mockTask);
+  });
+
+  it("throws on HTTP error", async () => {
+    mockFetch.mockReturnValueOnce(err(404));
+    await expect(fetchTask("missing")).rejects.toThrow("HTTP 404");
+  });
+});
+
+describe("updateTask", () => {
+  it("sends PATCH with JSON body", async () => {
+    mockFetch.mockReturnValueOnce(ok(mockTask));
+
+    await updateTask("task-1", { title: "수정" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1"),
+      expect.objectContaining({
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "수정" }),
+      }),
+    );
+  });
+
+  it("throws on HTTP error", async () => {
+    mockFetch.mockReturnValueOnce(err(400));
+    await expect(updateTask("task-1", { title: "" })).rejects.toThrow("HTTP 400");
+  });
+});
+
+describe("archiveTask", () => {
+  it("posts to archive endpoint", async () => {
+    mockFetch.mockReturnValueOnce(Promise.resolve({ ok: true } as Response));
+
+    await archiveTask("task-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1/archive"),
+      { method: "POST" },
+    );
+  });
+
+  it("throws on HTTP error", async () => {
+    mockFetch.mockReturnValueOnce(err(409));
+    await expect(archiveTask("task-1")).rejects.toThrow("HTTP 409");
+  });
+});
+
 describe("deleteTask", () => {
   it("sends DELETE to correct URL", async () => {
     mockFetch.mockReturnValueOnce(Promise.resolve({ ok: true } as Response));
@@ -104,5 +171,74 @@ describe("deleteTask", () => {
       expect.stringContaining("/tasks/task-123"),
       expect.objectContaining({ method: "DELETE" }),
     );
+  });
+});
+
+describe("execution controls", () => {
+  it("executeTask posts and returns the updated task", async () => {
+    mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "running" }));
+
+    const result = await executeTask("task-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1/execute"),
+      { method: "POST" },
+    );
+    expect(result.status).toBe("running");
+  });
+
+  it("stopTask posts and returns the updated task", async () => {
+    mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "stopped" }));
+
+    const result = await stopTask("task-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1/stop"),
+      { method: "POST" },
+    );
+    expect(result.status).toBe("stopped");
+  });
+
+  it("rerunTask posts supplement note as JSON", async () => {
+    mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "running" }));
+
+    await rerunTask("task-1", "추가 지시");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1/rerun"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplementNote: "추가 지시" }),
+      },
+    );
+  });
+
+  it("throws when execution endpoints fail", async () => {
+    mockFetch.mockReturnValueOnce(err(500));
+    await expect(executeTask("task-1")).rejects.toThrow("HTTP 500");
+
+    mockFetch.mockReturnValueOnce(err(409));
+    await expect(stopTask("task-1")).rejects.toThrow("HTTP 409");
+
+    mockFetch.mockReturnValueOnce(err(422));
+    await expect(rerunTask("task-1")).rejects.toThrow("HTTP 422");
+  });
+});
+
+describe("fetchTaskRuns", () => {
+  it("returns run history", async () => {
+    const runs = [{ id: 1, version: 1, supplementNote: null, status: "completed", startedAt: "2024-01-01", completedAt: null, agentRuns: [] }];
+    mockFetch.mockReturnValueOnce(ok(runs));
+
+    const result = await fetchTaskRuns("task-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/tasks/task-1/runs"));
+    expect(result).toEqual(runs);
+  });
+
+  it("throws on HTTP error", async () => {
+    mockFetch.mockReturnValueOnce(err(500));
+    await expect(fetchTaskRuns("task-1")).rejects.toThrow("HTTP 500");
   });
 });

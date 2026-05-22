@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "baseUrl": "./",
+    "isolatedModules": true,
     "paths": {
       "@/*": ["./src/*"]
     }
