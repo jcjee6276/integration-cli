@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
 import { TaskRequirementEntity } from '../../database/entities/task-requirement.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
+import { GitChangelogService } from '../changelog/changelog.service';
 import { TaskExecutionService } from './task-execution.service';
 import type { CreateTaskDto } from './dto/create-task.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
@@ -20,6 +23,7 @@ export class TasksService {
     @InjectRepository(TaskAgentEntity)
     private readonly agentRepo: Repository<TaskAgentEntity>,
     private readonly executionService: TaskExecutionService,
+    private readonly gitChangelogService: GitChangelogService,
   ) {}
 
   // ─── 생성 ────────────────────────────────────────────────────────────
@@ -128,7 +132,45 @@ export class TasksService {
   // ─── 조회 ────────────────────────────────────────────────────────────
 
   findAll(): Promise<TaskEntity[]> {
-    return this.taskRepo.find({ relations: ['requirements', 'agents'], order: { createdAt: 'DESC' } });
+    return this.taskRepo.find({
+      where: { archived: false },
+      relations: ['requirements', 'agents'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async archive(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.taskRepo.update(id, { archived: true });
+  }
+
+  async mergeAgentAll(taskId: string, agentId: number): Promise<{ success: boolean; message: string }> {
+    const [task, agent] = await Promise.all([
+      this.findOne(taskId),
+      this.agentRepo.findOne({ where: { id: agentId, taskId } }),
+    ]);
+    if (!agent) throw new NotFoundException(`Agent ${agentId} not found`);
+    if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
+
+    const workingDir = this.resolveWorkingDir(task.workingDir);
+    return this.gitChangelogService.mergeAll(agent.worktreePath, workingDir);
+  }
+
+  async mergeAgentFile(taskId: string, agentId: number, filePath: string): Promise<{ success: boolean; message: string }> {
+    const [task, agent] = await Promise.all([
+      this.findOne(taskId),
+      this.agentRepo.findOne({ where: { id: agentId, taskId } }),
+    ]);
+    if (!agent) throw new NotFoundException(`Agent ${agentId} not found`);
+    if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
+
+    const workingDir = this.resolveWorkingDir(task.workingDir);
+    return this.gitChangelogService.mergeFile(agent.worktreePath, workingDir, filePath);
+  }
+
+  private resolveWorkingDir(workingDir: string | null): string {
+    if (workingDir && fs.existsSync(workingDir)) return workingDir;
+    return process.cwd();
   }
 
   async findOne(id: string): Promise<TaskEntity> {

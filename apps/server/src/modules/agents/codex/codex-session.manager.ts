@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
+import { AgentSessionEntity } from '../../../database/entities/agent-session.entity';
 import { SessionEntity } from '../../../database/entities/session.entity';
 import { CodexAuthManager } from './codex-auth.manager';
 
@@ -99,6 +100,8 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
   private readonly sessions = new Map<string, CodexSession>();
 
   constructor(
+    @InjectRepository(AgentSessionEntity)
+    private readonly agentSessionRepo: Repository<AgentSessionEntity>,
     @InjectRepository(SessionEntity)
     private readonly sessionRepo: Repository<SessionEntity>,
     private readonly authManager: CodexAuthManager,
@@ -141,24 +144,58 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
   }
 
   sendMessage(sessionId: string, message: string): void {
-    const session = this.sessions.get(sessionId);
-    if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
-    if (session.status === 'processing') throw new Error(`Session ${sessionId} is already processing`);
+    const existing = this.sessions.get(sessionId);
+    if (!existing) {
+      void this.restoreAndSend(sessionId, message);
+      return;
+    }
+    if (existing.status === 'processing') throw new Error(`Session ${sessionId} is already processing`);
 
-    session.status = 'processing';
-    session.lastActivity = new Date();
+    existing.status = 'processing';
+    existing.lastActivity = new Date();
 
-    if (!session.persisted) {
-      void this.persistSession(session).then(() => this.spawnCodex(session, message));
+    if (!existing.persisted) {
+      void this.persistSession(existing).then(() => this.spawnCodex(existing, message));
       return;
     }
 
+    this.spawnCodex(existing, message);
+  }
+
+  private async restoreAndSend(sessionId: string, message: string): Promise<void> {
+    const record = await this.agentSessionRepo.findOne({ where: { id: sessionId } });
+    if (!record) {
+      const newSession = this.createSession();
+      this.logger.log(`Session ${sessionId} not found — spawned new session ${newSession.id}`);
+      this.emit('session:replaced', { oldSessionId: sessionId, newSessionId: newSession.id });
+      this.sendMessage(newSession.id, message);
+      return;
+    }
+    const now = new Date();
+    const session: CodexSession = {
+      id: sessionId,
+      status: 'processing',
+      workingDirectory: record.workingDirectory,
+      createdAt: record.createdAt,
+      lastActivity: now,
+      persisted: true,
+    };
+    this.sessions.set(sessionId, session);
+    this.logger.log(`Restored Codex session ${sessionId} (cwd: ${record.workingDirectory})`);
     this.spawnCodex(session, message);
   }
 
   private async persistSession(session: CodexSession): Promise<void> {
     const title = session.workingDirectory.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).at(-1) ?? 'Codex';
-    await this.sessionRepo.save({ sessionId: session.id, title, agentType: 'codex' });
+    await Promise.all([
+      this.agentSessionRepo.save({
+        id: session.id,
+        claudeSessionId: null,
+        status: 'processing',
+        workingDirectory: session.workingDirectory,
+      }),
+      this.sessionRepo.save({ sessionId: session.id, title, agentType: 'codex' }),
+    ]);
     session.persisted = true;
     this.logger.log(`Persisted Codex session ${session.id} (${title})`);
   }

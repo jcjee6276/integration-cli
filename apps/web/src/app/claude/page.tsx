@@ -18,6 +18,7 @@ import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
 import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
 import { AgentStatusModal } from "@/features/status/ui/AgentStatusModal";
+import { HarnessModal } from "@/features/harness/ui/HarnessModal";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import { isQuotaExceeded } from "@/lib/quota";
 import { ThemeToggle } from "@/lib/theme";
@@ -143,6 +144,7 @@ export default function ClaudePage() {
   const [taskListOpen, setTaskListOpen] = useState(false);
   const [agentSelectOpen, setAgentSelectOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [harnessModalOpen, setHarnessModalOpen] = useState(false);
 
   const { hasNew, clearNew } = useTaskNotification();
 
@@ -270,6 +272,11 @@ export default function ClaudePage() {
         onClose={() => setStatusModalOpen(false)}
       />
 
+      <HarnessModal
+        open={harnessModalOpen}
+        onClose={() => setHarnessModalOpen(false)}
+      />
+
       {/* ── 사이드바 ────────────────────────────────────────────────────────── */}
       <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
         {/* 헤더 */}
@@ -332,7 +339,7 @@ export default function ClaudePage() {
         <TaskListModal open={taskListOpen} onClose={() => setTaskListOpen(false)} />
 
         {/* 세션 목록 */}
-        <nav className="flex-1 overflow-y-auto px-2 pb-2">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {sessions.length === 0 ? (
             <p className="py-8 text-center text-xs text-gray-900/20 dark:text-white/20">
               {connectionStatus === "connected" ? "세션이 없습니다" : "연결 중…"}
@@ -385,6 +392,21 @@ export default function ClaudePage() {
             </ul>
           )}
         </nav>
+
+        {/* 하단 — 하네스 설정 */}
+        <div className="shrink-0 border-t border-gray-900/[0.06] p-2 dark:border-white/[0.06]">
+          <button
+            type="button"
+            onClick={() => setHarnessModalOpen(true)}
+            title="하네스 설정"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-900/35 transition-colors hover:bg-gray-900/[0.04] hover:text-gray-900/65 dark:text-white/35 dark:hover:bg-white/[0.04] dark:hover:text-white/65"
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5 shrink-0">
+              <path fillRule="evenodd" d="M7.429 1.525a6.593 6.593 0 011.142 0c.036.003.108.036.137.146l.289 1.105c.147.56.55.967.997 1.189.174.086.341.183.501.29.417.278.97.423 1.53.27l1.102-.303c.11-.03.175.016.195.046a6.645 6.645 0 01.571.99c.014.03.014.066.006.104a.44.44 0 01-.07.15l-.686.858c-.357.447-.496.975-.446 1.488.016.165.025.332.025.5 0 .168-.009.335-.025.5-.05.513.089 1.04.446 1.488l.687.858c.044.055.072.11.07.15-.008.038-.008.074-.007.103a6.557 6.557 0 01-.57.99c-.02.03-.087.077-.196.047l-1.102-.303c-.56-.153-1.113-.008-1.53.27a6.36 6.36 0 01-.502.29c-.447.222-.85.629-.997 1.189l-.289 1.105c-.029.11-.1.143-.137.146a6.645 6.645 0 01-1.142 0c-.036-.003-.108-.036-.137-.146l-.289-1.105c-.147-.56-.55-.967-.997-1.189a6.36 6.36 0 01-.501-.29c-.417-.278-.97-.423-1.53-.27l-1.102.303c-.11.03-.175-.016-.195-.046a6.557 6.557 0 01-.57-.99c-.014-.03-.014-.066-.007-.104a.44.44 0 01.07-.15l.687-.858c.357-.447.496-.975.446-1.488A6.5 6.5 0 012 8c0-.168.009-.335.025-.5.05-.513-.089-1.04-.446-1.488L.892 5.154a.44.44 0 01-.07-.15c-.008-.038-.008-.074.006-.103.116-.342.27-.67.37-.99.02-.03.087-.077.196-.047l1.102.303c.56.153 1.113.008 1.53-.27.16-.107.327-.204.501-.29.447-.222.85-.629.997-1.189l.289-1.105c.029-.11.1-.143.137-.146zM8 5.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" clipRule="evenodd" />
+            </svg>
+            하네스 설정
+          </button>
+        </div>
       </aside>
 
       {/* ── 메인 채팅 영역 ───────────────────────────────────────────────────── */}

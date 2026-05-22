@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+import { JI_PATHS } from '../../../common/ji-paths';
 import { Injectable, Logger } from '@nestjs/common';
 
 export type GeminiAuthType = 'api-key' | 'gca';
@@ -19,10 +20,8 @@ interface GeminiSettings {
   [key: string]: unknown;
 }
 
-const GEMINI_DIR = path.join(os.homedir(), '.gemini');
-const SETTINGS_PATH = path.join(GEMINI_DIR, 'settings.json');
-// API 키는 Gemini CLI 가 env var 로만 읽으므로 별도 파일에 저장 후 주입
-const API_KEY_PATH = path.join(GEMINI_DIR, '.integration-cli-key');
+const SETTINGS_PATH = JI_PATHS.agents.gemini.settings;
+const API_KEY_PATH  = JI_PATHS.agents.gemini.apiKey;
 const GCA_CREDS_PATH = path.join(
   os.homedir(),
   '.config',
@@ -127,7 +126,9 @@ export class GeminiAuthManager {
   }
 
   private ensureGeminiDir(): void {
-    if (!fs.existsSync(GEMINI_DIR)) fs.mkdirSync(GEMINI_DIR, { recursive: true });
+    if (!fs.existsSync(JI_PATHS.agents.gemini.dir)) {
+      fs.mkdirSync(JI_PATHS.agents.gemini.dir, { recursive: true });
+    }
   }
 
   private readSettings(): GeminiSettings | null {

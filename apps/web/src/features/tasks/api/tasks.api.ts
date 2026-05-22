@@ -77,6 +77,11 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   return res.json();
 }
 
+export async function archiveTask(id: string): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/archive`, { method: "POST" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function deleteTask(id: string): Promise<void> {
   await fetch(`${SERVER_URL}/tasks/${id}`, { method: "DELETE" });
 }

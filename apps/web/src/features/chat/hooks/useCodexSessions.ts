@@ -37,6 +37,7 @@ export function useCodexSessions() {
 
   const streamingRef = useRef<Record<string, string>>({});
   const pendingPromptIdRef = useRef<Record<string, string>>({});
+  const pendingUserMsgRef = useRef<Record<string, { promptId: string; content: string }>>({});
   const loadingSessionsRef = useRef<Set<string>>(new Set());
 
   const loadSessionsFromDB = useCallback(async () => {
@@ -108,8 +109,15 @@ export function useCodexSessions() {
       streamingRef.current[sessionId] = "";
 
       const promptId = pendingPromptIdRef.current[sessionId];
-      if (promptId && content) {
-        saveCodexConversation(sessionId, promptId, content, "agent_message");
+      const userMsg = pendingUserMsgRef.current[sessionId];
+      if (promptId) {
+        if (userMsg) {
+          saveCodexConversation(sessionId, userMsg.promptId, userMsg.content, "user_message");
+          delete pendingUserMsgRef.current[sessionId];
+        }
+        if (content) {
+          saveCodexConversation(sessionId, promptId, content, "agent_message");
+        }
         delete pendingPromptIdRef.current[sessionId];
       }
 
@@ -138,6 +146,27 @@ export function useCodexSessions() {
       setSessions((prev) =>
         prev.map((s) => (s.info.id === sessionId ? { ...s, streaming: "", isWaiting: false } : s)),
       );
+    });
+
+    socket.on("session:replaced", ({ oldSessionId, newSessionId }: { oldSessionId: string; newSessionId: string }) => {
+      if (streamingRef.current[oldSessionId] !== undefined) {
+        streamingRef.current[newSessionId] = streamingRef.current[oldSessionId];
+        delete streamingRef.current[oldSessionId];
+      }
+      if (pendingPromptIdRef.current[oldSessionId] !== undefined) {
+        pendingPromptIdRef.current[newSessionId] = pendingPromptIdRef.current[oldSessionId];
+        delete pendingPromptIdRef.current[oldSessionId];
+      }
+      if (pendingUserMsgRef.current[oldSessionId] !== undefined) {
+        pendingUserMsgRef.current[newSessionId] = pendingUserMsgRef.current[oldSessionId];
+        delete pendingUserMsgRef.current[oldSessionId];
+      }
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.info.id === oldSessionId ? { ...s, info: { ...s.info, id: newSessionId } } : s,
+        ),
+      );
+      setSelectedSessionId((prev) => (prev === oldSessionId ? newSessionId : prev));
     });
 
     socket.on("error", ({ message }: { message: string }) => setError(message));
@@ -181,6 +210,7 @@ export function useCodexSessions() {
   const sendMessage = useCallback((sessionId: string, text: string) => {
     const promptId = crypto.randomUUID();
     pendingPromptIdRef.current[sessionId] = promptId;
+    pendingUserMsgRef.current[sessionId] = { promptId, content: text };
 
     setSessions((prev) =>
       prev.map((s) =>
@@ -197,7 +227,6 @@ export function useCodexSessions() {
       ),
     );
 
-    saveCodexConversation(sessionId, promptId, text, "user_message");
     socketRef.current?.emit("session:message", { sessionId, input: text });
   }, []);
 

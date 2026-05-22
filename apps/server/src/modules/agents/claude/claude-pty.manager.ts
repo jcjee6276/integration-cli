@@ -87,20 +87,46 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   // ─── 메시지 전송 ─────────────────────────────────────────────────────
 
   sendMessage(sessionId: string, message: string): void {
-    const session = this.requireSession(sessionId);
-    if (session.status === 'processing') {
-      throw new Error(`Session ${sessionId} is already processing`);
-    }
-
-    session.status = 'processing';
-    session.lastActivity = new Date();
-
-    if (!session.persisted) {
-      // 첫 메시지 전송: DB 적재 후 claude 실행
-      void this.persistSession(session).then(() => this.spawnClaude(session, message));
+    const existing = this.sessions.get(sessionId);
+    if (!existing) {
+      void this.restoreAndSend(sessionId, message);
       return;
     }
 
+    if (existing.status === 'processing') {
+      throw new Error(`Session ${sessionId} is already processing`);
+    }
+
+    existing.status = 'processing';
+    existing.lastActivity = new Date();
+
+    if (!existing.persisted) {
+      void this.persistSession(existing).then(() => this.spawnClaude(existing, message));
+      return;
+    }
+
+    void this.agentSessionRepo.update(sessionId, { status: 'processing' });
+    this.spawnClaude(existing, message);
+  }
+
+  private async restoreAndSend(sessionId: string, message: string): Promise<void> {
+    const record = await this.agentSessionRepo.findOne({ where: { id: sessionId } });
+    if (!record) {
+      this.emit('error', { sessionId, message: '세션을 찾을 수 없습니다.' });
+      return;
+    }
+    const now = new Date();
+    const session: ClaudeSession = {
+      id: sessionId,
+      claudeSessionId: record.claudeSessionId,
+      status: 'processing',
+      workingDirectory: record.workingDirectory,
+      createdAt: record.createdAt,
+      lastActivity: now,
+      persisted: true,
+    };
+    this.sessions.set(sessionId, session);
+    this.logger.log(`Restored Claude session ${sessionId} (claudeSessionId: ${record.claudeSessionId ?? 'none'})`);
     void this.agentSessionRepo.update(sessionId, { status: 'processing' });
     this.spawnClaude(session, message);
   }

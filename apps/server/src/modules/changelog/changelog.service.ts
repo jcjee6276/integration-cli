@@ -1,7 +1,8 @@
-import { execSync } from 'child_process';
-import * as os from 'os';
-import * as path from 'path';
+import { execFileSync, execSync } from 'child_process';
 import * as fs from 'fs';
+import * as path from 'path';
+
+import { JI_PATHS } from '../../common/ji-paths';
 
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -53,32 +54,59 @@ export class GitChangelogService {
     return execSync('git rev-parse HEAD', { cwd: repoDir, encoding: 'utf8', timeout: 3000 }).trim();
   }
 
+  getCurrentBranch(repoDir: string): string {
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoDir, encoding: 'utf8', timeout: 3000 }).trim();
+      return branch.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 40);
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /** .git이 있는 실제 repo root 반환 */
+  getRepoRoot(dir: string): string {
+    return execSync('git rev-parse --show-toplevel', { cwd: dir, encoding: 'utf8', timeout: 3000 }).trim();
+  }
+
   // ─── Worktree 생성/제거 ───────────────────────────────────────────────
 
-  createWorktree(repoDir: string, agentId: number): { worktreePath: string; branchName: string } {
+  /**
+   * workingDir 기준으로 worktree를 생성한다.
+   * .git이 상위에 있어도 repo root를 찾아 worktree를 만들고,
+   * 에이전트가 실행될 실제 서브 경로(agentWorkDir)를 함께 반환한다.
+   */
+  createWorktree(workingDir: string, agentType: string): { worktreePath: string; branchName: string; agentWorkDir: string } {
+    const repoRoot = this.getRepoRoot(workingDir);
     const ts = Date.now();
-    const branchName = `ji-agent-${agentId}-${ts}`;
-    const worktreePath = path.join(os.tmpdir(), 'ji-worktrees', branchName);
+    const currentBranch = this.getCurrentBranch(workingDir);
+    const branchName = `${agentType}-${currentBranch}-${ts}`;
+    const worktreePath = path.join(JI_PATHS.worktrees, branchName);
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
-    execSync(`git worktree add "${worktreePath}" -b "${branchName}" HEAD`, {
-      cwd: repoDir,
+    execFileSync('git', ['worktree', 'add', worktreePath, '-b', branchName, 'HEAD'], {
+      cwd: repoRoot,
       stdio: 'ignore',
       timeout: 10000,
     });
-    this.logger.log(`Worktree 생성: ${worktreePath} (branch: ${branchName})`);
-    return { worktreePath, branchName };
+    // workingDir이 repo root의 서브 디렉토리라면 worktree 안에서도 같은 서브 경로 사용
+    const relativeSubDir = path.relative(repoRoot, workingDir);
+    const agentWorkDir = relativeSubDir
+      ? path.join(worktreePath, relativeSubDir)
+      : worktreePath;
+
+    this.logger.log(`Worktree 생성: ${worktreePath} (branch: ${branchName}, agentDir: ${agentWorkDir})`);
+    return { worktreePath, branchName, agentWorkDir };
   }
 
   removeWorktree(repoDir: string, worktreePath: string, branchName: string): void {
     try {
-      execSync(`git worktree remove --force "${worktreePath}"`, {
-        cwd: repoDir,
+      const repoRoot = this.getRepoRoot(repoDir);
+      execFileSync('git', ['worktree', 'remove', '--force', worktreePath], {
+        cwd: repoRoot,
         stdio: 'ignore',
         timeout: 10000,
       });
-      // worktree 제거 후 브랜치도 삭제
-      execSync(`git branch -D "${branchName}"`, {
-        cwd: repoDir,
+      execFileSync('git', ['branch', '-D', branchName], {
+        cwd: repoRoot,
         stdio: 'ignore',
         timeout: 5000,
       });
@@ -100,14 +128,16 @@ export class GitChangelogService {
     agentId: number,
     worktreePath: string,
     startCommitHash: string,
+    commitMessage: string,
   ): Promise<string | null> {
     try {
       // 미커밋 변경사항 전부 스테이징
       execSync('git add -A', { cwd: worktreePath, stdio: 'ignore', timeout: 10000 });
 
-      // 스냅샷 커밋
+      // task 기반 커밋 메시지로 스냅샷 커밋
+      const safeMsg = commitMessage.replace(/'/g, "'\\''");
       execSync(
-        'git -c core.hooksPath=/dev/null commit --allow-empty -m "_ji_snapshot"',
+        `git -c core.hooksPath=/dev/null commit --allow-empty -m '${safeMsg}'`,
         { cwd: worktreePath, stdio: 'ignore', timeout: 10000 },
       );
 
@@ -171,6 +201,68 @@ export class GitChangelogService {
       try {
         execSync('git merge --abort', { cwd: mainRepoDir, stdio: 'ignore', timeout: 5000 });
       } catch {}
+    }
+  }
+
+  // ─── 병합 ─────────────────────────────────────────────────────────────
+
+  /** worktree의 모든 변경사항을 main 레포에 병합 */
+  mergeAll(worktreePath: string, workingDir: string): { success: boolean; message: string } {
+    if (!fs.existsSync(worktreePath)) {
+      return { success: false, message: `worktree 경로가 존재하지 않습니다: ${worktreePath}` };
+    }
+
+    try {
+      const repoRoot = this.getRepoRoot(workingDir);
+      const branchName = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: worktreePath,
+        encoding: 'utf8',
+        timeout: 3000,
+      }).trim();
+
+      execFileSync(
+        'git',
+        ['-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', branchName],
+        { cwd: repoRoot, timeout: 30000 },
+      );
+      this.logger.log(`전체 병합 완료: ${branchName} → ${repoRoot}`);
+      return { success: true, message: '전체 병합이 완료되었습니다.' };
+    } catch (err) {
+      try {
+        const repoRoot = this.getRepoRoot(workingDir);
+        execFileSync('git', ['merge', '--abort'], { cwd: repoRoot });
+      } catch {}
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`전체 병합 실패: ${msg}`);
+      return { success: false, message: msg };
+    }
+  }
+
+  /** worktree에서 특정 파일만 main 레포에 병합 */
+  mergeFile(worktreePath: string, workingDir: string, filePath: string): { success: boolean; message: string } {
+    if (!fs.existsSync(worktreePath)) {
+      return { success: false, message: `worktree 경로가 존재하지 않습니다: ${worktreePath}` };
+    }
+
+    try {
+      const repoRoot = this.getRepoRoot(workingDir);
+      const branchName = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: worktreePath,
+        encoding: 'utf8',
+        timeout: 3000,
+      }).trim();
+
+      execFileSync(
+        'git',
+        ['checkout', branchName, '--', filePath],
+        { cwd: repoRoot, timeout: 10000 },
+      );
+      this.logger.log(`단일 파일 병합 완료: ${filePath}`);
+      return { success: true, message: `${filePath} 병합이 완료되었습니다.` };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`단일 파일 병합 실패 (${filePath}): ${msg}`);
+      return { success: false, message: msg };
     }
   }
 

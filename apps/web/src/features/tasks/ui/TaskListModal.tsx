@@ -46,6 +46,7 @@ interface TaskCardProps {
   onStop: () => void;
   onEdit: () => void;
   onRerun: (note: string) => void;
+  onArchive: () => void;
   onDelete: () => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
 }
@@ -59,6 +60,7 @@ function TaskCard({
   onStop,
   onEdit,
   onRerun,
+  onArchive,
   onDelete,
   onTaskStatusChange,
 }: TaskCardProps) {
@@ -318,6 +320,16 @@ function TaskCard({
                   </button>
                 )}
 
+                {/* 보관 */}
+                <button
+                  onClick={onArchive}
+                  disabled={isActioning || isRunning}
+                  className="rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/25 transition-colors hover:border-gray-900/[0.18] hover:text-gray-900/55 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/25 dark:hover:border-white/[0.18] dark:hover:text-white/55"
+                  title={isRunning ? "실행 중에는 보관할 수 없습니다" : "보관"}
+                >
+                  보관
+                </button>
+
                 {/* 삭제 */}
                 <button
                   onClick={onDelete}
@@ -355,6 +367,7 @@ export function TaskListModal({ open, onClose }: Props) {
     execute,
     stop,
     rerun,
+    archive,
     remove,
     onEditDone,
     updateTaskStatus,
@@ -451,6 +464,7 @@ export function TaskListModal({ open, onClose }: Props) {
                     void rerun(task.id, note || undefined);
                     setExpandedId(task.id);
                   }}
+                  onArchive={() => void archive(task.id)}
                   onDelete={() => void remove(task.id)}
                   onTaskStatusChange={updateTaskStatus}
                 />

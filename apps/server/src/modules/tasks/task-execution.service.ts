@@ -13,6 +13,8 @@ import { GeminiAuthManager } from '../agents/gemini/gemini-auth.manager';
 import { ConversationService } from '../conversations/conversation.service';
 import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
 import { GitChangelogService } from '../changelog/changelog.service';
+import { HarnessService } from '../harness/harness.service';
+import type { HarnessRole } from '../harness/harness.service';
 import type {
   ClaudeAssistantEvent,
   ClaudeResultEvent,
@@ -67,6 +69,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     private readonly geminiAuthManager: GeminiAuthManager,
     private readonly conversationService: ConversationService,
     private readonly gitChangelogService: GitChangelogService,
+    private readonly harnessService: HarnessService,
   ) {
     super();
   }
@@ -108,7 +111,17 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     for (const agent of task.agents) {
       const roleLabel = agent.role === 'other' && agent.customRole ? agent.customRole : agent.role;
+
+      // 공통 하네스 + 역할별 하네스 로드
+      const commonHarness = this.harnessService.findOne('common');
+      const roleHarness = this.harnessService.findOne(agent.role as HarnessRole);
+      const harnessSection = [
+        commonHarness?.content?.trim() ? `[공통 하네스]\n${commonHarness.content.trim()}` : '',
+        roleHarness?.content?.trim()   ? `[${roleLabel} 하네스]\n${roleHarness.content.trim()}` : '',
+      ].filter(Boolean).join('\n\n');
+
       const prompt = [
+        harnessSection ? `${harnessSection}\n\n` : '',
         `당신은 ${roleLabel} 역할의 AI 에이전트입니다.`,
         `\n\n[작업 목표]\n${task.title}`,
         reqList ? `\n\n[요구사항]\n${reqList}` : '',
@@ -134,11 +147,11 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       let agentWorkDir = workingDir;
       if (isGitRepo) {
         try {
-          const { worktreePath, branchName } = this.gitChangelogService.createWorktree(workingDir, agent.id);
+          const { worktreePath, branchName, agentWorkDir: worktreeAgentDir } = this.gitChangelogService.createWorktree(workingDir, agent.agentType);
           const startCommitHash = this.gitChangelogService.getCurrentHead(workingDir);
           await this.agentRepo.update(agent.id, { worktreePath, startCommitHash });
           this.worktreeMap.set(`${task.id}-${agent.id}`, { worktreePath, branchName, mainRepoDir: workingDir });
-          agentWorkDir = worktreePath;
+          agentWorkDir = worktreeAgentDir;
         } catch (err) {
           this.logger.warn(`Agent ${agent.id} worktree 생성 실패, 원본 디렉토리 사용: ${err}`);
         }
@@ -461,13 +474,23 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (worktreeInfo) {
       const { worktreePath } = worktreeInfo;
 
-      const agent = await this.agentRepo.findOne({ where: { id: agentId } });
+      const [agent, task] = await Promise.all([
+        this.agentRepo.findOne({ where: { id: agentId } }),
+        this.taskRepo.findOne({ where: { id: taskId } }),
+      ]);
+
       if (agent?.startCommitHash) {
+        const roleLabel = agent.role === 'other' && agent.customRole
+          ? agent.customRole
+          : agent.role;
+        const commitMessage = `feat(${agent.agentType}/${roleLabel}): ${task?.title ?? taskId}`;
+
         await this.gitChangelogService.captureAndSave(
           taskId,
           agentId,
           worktreePath,
           agent.startCommitHash,
+          commitMessage,
         );
       }
     }

@@ -69,19 +69,46 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   // ─── 메시지 전송 ─────────────────────────────────────────────────────
 
   sendMessage(sessionId: string, message: string): void {
-    const session = this.requireSession(sessionId);
-    if (session.status === 'processing') {
-      throw new Error(`Gemini session ${sessionId} is already processing`);
-    }
-
-    session.status = 'processing';
-    session.lastActivity = new Date();
-
-    if (!session.persisted) {
-      void this.persistSession(session).then(() => this.spawnGemini(session, message));
+    const existing = this.sessions.get(sessionId);
+    if (!existing) {
+      void this.restoreAndSend(sessionId, message);
       return;
     }
 
+    if (existing.status === 'processing') {
+      throw new Error(`Gemini session ${sessionId} is already processing`);
+    }
+
+    existing.status = 'processing';
+    existing.lastActivity = new Date();
+
+    if (!existing.persisted) {
+      void this.persistSession(existing).then(() => this.spawnGemini(existing, message));
+      return;
+    }
+
+    void this.agentSessionRepo.update(sessionId, { status: 'processing' });
+    this.spawnGemini(existing, message);
+  }
+
+  private async restoreAndSend(sessionId: string, message: string): Promise<void> {
+    const record = await this.agentSessionRepo.findOne({ where: { id: sessionId } });
+    if (!record) {
+      this.emit('text-delta', { sessionId, text: '⚠ 세션을 찾을 수 없습니다.' });
+      this.emit('result', { sessionId, isError: true });
+      return;
+    }
+    const now = new Date();
+    const session: GeminiSession = {
+      id: sessionId,
+      status: 'processing',
+      workingDirectory: record.workingDirectory,
+      createdAt: record.createdAt,
+      lastActivity: now,
+      persisted: true,
+    };
+    this.sessions.set(sessionId, session);
+    this.logger.log(`Restored Gemini session ${sessionId} (cwd: ${record.workingDirectory})`);
     void this.agentSessionRepo.update(sessionId, { status: 'processing' });
     this.spawnGemini(session, message);
   }

@@ -27,6 +27,9 @@ export class TaskEntity {
   @Column('text', { nullable: true })
   claudeSessionId!: string | null;
 
+  @Column('boolean', { default: false })
+  archived!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 

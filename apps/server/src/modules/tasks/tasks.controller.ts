@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 
 import { CreateTaskDto } from './dto/create-task.dto';
+import { MergeFileDto } from './dto/merge-file.dto';
 import { RerunTaskDto } from './dto/rerun-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksService } from './tasks.service';
@@ -65,6 +66,32 @@ export class TasksController {
   @HttpCode(HttpStatus.OK)
   rerun(@Param('id') id: string, @Body() dto: RerunTaskDto) {
     return this.tasksService.rerun(id, dto.supplementNote);
+  }
+
+  /** POST /tasks/:id/archive */
+  @Post(':id/archive')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  archive(@Param('id') id: string) {
+    return this.tasksService.archive(id);
+  }
+
+  /** POST /tasks/:id/agents/:agentId/merge — 전체 병합 */
+  @Post(':id/agents/:agentId/merge')
+  mergeAgentAll(
+    @Param('id') id: string,
+    @Param('agentId') agentId: string,
+  ) {
+    return this.tasksService.mergeAgentAll(id, Number(agentId));
+  }
+
+  /** POST /tasks/:id/agents/:agentId/merge-file — 파일 단일 병합 */
+  @Post(':id/agents/:agentId/merge-file')
+  mergeAgentFile(
+    @Param('id') id: string,
+    @Param('agentId') agentId: string,
+    @Body() dto: MergeFileDto,
+  ) {
+    return this.tasksService.mergeAgentFile(id, Number(agentId), dto.filePath);
   }
 
   /** DELETE /tasks/:id */
