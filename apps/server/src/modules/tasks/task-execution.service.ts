@@ -74,13 +74,32 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     super();
   }
 
-  onModuleInit(): void {
+  async onModuleInit(): Promise<void> {
     this.claudeBin = this.resolveClaude();
     this.logger.log(`claude 경로: ${this.claudeBin}`);
     this.geminiBin = this.resolveGemini();
     this.logger.log(`gemini 경로: ${this.geminiBin}`);
     this.codexBin = this.resolveCodex();
     this.logger.log(`codex 경로: ${this.codexBin}`);
+    await this.recoverStuckTasks();
+  }
+
+  /** 서버 재시작 시 running 상태로 남은 task/agent를 stopped으로 복구 */
+  private async recoverStuckTasks(): Promise<void> {
+    const stuckAgents = await this.agentRepo.find({ where: { status: 'running' } });
+    if (stuckAgents.length === 0) return;
+
+    await this.agentRepo.update(
+      stuckAgents.map((a) => a.id),
+      { status: 'stopped' },
+    );
+
+    const stuckTaskIds = [...new Set(stuckAgents.map((a) => a.taskId))];
+    for (const taskId of stuckTaskIds) {
+      await this.taskRepo.update(taskId, { status: 'stopped' });
+    }
+
+    this.logger.warn(`서버 재시작 복구: ${stuckAgents.length}개 에이전트, ${stuckTaskIds.length}개 태스크를 stopped으로 변경`);
   }
 
   onModuleDestroy(): void {
@@ -532,7 +551,10 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (!buf.output.trim()) return;
 
     const agent = await this.agentRepo.findOne({ where: { id: agentId } });
-    const agentModel = agent?.agentType === 'gemini' ? AgentModel.GEMINI : AgentModel.CLAUDE;
+    const agentModel =
+      agent?.agentType === 'gemini' ? AgentModel.GEMINI :
+      agent?.agentType === 'codex'  ? AgentModel.CODEX  :
+      AgentModel.CLAUDE;
 
     void this.conversationService.create({
       sessionId: taskId,

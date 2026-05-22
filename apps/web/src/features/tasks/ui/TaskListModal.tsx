@@ -65,7 +65,7 @@ function TaskCard({
   onTaskStatusChange,
 }: TaskCardProps) {
   const isRunning  = task.status === "running";
-  const isFinished = task.status === "completed" || task.status === "error";
+  const isFinished = task.status === "completed" || task.status === "error" || task.status === "stopped";
   const canExecute = task.status === "pending" || task.status === "stopped";
   const canStop    = isRunning;
   const canRerun   = isFinished;
