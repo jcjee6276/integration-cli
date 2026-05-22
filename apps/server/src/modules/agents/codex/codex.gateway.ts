@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
+  MessageBody,
   OnGatewayDisconnect,
   OnGatewayInit,
   SubscribeMessage,
@@ -57,11 +58,11 @@ export class CodexGateway implements OnGatewayInit, OnGatewayDisconnect {
   @SubscribeMessage('session:message')
   handleSessionMessage(
     @ConnectedSocket() client: Socket,
-    data: { sessionId: string; input: string },
+    @MessageBody() body: { sessionId: string; input: string },
   ): void {
     try {
-      void client.join(data.sessionId);
-      this.sessionManager.sendMessage(data.sessionId, data.input);
+      void client.join(body.sessionId);
+      this.sessionManager.sendMessage(body.sessionId, body.input);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       client.emit('error', { message });
@@ -69,14 +70,20 @@ export class CodexGateway implements OnGatewayInit, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('session:join')
-  handleSessionJoin(@ConnectedSocket() client: Socket, data: { sessionId: string }): void {
-    void client.join(data.sessionId);
+  handleSessionJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { sessionId: string },
+  ): void {
+    void client.join(body.sessionId);
   }
 
   @SubscribeMessage('session:terminate')
-  handleSessionTerminate(@ConnectedSocket() client: Socket, data: { sessionId: string }): void {
+  handleSessionTerminate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { sessionId: string },
+  ): void {
     try {
-      this.sessionManager.terminateSession(data.sessionId);
+      this.sessionManager.terminateSession(body.sessionId);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       client.emit('error', { message });
