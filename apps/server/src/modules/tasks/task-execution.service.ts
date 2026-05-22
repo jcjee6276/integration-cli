@@ -46,6 +46,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
   private claudeBin = 'claude';
   private geminiBin = 'gemini';
+  private codexBin = 'codex';
 
   /** taskId → agentId → 로그 버퍼 */
   private readonly logBuffer = new Map<string, Map<number, BufferedAgentLog>>();
@@ -75,6 +76,8 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     this.logger.log(`claude 경로: ${this.claudeBin}`);
     this.geminiBin = this.resolveGemini();
     this.logger.log(`gemini 경로: ${this.geminiBin}`);
+    this.codexBin = this.resolveCodex();
+    this.logger.log(`codex 경로: ${this.codexBin}`);
   }
 
   onModuleDestroy(): void {
@@ -143,6 +146,8 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
       if (agent.agentType === 'gemini') {
         this.spawnGeminiAgent(task.id, task.title, agent.id, agentWorkDir, prompt);
+      } else if (agent.agentType === 'codex') {
+        this.spawnCodexAgent(task.id, task.title, agent.id, agentWorkDir, prompt);
       } else {
         this.spawnClaudeAgent(task.id, task.title, agent.id, agentWorkDir, prompt);
       }
@@ -239,6 +244,81 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     proc.on('error', (err) => {
       this.logger.error(`[Task:${taskId}] Claude Agent ${agentId} spawn error: ${err.message}`);
       this.resultReceivedSet.delete(`${taskId}-${agentId}`);
+      void this.agentRepo.update(agentId, { status: 'error' });
+      this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
+      this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
+      void this.finalizeAgent(taskId, agentId);
+    });
+  }
+
+  // ─── Codex 스폰 ───────────────────────────────────────────────────────
+
+  private spawnCodexAgent(
+    taskId: string,
+    taskTitle: string,
+    agentId: number,
+    workingDir: string,
+    prompt: string,
+  ): void {
+    this.logger.log(`[Task:${taskTitle}] Codex Agent ${agentId} 실행 — cwd: ${workingDir}`);
+
+    const proc = spawn(
+      this.codexBin,
+      [
+        'exec',
+        '-c', 'approval_policy="never"',
+        '-c', 'sandbox_mode="danger-full-access"',
+        prompt,
+      ],
+      {
+        cwd: workingDir,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+
+    let output = '';
+
+    const handleChunk = (chunk: Buffer): void => {
+      const raw = chunk.toString();
+      const text = raw
+        .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
+        .replace(/\x1b\][^\x07]*\x07/g, '')
+        .replace(/\r/g, '');
+      if (!text.trim()) return;
+      output += text;
+      const prev = this.getAgentBuffer(taskId, agentId);
+      this.updateAgentBuffer(taskId, agentId, { output: prev.output + text });
+      this.emit('agent:output', { taskId, agentId, text } as AgentOutputEvent);
+    };
+
+    proc.stdout.on('data', handleChunk);
+    proc.stderr.on('data', handleChunk);
+
+    proc.on('close', (exitCode) => {
+      const isError = (exitCode ?? 0) !== 0;
+      const status = isError ? 'error' : 'completed';
+
+      void this.agentRepo.update(agentId, { status });
+      this.updateAgentBuffer(taskId, agentId, { status });
+
+      if (isError) {
+        this.updateAgentBuffer(taskId, agentId, { errorMessage: `종료 코드: ${exitCode}` });
+      }
+
+      this.emit('agent:done', {
+        taskId,
+        agentId,
+        result: output.trim(),
+        isError,
+        durationMs: 0,
+        costUsd: 0,
+      } as AgentDoneEvent);
+      void this.finalizeAgent(taskId, agentId);
+    });
+
+    proc.on('error', (err) => {
+      this.logger.error(`[Task:${taskId}] Codex Agent ${agentId} spawn error: ${err.message}`);
       void this.agentRepo.update(agentId, { status: 'error' });
       this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
       this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
@@ -541,6 +621,34 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     this.logger.warn('gemini 바이너리 경로를 자동 탐지하지 못했습니다. "gemini"로 폴백합니다.');
     return 'gemini';
+  }
+
+  private resolveCodex(): string {
+    const candidates = [
+      (): string => execSync('which codex', { encoding: 'utf8', timeout: 2000 }).trim(),
+      (): string => {
+        const home = process.env.HOME ?? '';
+        const nvmDefault = `${home}/.nvm/versions/node/${process.version}/bin/codex`;
+        if (fs.existsSync(nvmDefault)) return nvmDefault;
+        throw new Error('not found');
+      },
+      (): string => {
+        const npmBin = execSync('npm bin -g', { encoding: 'utf8', timeout: 2000 }).trim();
+        const p = `${npmBin}/codex`;
+        if (fs.existsSync(p)) return p;
+        throw new Error('not found');
+      },
+    ];
+
+    for (const fn of candidates) {
+      try {
+        const p = fn();
+        if (p) return p;
+      } catch {}
+    }
+
+    this.logger.warn('codex 바이너리 경로를 자동 탐지하지 못했습니다. "codex"로 폴백합니다.');
+    return 'codex';
   }
 
   private resolveWorkingDir(workingDir: string | null): string {
