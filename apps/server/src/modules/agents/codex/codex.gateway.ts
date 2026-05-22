@@ -30,6 +30,11 @@ export class CodexGateway implements OnGatewayInit, OnGatewayDisconnect {
     this.sessionManager.on('session:result', (ev) => this.server.to(ev.sessionId).emit('session:result', ev));
     this.sessionManager.on('session:exit', (ev) => this.server.to(ev.sessionId).emit('session:exit', ev));
     this.sessionManager.on('error', (ev) => this.server.to(ev.sessionId).emit('error', { message: ev.message }));
+    this.sessionManager.on('session:replaced', async (ev: { oldSessionId: string; newSessionId: string }) => {
+      const sockets = await this.server.in(ev.oldSessionId).fetchSockets();
+      await Promise.all(sockets.map((s) => s.join(ev.newSessionId)));
+      this.server.to(ev.newSessionId).emit('session:replaced', { oldSessionId: ev.oldSessionId, newSessionId: ev.newSessionId });
+    });
     this.logger.log('CodexGateway initialised — namespace: /agents/codex');
   }
 

@@ -140,6 +140,23 @@ export function useCodexSessions() {
       );
     });
 
+    socket.on("session:replaced", ({ oldSessionId, newSessionId }: { oldSessionId: string; newSessionId: string }) => {
+      if (streamingRef.current[oldSessionId] !== undefined) {
+        streamingRef.current[newSessionId] = streamingRef.current[oldSessionId];
+        delete streamingRef.current[oldSessionId];
+      }
+      if (pendingPromptIdRef.current[oldSessionId] !== undefined) {
+        pendingPromptIdRef.current[newSessionId] = pendingPromptIdRef.current[oldSessionId];
+        delete pendingPromptIdRef.current[oldSessionId];
+      }
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.info.id === oldSessionId ? { ...s, info: { ...s.info, id: newSessionId } } : s,
+        ),
+      );
+      setSelectedSessionId((prev) => (prev === oldSessionId ? newSessionId : prev));
+    });
+
     socket.on("error", ({ message }: { message: string }) => setError(message));
 
     return () => { socket.disconnect(); };

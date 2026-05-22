@@ -165,7 +165,10 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
   private async restoreAndSend(sessionId: string, message: string): Promise<void> {
     const record = await this.agentSessionRepo.findOne({ where: { id: sessionId } });
     if (!record) {
-      this.emit('error', { sessionId, message: '세션을 찾을 수 없습니다.' });
+      const newSession = this.createSession();
+      this.logger.log(`Session ${sessionId} not found — spawned new session ${newSession.id}`);
+      this.emit('session:replaced', { oldSessionId: sessionId, newSessionId: newSession.id });
+      this.sendMessage(newSession.id, message);
       return;
     }
     const now = new Date();
