@@ -13,6 +13,9 @@ export class AgentChangelogEntity {
   @Column('integer')
   agentId!: number;
 
+  @Column('integer', { nullable: true })
+  runId!: number | null;
+
   @Column('text')
   filePath!: string;
 

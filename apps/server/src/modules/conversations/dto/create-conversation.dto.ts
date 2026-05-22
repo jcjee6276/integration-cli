@@ -24,4 +24,8 @@ export class CreateConversationDto {
   @IsInt()
   @IsOptional()
   agentId?: number | null;
+
+  @IsInt()
+  @IsOptional()
+  runId?: number | null;
 }
