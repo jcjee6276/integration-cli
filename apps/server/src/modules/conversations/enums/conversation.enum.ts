@@ -4,6 +4,7 @@ export enum AgentModel {
   GEMINI = 'gemini',
   OPENCODE = 'opencode',
   GROK = 'grok',
+  CODEX = 'codex',
 }
 
 export enum ConversationType {
