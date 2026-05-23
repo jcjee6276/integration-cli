@@ -1,0 +1,149 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+import { useClaudeAuth } from "@/features/auth/hooks/useClaudeAuth";
+import { HarnessModal } from "@/features/harness/ui/HarnessModal";
+import { AgentStatusModal } from "@/features/status/ui/AgentStatusModal";
+import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
+import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
+import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
+import { AgentSelectModal } from "../ui/AgentSelectModal";
+import type { AgentId } from "../ui/AgentSelectModal";
+import { ChatWorkspace } from "../ui/ChatWorkspace";
+import { CheckingSkeleton } from "../ui/CheckingSkeleton";
+import { ClaudeLoginView } from "../ui/ClaudeLoginView";
+import { SessionSidebar } from "../ui/SessionSidebar";
+import { useSessionCommand } from "../hooks/useSessionCommand";
+import { useSessionRename } from "../hooks/useSessionRename";
+import { useSessionWorkingDirectories } from "../hooks/useSessionWorkingDirectories";
+import { useUnifiedSessions } from "../hooks/useUnifiedSessions";
+
+export function ClaudePageContainer() {
+  const { authState, loginState, loginOutput, loginUrls, startLogin, cancelLogin, checkAuth } =
+    useClaudeAuth();
+
+  useEffect(() => {
+    if (loginState === "done") void checkAuth();
+  }, [loginState, checkAuth]);
+
+  const {
+    sessions,
+    selectedSession,
+    selectedSessionId,
+    selectedConnectionStatus,
+    connectionStatusByAgent,
+    overallConnectionStatus,
+    error,
+    createSession,
+    selectSession,
+    sendMessage,
+    terminateSession,
+    renameSession,
+    injectClaudeMessage,
+  } = useUnifiedSessions();
+
+  const { sessionDirs, currentDir, handleDirChange, assignDirectoryToSession } =
+    useSessionWorkingDirectories(selectedSessionId);
+  const rename = useSessionRename(renameSession);
+  const handleSend = useSessionCommand({
+    selectedSession,
+    selectedSessionId,
+    sendMessage,
+    injectClaudeMessage,
+  });
+  const { hasNew, clearNew } = useTaskNotification();
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskListOpen, setTaskListOpen] = useState(false);
+  const [agentSelectOpen, setAgentSelectOpen] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [harnessModalOpen, setHarnessModalOpen] = useState(false);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedSession?.messages, selectedSession?.streaming]);
+
+  const handleOpenTaskList = () => {
+    setTaskListOpen(true);
+    clearNew();
+  };
+
+  const handleAgentSelect = (agentId: AgentId) => {
+    const dir = currentDir || undefined;
+    createSession(agentId, dir).then((sessionId) => {
+      if (sessionId && currentDir) {
+        assignDirectoryToSession(sessionId, currentDir);
+      }
+    });
+  };
+
+  const inputDisabled =
+    !selectedSession || selectedSession.isWaiting || selectedConnectionStatus !== "connected";
+
+  if (authState === "checking") return <CheckingSkeleton />;
+
+  if (authState === "unauthenticated") {
+    return (
+      <ClaudeLoginView
+        loginState={loginState}
+        loginOutput={loginOutput}
+        loginUrls={loginUrls}
+        onStart={startLogin}
+        onCancel={cancelLogin}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-[#faf8f5] text-gray-900 dark:bg-[#07090e] dark:text-white">
+      <AgentSelectModal
+        open={agentSelectOpen}
+        onClose={() => setAgentSelectOpen(false)}
+        onSelect={handleAgentSelect}
+        connectionStatusByAgent={connectionStatusByAgent}
+      />
+      <AgentStatusModal open={statusModalOpen} onClose={() => setStatusModalOpen(false)} />
+      <HarnessModal open={harnessModalOpen} onClose={() => setHarnessModalOpen(false)} />
+      <TaskCreateModal open={taskModalOpen} onClose={() => setTaskModalOpen(false)} />
+      <TaskListModal open={taskListOpen} onClose={() => setTaskListOpen(false)} />
+
+      <SessionSidebar
+        sessions={sessions}
+        selectedSessionId={selectedSessionId}
+        overallConnectionStatus={overallConnectionStatus}
+        hasNewTask={hasNew}
+        menuOpenId={rename.menuOpenId}
+        renamingId={rename.renamingId}
+        renameValue={rename.renameValue}
+        menuRef={rename.menuRef}
+        onSelectSession={selectSession}
+        onOpenAgentSelect={() => setAgentSelectOpen(true)}
+        onOpenTaskCreate={() => setTaskModalOpen(true)}
+        onOpenTaskList={handleOpenTaskList}
+        onOpenStatus={() => setStatusModalOpen(true)}
+        onOpenHarness={() => setHarnessModalOpen(true)}
+        onSetMenuOpenId={rename.setMenuOpenId}
+        onStartRename={rename.startRename}
+        onRenameValueChange={rename.setRenameValue}
+        onConfirmRename={rename.confirmRename}
+        onCancelRename={rename.cancelRename}
+      />
+
+      <ChatWorkspace
+        selectedSession={selectedSession}
+        selectedSessionDir={selectedSession ? (sessionDirs[selectedSession.info.id] ?? "") : ""}
+        overallConnectionStatus={overallConnectionStatus}
+        currentDir={currentDir}
+        error={error}
+        inputDisabled={inputDisabled}
+        bottomRef={bottomRef}
+        onTerminateSession={terminateSession}
+        onSend={handleSend}
+        onSendMessage={sendMessage}
+        onDirChange={handleDirChange}
+      />
+    </div>
+  );
+}
