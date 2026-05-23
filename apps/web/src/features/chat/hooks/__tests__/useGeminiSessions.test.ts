@@ -105,6 +105,18 @@ describe("useGeminiSessions", () => {
     expect(result.current.sessions).toEqual([]);
   });
 
+  it("keeps the session visible when terminate fails", async () => {
+    mockDeleteSession.mockRejectedValueOnce(new Error("delete failed"));
+    const { result } = renderHook(() => useGeminiSessions());
+    act(() => { socketMock.handlers.connect?.(); });
+    await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+    await act(async () => { await result.current.terminateSession("db-1"); });
+
+    expect(result.current.sessions).toHaveLength(1);
+    expect(result.current.error).toBe("delete failed");
+  });
+
   it("sets errors from socket and create failures", async () => {
     mockCreateSession.mockRejectedValueOnce(new Error("create failed"));
     const { result } = renderHook(() => useGeminiSessions());

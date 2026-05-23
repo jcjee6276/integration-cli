@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createSession,
+  deleteCodexSession,
+  deleteGeminiSession,
   deleteSession,
   fetchConversations,
   fetchDBSessions,
@@ -91,6 +93,24 @@ describe("deleteSession", () => {
       expect.stringContaining("/agents/claude/sessions/sess-123"),
       expect.objectContaining({ method: "DELETE" }),
     );
+  });
+
+  it("throws when Claude delete fails", async () => {
+    mockFetch.mockReturnValueOnce(err(500));
+
+    await expect(deleteSession("sess-123")).rejects.toThrow("HTTP 500");
+  });
+
+  it("throws when Gemini delete fails", async () => {
+    mockFetch.mockReturnValueOnce(err(404));
+
+    await expect(deleteGeminiSession("sess-123")).rejects.toThrow("HTTP 404");
+  });
+
+  it("throws when Codex delete fails", async () => {
+    mockFetch.mockReturnValueOnce(err(409));
+
+    await expect(deleteCodexSession("sess-123")).rejects.toThrow("HTTP 409");
   });
 });
 

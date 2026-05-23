@@ -102,6 +102,18 @@ describe("useCodexSessions", () => {
     expect(result.current.selectedSessionId).toBeNull();
   });
 
+  it("keeps the session visible when terminate fails", async () => {
+    mockDeleteSession.mockRejectedValueOnce(new Error("delete failed"));
+    const { result } = renderHook(() => useCodexSessions());
+    act(() => { socketMock.handlers.connect?.(); });
+    await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+
+    await act(async () => { await result.current.terminateSession("db-1"); });
+
+    expect(result.current.sessions).toHaveLength(1);
+    expect(result.current.error).toBe("delete failed");
+  });
+
   it("handles exit, disconnect, and socket errors", async () => {
     const { result } = renderHook(() => useCodexSessions());
     await act(async () => { await result.current.createSession(); });

@@ -276,9 +276,11 @@ export function useClaudeSessions() {
   const terminateSession = useCallback(async (sessionId: string) => {
     try {
       await deleteSession(sessionId);
-    } catch {}
-    setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
-    setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+      setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
+      setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "세션 삭제 실패");
+    }
   }, []);
 
   const injectMessage = useCallback(

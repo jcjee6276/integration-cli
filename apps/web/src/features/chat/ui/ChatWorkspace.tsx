@@ -24,6 +24,22 @@ interface ChatWorkspaceProps {
   onDirChange: (path: string) => void;
 }
 
+function parsePermissionPrompt(content: string): PermissionPrompt | null {
+  try {
+    const parsed = JSON.parse(content) as Partial<PermissionPrompt>;
+    if (typeof parsed.tool !== "string" || typeof parsed.command !== "string") {
+      return null;
+    }
+    return {
+      tool: parsed.tool,
+      command: parsed.command,
+      warning: typeof parsed.warning === "string" ? parsed.warning : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function ChatWorkspace({
   selectedSession,
   selectedSessionDir,
@@ -117,7 +133,15 @@ export function ChatWorkspace({
 
               {selectedSession.messages.map((message) => {
                 if (message.role === "permission") {
-                  const prompt = JSON.parse(message.content) as PermissionPrompt;
+                  const prompt = parsePermissionPrompt(message.content);
+                  if (!prompt) {
+                    return (
+                      <SystemMessage
+                        key={message.id}
+                        content={`권한 요청을 표시할 수 없습니다.\n${message.content}`}
+                      />
+                    );
+                  }
                   return (
                     <PermissionCard
                       key={message.id}

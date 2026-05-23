@@ -243,9 +243,11 @@ export function useCodexSessions() {
   const terminateSession = useCallback(async (sessionId: string) => {
     try {
       await deleteCodexSession(sessionId);
-    } catch {}
-    setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
-    setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+      setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
+      setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "세션 삭제 실패");
+    }
   }, []);
 
   const selectedSession = sessions.find((s) => s.info.id === selectedSessionId) ?? null;
