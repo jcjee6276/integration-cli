@@ -47,10 +47,10 @@ const mockSave = vi.mocked(sessionsApi.saveGeminiConversation);
 beforeEach(() => {
   mockFetchDB.mockResolvedValue([{ sessionId: "db-1", title: "DB", createdAt: "2024-01-01" }]);
   mockFetchConversations.mockResolvedValue([
-    { id: "c1", sessionId: "db-1", type: "user_message", content: "hi", createdAt: "2024-01-01", agentModel: "gemini" },
-    { id: "c2", sessionId: "db-1", type: "agent_message", content: "other", createdAt: "2024-01-01", agentModel: "codex" },
+    { id: "c1", sessionId: "db-1", promptId: "p1", type: "user_message", content: "hi", createdAt: "2024-01-01", agentModel: "gemini" },
+    { id: "c2", sessionId: "db-1", promptId: "p2", type: "agent_message", content: "other", createdAt: "2024-01-01", agentModel: "codex" },
   ]);
-  mockCreateSession.mockResolvedValue({ id: "new-1", createdAt: "2024-01-02", workingDirectory: "/tmp/project" });
+  mockCreateSession.mockResolvedValue({ id: "new-1", title: "Gemini", createdAt: "2024-01-02", workingDirectory: "/tmp/project" });
 });
 
 afterEach(() => {

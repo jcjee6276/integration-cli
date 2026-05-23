@@ -47,10 +47,10 @@ const mockSave = vi.mocked(sessionsApi.saveCodexConversation);
 beforeEach(() => {
   mockFetchDB.mockResolvedValue([{ sessionId: "db-1", title: "DB", createdAt: "2024-01-01" }]);
   mockFetchConversations.mockResolvedValue([
-    { id: "c1", sessionId: "db-1", type: "agent_message", content: "codex", createdAt: "2024-01-01", agentModel: "codex" },
-    { id: "c2", sessionId: "db-1", type: "agent_message", content: "gemini", createdAt: "2024-01-01", agentModel: "gemini" },
+    { id: "c1", sessionId: "db-1", promptId: "p1", type: "agent_message", content: "codex", createdAt: "2024-01-01", agentModel: "codex" },
+    { id: "c2", sessionId: "db-1", promptId: "p2", type: "agent_message", content: "gemini", createdAt: "2024-01-01", agentModel: "gemini" },
   ]);
-  mockCreateSession.mockResolvedValue({ id: "old-1", createdAt: "2024-01-02", workingDirectory: "/tmp/codex" });
+  mockCreateSession.mockResolvedValue({ id: "old-1", title: "Codex", createdAt: "2024-01-02", workingDirectory: "/tmp/codex" });
 });
 
 afterEach(() => {
