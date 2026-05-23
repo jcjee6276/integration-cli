@@ -188,6 +188,17 @@ describe('GitChangelogService', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('file not found');
     });
+
+    it('상위 디렉토리 pathspec은 거부한다', () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+
+      const result = service.mergeFile('/tmp/worktrees/agent-1', '/repo', '../secret.ts');
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('유효하지 않은 파일 경로입니다');
+      expect(execSync).not.toHaveBeenCalled();
+      expect(execFileSync).not.toHaveBeenCalled();
+    });
   });
 
   // ─── getLatestRunId ──────────────────────────────────────────────────────

@@ -21,12 +21,15 @@ jest.mock('./task-execution.service', () => ({
 }));
 
 // changelog.service는 git CLI에 의존하므로 전체 모킹
-jest.mock('../changelog/changelog.service', () => ({
-  GitChangelogService: class MockGitChangelogService {
-    mergeAll = jest.fn().mockReturnValue({ success: true, message: '전체 병합이 완료되었습니다.' });
-    mergeFile = jest.fn().mockReturnValue({ success: true, message: 'file.ts 병합이 완료되었습니다.' });
-  },
-}));
+  jest.mock('../changelog/changelog.service', () => ({
+    GitChangelogService: class MockGitChangelogService {
+      mergeAll = jest.fn().mockReturnValue({ success: true, message: '전체 병합이 완료되었습니다.' });
+      mergeFile = jest.fn().mockReturnValue({ success: true, message: 'file.ts 병합이 완료되었습니다.' });
+      getByTask = jest.fn().mockResolvedValue([
+        { agentId: 1, files: [{ id: 1, filePath: 'src/app.ts', changeType: 'modified', additions: 1, deletions: 0, patch: null }] },
+      ]);
+    },
+  }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { TaskExecutionService } = require('./task-execution.service');
@@ -52,7 +55,7 @@ describe('TasksService', () => {
   let agentRepo: ReturnType<typeof mockRepo>;
   let runRepo: ReturnType<typeof mockRepo>;
   let executionService: { spawnTask: jest.Mock; stopTask: jest.Mock };
-  let gitChangelogService: { mergeAll: jest.Mock; mergeFile: jest.Mock };
+  let gitChangelogService: { mergeAll: jest.Mock; mergeFile: jest.Mock; getByTask: jest.Mock };
 
   const baseTask: TaskEntity = {
     id: 'task-1',
@@ -444,6 +447,7 @@ describe('TasksService', () => {
       const result = await service.mergeAgentFile('task-1', 1, 'src/app.ts');
 
       expect(result).toEqual({ success: true, message: 'file.ts 병합이 완료되었습니다.' });
+      expect(gitChangelogService.getByTask).toHaveBeenCalledWith('task-1');
       expect(gitChangelogService.mergeFile).toHaveBeenCalledWith(baseAgent.worktreePath, '/tmp/project', 'src/app.ts');
     });
 
@@ -461,6 +465,32 @@ describe('TasksService', () => {
       const result = await service.mergeAgentFile('task-1', 1, 'file.ts');
 
       expect(result).toEqual({ success: false, message: 'worktree가 존재하지 않습니다.' });
+    });
+
+    it('changelog에 없는 파일이면 BadRequestException을 던지고 병합하지 않는다', async () => {
+      taskRepo.findOne.mockResolvedValue(baseTask);
+      agentRepo.findOne.mockResolvedValue(baseAgent);
+      gitChangelogService.getByTask.mockResolvedValueOnce([
+        { agentId: 1, files: [{ id: 1, filePath: 'src/allowed.ts', changeType: 'modified', additions: 1, deletions: 0, patch: null }] },
+      ]);
+      mockDirectory();
+
+      await expect(service.mergeAgentFile('task-1', 1, 'src/app.ts')).rejects.toThrow(BadRequestException);
+
+      expect(gitChangelogService.mergeFile).not.toHaveBeenCalled();
+    });
+
+    it('다른 agent의 changelog 파일이면 병합하지 않는다', async () => {
+      taskRepo.findOne.mockResolvedValue(baseTask);
+      agentRepo.findOne.mockResolvedValue(baseAgent);
+      gitChangelogService.getByTask.mockResolvedValueOnce([
+        { agentId: 2, files: [{ id: 1, filePath: 'src/app.ts', changeType: 'modified', additions: 1, deletions: 0, patch: null }] },
+      ]);
+      mockDirectory();
+
+      await expect(service.mergeAgentFile('task-1', 1, 'src/app.ts')).rejects.toThrow(BadRequestException);
+
+      expect(gitChangelogService.mergeFile).not.toHaveBeenCalled();
     });
   });
 });

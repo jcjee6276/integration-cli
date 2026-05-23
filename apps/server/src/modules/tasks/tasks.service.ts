@@ -192,7 +192,23 @@ export class TasksService {
     if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
 
     const workingDir = this.resolveWorkingDir(task.workingDir);
+    await this.assertFileBelongsToAgentChangelog(taskId, agentId, filePath);
     return this.gitChangelogService.mergeFile(agent.worktreePath, workingDir, filePath);
+  }
+
+  private async assertFileBelongsToAgentChangelog(taskId: string, agentId: number, filePath: string): Promise<void> {
+    try {
+      const changelogs = await this.gitChangelogService.getByTask(taskId);
+      const agentChangelog = changelogs.find((entry) => entry.agentId === agentId);
+      const hasFile = agentChangelog?.files.some((file) => file.filePath === filePath) ?? false;
+
+      if (!hasFile) {
+        throw new BadRequestException('변경 목록에 없는 파일은 병합할 수 없습니다.');
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('변경 목록을 확인할 수 없습니다.');
+    }
   }
 
   private resolveWorkingDir(workingDir: string | null): string {

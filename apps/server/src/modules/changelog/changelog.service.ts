@@ -247,6 +247,7 @@ export class GitChangelogService {
     }
 
     try {
+      const safeFilePath = this.normalizeGitPathspec(filePath);
       const repoRoot = this.getRepoRoot(workingDir);
       const branchName = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: worktreePath,
@@ -256,11 +257,11 @@ export class GitChangelogService {
 
       execFileSync(
         'git',
-        ['checkout', branchName, '--', filePath],
+        ['checkout', branchName, '--', safeFilePath],
         { cwd: repoRoot, timeout: 10000 },
       );
-      this.logger.log(`단일 파일 병합 완료: ${filePath}`);
-      return { success: true, message: `${filePath} 병합이 완료되었습니다.` };
+      this.logger.log(`단일 파일 병합 완료: ${safeFilePath}`);
+      return { success: true, message: `${safeFilePath} 병합이 완료되었습니다.` };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`단일 파일 병합 실패 (${filePath}): ${msg}`);
@@ -303,6 +304,22 @@ export class GitChangelogService {
     }
 
     return Array.from(byAgent.values());
+  }
+
+  private normalizeGitPathspec(filePath: string): string {
+    const normalized = path.posix.normalize(filePath.replace(/\\/g, '/'));
+
+    if (
+      !filePath.trim() ||
+      normalized === '.' ||
+      normalized === '..' ||
+      normalized.startsWith('../') ||
+      path.posix.isAbsolute(normalized)
+    ) {
+      throw new Error(`유효하지 않은 파일 경로입니다: ${filePath}`);
+    }
+
+    return normalized;
   }
 
   // ─── Unified diff 파싱 ────────────────────────────────────────────────
