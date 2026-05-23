@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'child_process';
+import { execSync, spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -18,6 +18,7 @@ import type { ResultEvent, SessionExitEvent, TextDeltaEvent } from './interfaces
 export class GeminiSessionManager extends EventEmitter implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GeminiSessionManager.name);
   private readonly sessions = new Map<string, GeminiSession>();
+  private readonly processes = new Map<string, ChildProcess>();
   private geminiBin = 'gemini';
 
   constructor(
@@ -57,6 +58,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   terminateSession(sessionId: string): void {
     const session = this.requireSession(sessionId);
     session.status = 'terminated';
+    this.killProcess(sessionId);
     this.sessions.delete(sessionId);
 
     if (session.persisted) {
@@ -83,7 +85,13 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     existing.lastActivity = new Date();
 
     if (!existing.persisted) {
-      void this.persistSession(existing).then(() => this.spawnGemini(existing, message));
+      void this.persistSession(existing).then(() => {
+        if (existing.status === 'terminated' || !this.sessions.has(sessionId)) {
+          void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
+          return;
+        }
+        this.spawnGemini(existing, message);
+      });
       return;
     }
 
@@ -128,6 +136,9 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   // ─── 정리 ────────────────────────────────────────────────────────────
 
   onModuleDestroy(): void {
+    for (const sessionId of this.processes.keys()) {
+      this.killProcess(sessionId);
+    }
     for (const session of this.sessions.values()) {
       session.status = 'terminated';
     }
@@ -162,6 +173,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
       env: this.authManager.getEnvForGemini(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    this.processes.set(sessionId, proc);
 
     // Gemini CLI는 stdout/stderr 모두에 출력 — 두 스트림 합산 캡처
     // ANSI 이스케이프 시퀀스(색상, 커서 이동 등) 전체 제거
@@ -181,6 +193,14 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      this.processes.delete(sessionId);
+      const exitEvent: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
+
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        this.emit('exit', exitEvent);
+        return;
+      }
+
       this.logger.log(`[${sessionId}] gemini exited with code ${exitCode}`);
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
@@ -188,11 +208,15 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
       const resultEvent: ResultEvent = { sessionId, isError: (exitCode ?? 0) !== 0 };
       this.emit('result', resultEvent);
 
-      const exitEvent: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
       this.emit('exit', exitEvent);
     });
 
     proc.on('error', (err) => {
+      this.processes.delete(sessionId);
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        return;
+      }
+
       this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
@@ -232,6 +256,18 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     if (!session) throw new NotFoundException(`Gemini session ${sessionId} not found`);
     if (session.status === 'terminated') throw new Error(`Gemini session ${sessionId} is terminated`);
     return session;
+  }
+
+  private killProcess(sessionId: string): void {
+    const proc = this.processes.get(sessionId);
+    if (!proc) return;
+
+    this.processes.delete(sessionId);
+    try {
+      if (!proc.killed) proc.kill('SIGTERM');
+    } catch (err) {
+      this.logger.warn(`Failed to kill Gemini session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private toSessionInfo(session: GeminiSession): SessionInfo {
