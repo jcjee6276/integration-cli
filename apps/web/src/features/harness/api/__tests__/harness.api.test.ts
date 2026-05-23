@@ -64,4 +64,10 @@ describe("harness api", () => {
     mockFetch.mockReturnValueOnce(err(500));
     await expect(saveHarness("other", "x", "md")).rejects.toThrow("HTTP 500");
   });
+
+  it("throws for non-ok delete responses", async () => {
+    mockFetch.mockReturnValueOnce(err(409));
+
+    await expect(deleteHarness("operation")).rejects.toThrow("HTTP 409");
+  });
 });
