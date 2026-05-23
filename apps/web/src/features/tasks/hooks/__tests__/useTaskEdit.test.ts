@@ -48,6 +48,18 @@ describe("useTaskEdit", () => {
     );
   });
 
+  it("preserves existing agent type when hydrating an edit form", () => {
+    const { result } = renderHook(() =>
+      useTaskEdit(task({
+        agents: [{ id: 1, agentType: "gemini", role: "backend", customRole: null, status: "pending" }],
+      })),
+    );
+
+    expect(result.current.form.agents[0]).toEqual(
+      expect.objectContaining({ agentType: "gemini", role: "backend" }),
+    );
+  });
+
   it("syncs the form when task id changes", () => {
     const { result, rerender } = renderHook(
       ({ value }) => useTaskEdit(value),
