@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
@@ -33,6 +33,7 @@ const { TaskExecutionService } = require('./task-execution.service');
 
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
+  statSync: jest.fn(),
 }));
 
 const mockRepo = () => ({
@@ -104,6 +105,11 @@ describe('TasksService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  const mockDirectory = () => {
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    (fs.statSync as jest.Mock).mockReturnValue({ isDirectory: () => true });
+  };
 
   // ─── findOne ─────────────────────────────────────────────────────────────
 
@@ -247,12 +253,33 @@ describe('TasksService', () => {
     it('task를 실행하고 spawnTask를 호출한다', async () => {
       const pendingTask = { ...baseTask, status: 'pending' };
       taskRepo.findOne.mockResolvedValue(pendingTask);
+      runRepo.findOne.mockResolvedValue(null);
       const mockRun = { id: 1, taskId: 'task-1', version: 1, status: 'running' };
       runRepo.save.mockResolvedValue(mockRun);
 
       await service.execute('task-1');
 
       expect(executionService.spawnTask).toHaveBeenCalledWith(pendingTask, undefined, mockRun.id);
+    });
+
+    it('이전 실행 기록이 있으면 다음 버전으로 실행한다', async () => {
+      const stoppedTask = { ...baseTask, status: 'stopped', agents: [baseAgent] };
+      taskRepo.findOne
+        .mockResolvedValueOnce(stoppedTask)
+        .mockResolvedValueOnce({ ...stoppedTask, status: 'pending' })
+        .mockResolvedValueOnce({ ...stoppedTask, status: 'running' });
+      runRepo.findOne.mockResolvedValue({ version: 2 });
+      runRepo.save.mockResolvedValue({ id: 3, taskId: 'task-1', version: 3, status: 'running' });
+
+      await service.execute('task-1');
+
+      expect(agentRepo.update).toHaveBeenCalledWith(baseAgent.id, { status: 'pending', claudeSessionId: null });
+      expect(runRepo.create).toHaveBeenCalledWith({
+        taskId: 'task-1',
+        version: 3,
+        supplementNote: null,
+        status: 'running',
+      });
     });
 
     it('이미 running 상태이면 spawnTask를 호출하지 않는다', async () => {
@@ -371,7 +398,7 @@ describe('TasksService', () => {
     it('에이전트의 전체 변경사항을 병합한다', async () => {
       taskRepo.findOne.mockResolvedValue(baseTask);
       agentRepo.findOne.mockResolvedValue(baseAgent);
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      mockDirectory();
 
       const result = await service.mergeAgentAll('task-1', 1);
 
@@ -395,14 +422,14 @@ describe('TasksService', () => {
       expect(result).toEqual({ success: false, message: 'worktree가 존재하지 않습니다.' });
     });
 
-    it('workingDir이 없거나 존재하지 않으면 process.cwd()를 사용한다', async () => {
+    it('workingDir이 없거나 존재하지 않으면 BadRequestException을 던진다', async () => {
       taskRepo.findOne.mockResolvedValue({ ...baseTask, workingDir: null });
       agentRepo.findOne.mockResolvedValue(baseAgent);
       (fs.existsSync as jest.Mock).mockReturnValue(false);
 
-      await service.mergeAgentAll('task-1', 1);
+      await expect(service.mergeAgentAll('task-1', 1)).rejects.toThrow(BadRequestException);
 
-      expect(gitChangelogService.mergeAll).toHaveBeenCalledWith(baseAgent.worktreePath, process.cwd());
+      expect(gitChangelogService.mergeAll).not.toHaveBeenCalled();
     });
   });
 
@@ -412,7 +439,7 @@ describe('TasksService', () => {
     it('에이전트의 단일 파일을 병합한다', async () => {
       taskRepo.findOne.mockResolvedValue(baseTask);
       agentRepo.findOne.mockResolvedValue(baseAgent);
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      mockDirectory();
 
       const result = await service.mergeAgentFile('task-1', 1, 'src/app.ts');
 

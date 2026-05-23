@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -106,8 +106,14 @@ export class TasksService {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
-    const run = await this.createRun(id, 1, null);
-    await this.executionService.spawnTask(task, undefined, run.id);
+    if (task.status !== 'pending') {
+      await this.resetTaskForRun(task);
+    }
+
+    const version = await this.getNextRunVersion(id);
+    const run = await this.createRun(id, version, null);
+    const executableTask = task.status === 'pending' ? task : await this.findOne(id);
+    await this.spawnWithRun(executableTask, undefined, run.id);
     return this.findOne(id);
   }
 
@@ -117,23 +123,13 @@ export class TasksService {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
-    // 에이전트 상태 초기화
-    for (const agent of task.agents) {
-      await this.agentRepo.update(agent.id, { status: 'pending', claudeSessionId: null });
-    }
-    await this.taskRepo.update(id, { status: 'pending' });
-
-    // 다음 버전 번호 계산
-    const lastRun = await this.runRepo.findOne({
-      where: { taskId: id },
-      order: { version: 'DESC' },
-    });
-    const nextVersion = (lastRun?.version ?? 0) + 1;
+    await this.resetTaskForRun(task);
+    const nextVersion = await this.getNextRunVersion(id);
 
     const run = await this.createRun(id, nextVersion, supplementNote ?? null);
 
     const refreshed = await this.findOne(id);
-    await this.executionService.spawnTask(refreshed, supplementNote, run.id);
+    await this.spawnWithRun(refreshed, supplementNote, run.id);
     return this.findOne(id);
   }
 
@@ -200,8 +196,21 @@ export class TasksService {
   }
 
   private resolveWorkingDir(workingDir: string | null): string {
-    if (workingDir && fs.existsSync(workingDir)) return workingDir;
-    return process.cwd();
+    try {
+      if (!workingDir) {
+        throw new BadRequestException('작업 디렉토리를 선택해주세요.');
+      }
+      if (!fs.existsSync(workingDir)) {
+        throw new BadRequestException(`작업 디렉토리가 존재하지 않습니다: ${workingDir}`);
+      }
+      if (!fs.statSync(workingDir).isDirectory()) {
+        throw new BadRequestException(`작업 디렉토리가 폴더가 아닙니다: ${workingDir}`);
+      }
+      return workingDir;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(`작업 디렉토리를 확인할 수 없습니다: ${workingDir}`);
+    }
   }
 
   async findOne(id: string): Promise<TaskEntity> {
@@ -215,6 +224,33 @@ export class TasksService {
   }
 
   // ─── 내부 헬퍼 ────────────────────────────────────────────────────────
+
+  private async resetTaskForRun(task: TaskEntity): Promise<void> {
+    for (const agent of task.agents) {
+      await this.agentRepo.update(agent.id, { status: 'pending', claudeSessionId: null });
+    }
+    await this.taskRepo.update(task.id, { status: 'pending' });
+  }
+
+  private async getNextRunVersion(taskId: string): Promise<number> {
+    const lastRun = await this.runRepo.findOne({
+      where: { taskId },
+      order: { version: 'DESC' },
+    });
+    return (lastRun?.version ?? 0) + 1;
+  }
+
+  private async spawnWithRun(task: TaskEntity, supplementNote: string | undefined, runId: number): Promise<void> {
+    try {
+      await this.executionService.spawnTask(task, supplementNote, runId);
+    } catch (err) {
+      await Promise.all([
+        this.runRepo.update(runId, { status: 'error', completedAt: new Date() }),
+        this.taskRepo.update(task.id, { status: 'error' }),
+      ]);
+      throw err;
+    }
+  }
 
   private async createRun(taskId: string, version: number, supplementNote: string | null): Promise<TaskRunEntity> {
     const run = this.runRepo.create({
