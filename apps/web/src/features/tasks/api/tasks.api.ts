@@ -103,7 +103,8 @@ export async function archiveTask(id: string): Promise<void> {
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  await fetch(`${SERVER_URL}/tasks/${id}`, { method: "DELETE" });
+  const res = await fetch(`${SERVER_URL}/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 // ─── 실행 제어 ────────────────────────────────────────────────────────────────

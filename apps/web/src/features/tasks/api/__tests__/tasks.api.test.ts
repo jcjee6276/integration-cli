@@ -172,6 +172,11 @@ describe("deleteTask", () => {
       expect.objectContaining({ method: "DELETE" }),
     );
   });
+
+  it("throws on HTTP error", async () => {
+    mockFetch.mockReturnValueOnce(err(500));
+    await expect(deleteTask("task-123")).rejects.toThrow("HTTP 500");
+  });
 });
 
 describe("execution controls", () => {
