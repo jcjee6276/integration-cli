@@ -1,6 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Put, UsePipes, ValidationPipe } from '@nestjs/common';
 
-import type { HarnessRole } from './harness.service';
 import { HarnessService } from './harness.service';
 import { SaveHarnessDto } from './dto/save-harness.dto';
 
@@ -17,20 +16,20 @@ export class HarnessController {
 
   /** GET /harness/:role */
   @Get(':role')
-  findOne(@Param('role') role: HarnessRole) {
+  findOne(@Param('role') role: string) {
     return this.harnessService.findOne(role) ?? { role, ext: 'md', content: '' };
   }
 
   /** PUT /harness/:role */
   @Put(':role')
-  save(@Param('role') role: HarnessRole, @Body() dto: SaveHarnessDto) {
+  save(@Param('role') role: string, @Body() dto: SaveHarnessDto) {
     return this.harnessService.save(role, dto.content, dto.ext);
   }
 
   /** DELETE /harness/:role */
   @Delete(':role')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('role') role: HarnessRole) {
+  remove(@Param('role') role: string) {
     this.harnessService.remove(role);
   }
 }

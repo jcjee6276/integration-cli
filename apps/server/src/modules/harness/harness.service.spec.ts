@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { JI_PATHS } from '../../common/ji-paths';
@@ -101,6 +102,12 @@ describe('HarnessService', () => {
 
       expect(fs.readFileSync).toHaveBeenCalledWith(mdPath, 'utf8');
     });
+
+    it('허용되지 않는 role이면 파일 시스템 접근 전에 거부한다', () => {
+      expect(() => service.findOne('../common')).toThrow(BadRequestException);
+      expect(fs.existsSync).not.toHaveBeenCalled();
+      expect(fs.readFileSync).not.toHaveBeenCalled();
+    });
   });
 
   // ─── save ─────────────────────────────────────────────────────────────────
@@ -148,6 +155,20 @@ describe('HarnessService', () => {
 
       expect(fs.unlinkSync).not.toHaveBeenCalled();
     });
+
+    it('허용되지 않는 role이면 파일 쓰기를 수행하지 않는다', () => {
+      expect(() => service.save('../common', 'content', 'md')).toThrow(BadRequestException);
+      expect(fs.existsSync).not.toHaveBeenCalled();
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
+
+    it('허용되지 않는 확장자이면 파일 쓰기를 수행하지 않는다', () => {
+      expect(() => service.save('common', 'content', 'json' as never)).toThrow(BadRequestException);
+      expect(fs.existsSync).not.toHaveBeenCalled();
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
   });
 
   // ─── remove ──────────────────────────────────────────────────────────────
@@ -184,6 +205,12 @@ describe('HarnessService', () => {
 
       service.remove('other');
 
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+    });
+
+    it('허용되지 않는 role이면 파일 삭제를 수행하지 않는다', () => {
+      expect(() => service.remove('../common')).toThrow(BadRequestException);
+      expect(fs.existsSync).not.toHaveBeenCalled();
       expect(fs.unlinkSync).not.toHaveBeenCalled();
     });
   });
