@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 import { useClaudeAuth } from "@/features/auth/hooks/useClaudeAuth";
 import { LoginPanel } from "@/features/auth/ui/LoginPanel";
@@ -37,6 +37,14 @@ const STATUS_LABEL: Record<string, string> = {
   connecting: "연결 중…",
   disconnected: "연결 끊김",
 };
+
+type ConnectionStatus = "disconnected" | "connecting" | "connected";
+
+function getOverallConnectionStatus(statuses: ConnectionStatus[]): ConnectionStatus {
+  if (statuses.includes("connected")) return "connected";
+  if (statuses.includes("connecting")) return "connecting";
+  return "disconnected";
+}
 
 // ─── Checking Skeleton ────────────────────────────────────────────────────────
 
@@ -102,11 +110,24 @@ export default function ClaudePage() {
     (a, b) => new Date(b.info.createdAt).getTime() - new Date(a.info.createdAt).getTime(),
   );
 
-  const connectionStatus = claude.connectionStatus;
+  const connectionStatusByAgent: Record<AgentId, ConnectionStatus> = {
+    claude: claude.connectionStatus,
+    gemini: gemini.connectionStatus,
+    codex: codex.connectionStatus,
+    opencode: "disconnected",
+  };
+  const overallConnectionStatus = getOverallConnectionStatus([
+    claude.connectionStatus,
+    gemini.connectionStatus,
+    codex.connectionStatus,
+  ]);
   const error = claude.error ?? gemini.error ?? codex.error;
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const selectedSession = sessions.find((s) => s.info.id === selectedSessionId) ?? null;
+  const selectedConnectionStatus = selectedSession
+    ? connectionStatusByAgent[selectedSession.agentId]
+    : overallConnectionStatus;
 
   const selectSession = (id: string) => {
     setSelectedSessionId(id);
@@ -146,6 +167,51 @@ export default function ClaudePage() {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [harnessModalOpen, setHarnessModalOpen] = useState(false);
 
+  // ── 이름 바꾸기 ────────────────────────────────────────────────────────────
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpenId]);
+
+  const renameSession = useCallback((sessionId: string, newTitle: string) => {
+    const session = sessions.find((s) => s.info.id === sessionId);
+    if (!session) return;
+    if (session.agentId === "gemini") gemini.renameSession(sessionId, newTitle);
+    else if (session.agentId === "codex") codex.renameSession(sessionId, newTitle);
+    else claude.renameSession(sessionId, newTitle);
+  }, [sessions, claude, gemini, codex]);
+
+  const startRename = (sessionId: string, currentTitle: string) => {
+    setMenuOpenId(null);
+    setRenamingId(sessionId);
+    setRenameValue(currentTitle);
+  };
+
+  const confirmRename = () => {
+    if (renamingId && renameValue.trim()) {
+      renameSession(renamingId, renameValue.trim());
+    }
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
   const { hasNew, clearNew } = useTaskNotification();
 
   const handleOpenTaskList = () => {
@@ -171,6 +237,7 @@ export default function ClaudePage() {
   }, [sessions]);
 
   const handleAgentSelect = (agentId: AgentId) => {
+    if (connectionStatusByAgent[agentId] !== "connected") return;
     pendingDirRef.current = currentDir;
     const dir = currentDir || undefined;
     if (agentId === "gemini") {
@@ -197,7 +264,7 @@ export default function ClaudePage() {
     const trimmed = text.trim();
     if (!selectedSessionId || !trimmed) return;
 
-    if (trimmed === "/status" && selectedSession?.agentId !== "gemini") {
+    if (trimmed === "/status" && selectedSession?.agentId === "claude") {
       injectMessage(selectedSessionId, { role: "user", content: "/status" });
       try {
         const data = await getClaudeStatus();
@@ -231,7 +298,7 @@ export default function ClaudePage() {
   };
 
   const inputDisabled =
-    !selectedSession || selectedSession.isWaiting || connectionStatus !== "connected";
+    !selectedSession || selectedSession.isWaiting || selectedConnectionStatus !== "connected";
 
   if (authState === "checking") return <CheckingSkeleton />;
 
@@ -265,6 +332,7 @@ export default function ClaudePage() {
         open={agentSelectOpen}
         onClose={() => setAgentSelectOpen(false)}
         onSelect={handleAgentSelect}
+        connectionStatusByAgent={connectionStatusByAgent}
       />
 
       <AgentStatusModal
@@ -292,9 +360,9 @@ export default function ClaudePage() {
               title="에이전트 상태"
               className="flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors hover:bg-gray-900/[0.05] dark:hover:bg-white/[0.05]"
             >
-              <span className={`h-2 w-2 rounded-full ${STATUS_DOT[connectionStatus]}`} />
+              <span className={`h-2 w-2 rounded-full ${STATUS_DOT[overallConnectionStatus]}`} />
               <span className="text-xs text-gray-900/25 hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50">
-                {STATUS_LABEL[connectionStatus] ?? ""}
+                {STATUS_LABEL[overallConnectionStatus] ?? ""}
               </span>
             </button>
             <ThemeToggle />
@@ -305,7 +373,7 @@ export default function ClaudePage() {
         <div className="flex flex-col gap-2 p-3">
           <button
             onClick={() => setAgentSelectOpen(true)}
-            disabled={connectionStatus !== "connected"}
+            disabled={overallConnectionStatus !== "connected"}
             className="w-full rounded-lg bg-orange-600 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             + 새 세션
@@ -342,7 +410,7 @@ export default function ClaudePage() {
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {sessions.length === 0 ? (
             <p className="py-8 text-center text-xs text-gray-900/20 dark:text-white/20">
-              {connectionStatus === "connected" ? "세션이 없습니다" : "연결 중…"}
+              {overallConnectionStatus === "connected" ? "세션이 없습니다" : "연결 중…"}
             </p>
           ) : (
             <ul className="flex flex-col gap-0.5">
@@ -353,39 +421,127 @@ export default function ClaudePage() {
                 const quotaDetected =
                   isQuotaExceeded(s.streaming) ||
                   (!!lastMsg && isQuotaExceeded(lastMsg.content));
+                const isRenaming = renamingId === s.info.id;
+                const isMenuOpen = menuOpenId === s.info.id;
+
                 return (
-                  <li key={s.info.id}>
-                    <button
-                      onClick={() => selectSession(s.info.id)}
-                      className={[
-                        "w-full rounded-lg px-3 py-2.5 text-left transition-colors",
+                  <li key={s.info.id} className="group relative">
+                    {/* ── 이름 바꾸기 입력 모드 ── */}
+                    {isRenaming ? (
+                      <div className={[
+                        "rounded-lg px-3 py-2",
                         isSelected
-                          ? "bg-gray-900/[0.06] text-gray-900/90 dark:bg-white/[0.06] dark:text-white/90"
-                          : "text-gray-900/40 hover:bg-gray-900/[0.03] hover:text-gray-900/70 dark:text-white/40 dark:hover:bg-white/[0.03] dark:hover:text-white/70",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="flex min-w-0 items-center gap-1.5">
+                          ? "bg-gray-900/[0.06] dark:bg-white/[0.06]"
+                          : "bg-gray-900/[0.03] dark:bg-white/[0.03]",
+                      ].join(" ")}>
+                        <div className="flex items-center gap-1.5 pl-0">
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`} />
-                          <span className="truncate text-xs font-medium">{s.info.title}</span>
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") { e.preventDefault(); confirmRename(); }
+                              if (e.key === "Escape") cancelRename();
+                            }}
+                            onBlur={confirmRename}
+                            className="min-w-0 flex-1 bg-transparent text-xs font-medium text-gray-900/90 outline-none dark:text-white/90 border-b border-orange-500/50 pb-px"
+                          />
                         </div>
-                        {quotaDetected ? (
-                          <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/[0.08] px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
-                            ⚠ 한도
-                          </span>
-                        ) : s.isWaiting ? (
-                          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-orange-400" />
-                        ) : null}
-                      </div>
-                      <p className="mt-0.5 pl-3 text-[10px] text-gray-900/20 dark:text-white/20">
-                        {agentMeta.label} · {new Date(s.info.createdAt).toLocaleString()}
-                      </p>
-                      {lastMsg && (
-                        <p className="mt-0.5 pl-3 truncate text-[11px] text-gray-900/25 dark:text-white/25">
-                          {lastMsg.content.slice(0, 40) || "…"}
+                        <p className="mt-0.5 pl-3 text-[10px] text-gray-900/20 dark:text-white/20">
+                          Enter로 저장 · Esc로 취소
                         </p>
-                      )}
-                    </button>
+                      </div>
+                    ) : (
+                      /* ── 일반 세션 버튼 ── */
+                      <button
+                        onClick={() => selectSession(s.info.id)}
+                        className={[
+                          "w-full rounded-lg px-3 py-2.5 text-left transition-colors",
+                          isSelected
+                            ? "bg-gray-900/[0.06] text-gray-900/90 dark:bg-white/[0.06] dark:text-white/90"
+                            : "text-gray-900/40 hover:bg-gray-900/[0.03] hover:text-gray-900/70 dark:text-white/40 dark:hover:bg-white/[0.03] dark:hover:text-white/70",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex min-w-0 items-center gap-1.5 pr-5">
+                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`} />
+                            <span className="truncate text-xs font-medium">{s.info.title}</span>
+                          </div>
+                          {quotaDetected ? (
+                            <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/[0.08] px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
+                              ⚠ 한도
+                            </span>
+                          ) : s.isWaiting ? (
+                            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-orange-400" />
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 pl-3 text-[10px] text-gray-900/20 dark:text-white/20">
+                          {agentMeta.label} · {new Date(s.info.createdAt).toLocaleString()}
+                        </p>
+                        {lastMsg && (
+                          <p className="mt-0.5 pl-3 truncate text-[11px] text-gray-900/25 dark:text-white/25">
+                            {lastMsg.content.slice(0, 40) || "…"}
+                          </p>
+                        )}
+                      </button>
+                    )}
+
+                    {/* ── ... 메뉴 버튼 (hover 시 표시) ── */}
+                    {!isRenaming && (
+                      <div
+                        ref={isMenuOpen ? menuRef : undefined}
+                        className="absolute right-1.5 top-2 z-10"
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(isMenuOpen ? null : s.info.id);
+                          }}
+                          className={[
+                            "flex h-5 w-5 items-center justify-center rounded transition-all",
+                            "text-gray-900/30 hover:bg-gray-900/[0.08] hover:text-gray-900/70",
+                            "dark:text-white/30 dark:hover:bg-white/[0.08] dark:hover:text-white/70",
+                            isMenuOpen
+                              ? "opacity-100 bg-gray-900/[0.06] dark:bg-white/[0.06]"
+                              : "opacity-0 group-hover:opacity-100",
+                          ].join(" ")}
+                          aria-label="세션 메뉴"
+                        >
+                          <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                            <circle cx="3" cy="8" r="1.2" />
+                            <circle cx="8" cy="8" r="1.2" />
+                            <circle cx="13" cy="8" r="1.2" />
+                          </svg>
+                        </button>
+
+                        {/* ── 드롭다운 메뉴 ── */}
+                        {isMenuOpen && (
+                          <div
+                            className={[
+                              "absolute right-0 top-full mt-1 z-20 min-w-[120px]",
+                              "rounded-lg border border-gray-900/[0.08] bg-white py-1",
+                              "shadow-[0_4px_16px_rgba(0,0,0,0.10)]",
+                              "dark:border-white/[0.08] dark:bg-[#0e1117]",
+                              "dark:shadow-[0_4px_16px_rgba(0,0,0,0.5)]",
+                            ].join(" ")}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => startRename(s.info.id, s.info.title)}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-900/70 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/90 dark:text-white/70 dark:hover:bg-white/[0.05] dark:hover:text-white/90"
+                            >
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                                <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609zm1.414 1.06a.25.25 0 00-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 000-.354l-1.086-1.086zM11.189 6.25L9.75 4.81l-6.286 6.287a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.249.249 0 00.108-.064l6.286-6.286z" />
+                              </svg>
+                              이름 바꾸기
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -424,7 +580,7 @@ export default function ClaudePage() {
             <div className="relative text-center">
               <p className="font-semibold text-gray-900/75 dark:text-white/75">JI CLI</p>
               <p className="mt-1 text-sm text-gray-900/30 dark:text-white/30">
-                {connectionStatus !== "connected"
+                {overallConnectionStatus !== "connected"
                   ? "서버에 연결 중…"
                   : "왼쪽에서 세션을 선택하거나 새 세션을 생성하세요"}
               </p>

@@ -1,7 +1,14 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 import { SessionService } from './session.service';
+
+class UpdateTitleDto {
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+}
 
 @ApiTags('sessions')
 @Controller('sessions')
@@ -21,5 +28,16 @@ export class SessionController {
   @Get(':sessionId')
   findOne(@Param('sessionId') sessionId: string) {
     return this.sessionService.findOne(sessionId);
+  }
+
+  @ApiOperation({ summary: '세션 타이틀 수정' })
+  @ApiOkResponse({ description: '수정된 세션 정보' })
+  @Patch(':sessionId/title')
+  @HttpCode(HttpStatus.OK)
+  updateTitle(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: UpdateTitleDto,
+  ) {
+    return this.sessionService.updateTitle(sessionId, dto.title);
   }
 }

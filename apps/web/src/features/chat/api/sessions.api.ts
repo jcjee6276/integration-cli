@@ -108,6 +108,17 @@ export function saveCodexConversation(
   }).catch(() => undefined);
 }
 
+// ─── Session Title ───────────────────────────────────────────────────────────
+
+export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/sessions/${sessionId}/title`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 // ─── Conversations ───────────────────────────────────────────────────────────
 
 export async function fetchConversations(sessionId: string): Promise<DBConversation[]> {

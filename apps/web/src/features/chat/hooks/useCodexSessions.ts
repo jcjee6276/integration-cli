@@ -10,6 +10,7 @@ import {
   fetchConversations,
   fetchDBSessions,
   saveCodexConversation,
+  updateSessionTitle,
 } from "../api/sessions.api";
 import type { DBConversation, SessionInfo } from "../api/sessions.api";
 import type { ChatMessage, ResultMeta, SessionState } from "./useClaudeSessions";
@@ -48,7 +49,7 @@ export function useCodexSessions() {
         const newStates: SessionState[] = dbSessions
           .filter((s) => !existingIds.has(s.sessionId))
           .map((s) => ({
-            info: { id: s.sessionId, title: s.title, createdAt: s.createdAt },
+            info: { id: s.sessionId, title: !s.title || s.title === "server" ? "Codex" : s.title, createdAt: s.createdAt },
             messages: [],
             streaming: "",
             isWaiting: false,
@@ -181,13 +182,22 @@ export function useCodexSessions() {
     void loadConversations(selectedSessionId);
   }, [selectedSessionId, sessions, loadConversations]);
 
+  const renameSession = useCallback((sessionId: string, newTitle: string) => {
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.info.id === sessionId ? { ...s, info: { ...s.info, title: newTitle } } : s,
+      ),
+    );
+    void updateSessionTitle(sessionId, newTitle).catch(() => undefined);
+  }, []);
+
   const createSession = useCallback(async (workingDirectory?: string): Promise<string | null> => {
     setError(null);
     try {
       const raw = await apiCreateSession(workingDirectory);
       const title = raw.workingDirectory
-        ? raw.workingDirectory.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? "새 세션"
-        : "새 세션";
+        ? raw.workingDirectory.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? "Codex"
+        : "Codex";
 
       const newState: SessionState = {
         info: { ...raw, title },
@@ -250,5 +260,6 @@ export function useCodexSessions() {
     selectSession: setSelectedSessionId,
     sendMessage,
     terminateSession,
+    renameSession,
   };
 }
