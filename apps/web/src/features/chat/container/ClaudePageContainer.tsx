@@ -32,7 +32,6 @@ export function ClaudePageContainer() {
     selectedSession,
     selectedSessionId,
     selectedConnectionStatus,
-    connectionStatusByAgent,
     overallConnectionStatus,
     error,
     createSession,
@@ -102,7 +101,6 @@ export function ClaudePageContainer() {
         open={agentSelectOpen}
         onClose={() => setAgentSelectOpen(false)}
         onSelect={handleAgentSelect}
-        connectionStatusByAgent={connectionStatusByAgent}
       />
       <AgentStatusModal open={statusModalOpen} onClose={() => setStatusModalOpen(false)} />
       <HarnessModal open={harnessModalOpen} onClose={() => setHarnessModalOpen(false)} />
