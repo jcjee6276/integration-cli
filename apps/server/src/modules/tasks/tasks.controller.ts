@@ -80,6 +80,18 @@ export class TasksController {
     return this.tasksService.rerun(id, dto.supplementNote);
   }
 
+  @ApiOperation({ summary: '에이전트 단위 작업 재실행', description: '보완 메모를 추가하여 특정 에이전트만 다시 실행' })
+  @ApiOkResponse({ description: '에이전트 재실행 시작 확인' })
+  @Post(':id/agents/:agentId/rerun')
+  @HttpCode(HttpStatus.OK)
+  rerunAgent(
+    @Param('id') id: string,
+    @Param('agentId') agentId: string,
+    @Body() dto: RerunTaskDto,
+  ) {
+    return this.tasksService.rerunAgent(id, Number(agentId), dto.supplementNote);
+  }
+
   @ApiOperation({ summary: '실행 버전 이력 조회' })
   @ApiOkResponse({ description: '버전별 실행 기록 (supplementNote, 상태, 에이전트 결과 포함)' })
   @Get(':id/runs')

@@ -1,4 +1,6 @@
 import { execSync, spawn, type ChildProcess } from 'child_process';
+
+const IS_WIN = process.platform === 'win32';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
@@ -415,14 +417,15 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       this.codexBin,
       [
         'exec',
-        '-c', 'approval_policy="never"',
-        '-c', 'sandbox_mode="danger-full-access"',
+        '-c', 'approval_policy=never',
+        '-c', 'sandbox_mode=danger-full-access',
         prompt,
       ],
       {
         cwd: workingDir,
         env: process.env,
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: IS_WIN,
       },
     );
     this.registerProcess(taskId, agentId, proc);
@@ -929,7 +932,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   private resolveWorkingDir(workingDir: string | null): string {
     try {
       if (!workingDir) {
-        throw new BadRequestException('작업 디렉토리를 선택해주세요.');
+        return process.cwd();
       }
       if (!fs.existsSync(workingDir)) {
         throw new BadRequestException(`작업 디렉토리가 존재하지 않습니다: ${workingDir}`);

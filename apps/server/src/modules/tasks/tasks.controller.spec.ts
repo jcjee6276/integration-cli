@@ -36,6 +36,7 @@ describe('TasksController', () => {
             execute: jest.fn(),
             stop: jest.fn(),
             rerun: jest.fn(),
+            rerunAgent: jest.fn(),
             getRuns: jest.fn(),
             archive: jest.fn(),
             mergeAgentAll: jest.fn(),
@@ -137,6 +138,17 @@ describe('TasksController', () => {
       await controller.rerun('task-1', {});
 
       expect(service.rerun).toHaveBeenCalledWith('task-1', undefined);
+    });
+  });
+
+  describe('rerunAgent', () => {
+    it('service.rerunAgent를 agentId와 supplementNote로 호출한다', async () => {
+      service.rerunAgent.mockResolvedValue(mockTask);
+
+      const result = await controller.rerunAgent('task-1', '2', { supplementNote: 'agent only' });
+
+      expect(service.rerunAgent).toHaveBeenCalledWith('task-1', 2, 'agent only');
+      expect(result).toBe(mockTask);
     });
   });
 

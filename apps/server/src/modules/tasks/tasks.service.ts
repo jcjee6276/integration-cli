@@ -135,6 +135,28 @@ export class TasksService {
 
   // ─── 중지 ────────────────────────────────────────────────────────────
 
+  async rerunAgent(id: string, agentId: number, supplementNote?: string): Promise<TaskEntity> {
+    const task = await this.findOne(id);
+    if (task.status === 'running') return task;
+
+    const agent = task.agents.find((a) => a.id === agentId);
+    if (!agent) throw new NotFoundException(`Agent ${agentId} not found`);
+
+    await this.agentRepo.update(agent.id, { status: 'pending', claudeSessionId: null });
+    await this.taskRepo.update(task.id, { status: 'pending' });
+
+    const nextVersion = await this.getNextRunVersion(id);
+    const run = await this.createRun(id, nextVersion, supplementNote ?? null);
+    const agentOnlyTask = {
+      ...task,
+      status: 'pending',
+      agents: [{ ...agent, status: 'pending', claudeSessionId: null }],
+    } as TaskEntity;
+
+    await this.spawnWithRun(agentOnlyTask, supplementNote, run.id);
+    return this.findOne(id);
+  }
+
   async stop(id: string): Promise<TaskEntity> {
     const task = await this.findOne(id);
     await this.executionService.stopTask(task);
@@ -214,7 +236,7 @@ export class TasksService {
   private resolveWorkingDir(workingDir: string | null): string {
     try {
       if (!workingDir) {
-        throw new BadRequestException('작업 디렉토리를 선택해주세요.');
+        return process.cwd();
       }
       if (!fs.existsSync(workingDir)) {
         throw new BadRequestException(`작업 디렉토리가 존재하지 않습니다: ${workingDir}`);

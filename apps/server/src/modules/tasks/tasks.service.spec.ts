@@ -334,6 +334,42 @@ describe('TasksService', () => {
 
   // ─── stop ─────────────────────────────────────────────────────────────────
 
+  describe('rerunAgent', () => {
+    it('선택한 에이전트만 다음 버전으로 재실행한다', async () => {
+      const otherAgent = { ...baseAgent, id: 2, role: 'frontend' as const };
+      const taskWithAgents = { ...baseTask, agents: [baseAgent, otherAgent] };
+      taskRepo.findOne.mockResolvedValue(taskWithAgents);
+      runRepo.findOne.mockResolvedValue({ version: 2 });
+      const mockRun = { id: 3, taskId: 'task-1', version: 3, status: 'running' };
+      runRepo.save.mockResolvedValue(mockRun);
+
+      await service.rerunAgent('task-1', 1, 'agent note');
+
+      expect(agentRepo.update).toHaveBeenCalledWith(baseAgent.id, { status: 'pending', claudeSessionId: null });
+      expect(agentRepo.update).not.toHaveBeenCalledWith(otherAgent.id, expect.anything());
+      expect(taskRepo.update).toHaveBeenCalledWith('task-1', { status: 'pending' });
+      expect(runRepo.create).toHaveBeenCalledWith({
+        taskId: 'task-1',
+        version: 3,
+        supplementNote: 'agent note',
+        status: 'running',
+      });
+      expect(executionService.spawnTask).toHaveBeenCalledWith(
+        expect.objectContaining({ agents: [expect.objectContaining({ id: baseAgent.id })] }),
+        'agent note',
+        mockRun.id,
+      );
+    });
+
+    it('대상 에이전트가 없으면 NotFoundException을 던진다', async () => {
+      taskRepo.findOne.mockResolvedValue({ ...baseTask, agents: [baseAgent] });
+
+      await expect(service.rerunAgent('task-1', 999)).rejects.toThrow(NotFoundException);
+
+      expect(executionService.spawnTask).not.toHaveBeenCalled();
+    });
+  });
+
   describe('stop', () => {
     it('실행 중인 task를 중지한다', async () => {
       taskRepo.findOne.mockResolvedValue({ ...baseTask, status: 'running' });
@@ -425,8 +461,19 @@ describe('TasksService', () => {
       expect(result).toEqual({ success: false, message: 'worktree가 존재하지 않습니다.' });
     });
 
-    it('workingDir이 없거나 존재하지 않으면 BadRequestException을 던진다', async () => {
+    it('workingDir이 없으면 process.cwd()를 사용한다', async () => {
       taskRepo.findOne.mockResolvedValue({ ...baseTask, workingDir: null });
+      agentRepo.findOne.mockResolvedValue(baseAgent);
+
+      const result = await service.mergeAgentAll('task-1', 1);
+
+      expect(result).toEqual({ success: true, message: '전체 병합이 완료되었습니다.' });
+      expect(fs.existsSync).not.toHaveBeenCalled();
+      expect(gitChangelogService.mergeAll).toHaveBeenCalledWith(baseAgent.worktreePath, process.cwd());
+    });
+
+    it('workingDir이 존재하지 않으면 BadRequestException을 던진다', async () => {
+      taskRepo.findOne.mockResolvedValue(baseTask);
       agentRepo.findOne.mockResolvedValue(baseAgent);
       (fs.existsSync as jest.Mock).mockReturnValue(false);
 
