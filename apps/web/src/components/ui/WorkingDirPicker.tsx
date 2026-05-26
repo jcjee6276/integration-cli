@@ -17,10 +17,10 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
     if (file) {
       const fullPath = (file as File & { path?: string }).path;
       if (fullPath) {
-        onChange(fullPath.slice(0, fullPath.lastIndexOf("/")));
-      } else {
-        onChange(file.webkitRelativePath.split("/")[0]);
+        const sepIdx = Math.max(fullPath.lastIndexOf("/"), fullPath.lastIndexOf("\\"));
+        onChange(sepIdx > 0 ? fullPath.slice(0, sepIdx) : fullPath);
       }
+      // file.path는 Electron 전용 — 브라우저에서는 절대 경로를 알 수 없으므로 직접 입력 유도
     }
     e.target.value = "";
   };
