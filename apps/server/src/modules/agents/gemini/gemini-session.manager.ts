@@ -1,6 +1,8 @@
 import { execSync, spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
+
+const IS_WIN = process.platform === 'win32';
 import * as path from 'path';
 
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
@@ -227,17 +229,20 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   }
 
   private resolveGemini(): string {
+    const whichCmd = IS_WIN ? 'where gemini' : 'which gemini';
     const candidates = [
-      (): string => execSync('which gemini', { encoding: 'utf8', timeout: 2000 }).trim(),
+      (): string => execSync(whichCmd, { encoding: 'utf8', timeout: 2000 }).trim().split(/\r?\n/)[0],
       (): string => {
-        const home = process.env.HOME ?? '';
-        const p = `${home}/.nvm/versions/node/${process.version}/bin/gemini`;
+        const home = IS_WIN ? (process.env.USERPROFILE ?? '') : (process.env.HOME ?? '');
+        const p = IS_WIN
+          ? `${home}\\AppData\\Roaming\\npm\\gemini.cmd`
+          : `${home}/.nvm/versions/node/${process.version}/bin/gemini`;
         if (fs.existsSync(p)) return p;
         throw new Error('not found');
       },
       (): string => {
         const npmBin = execSync('npm bin -g', { encoding: 'utf8', timeout: 2000 }).trim();
-        const p = `${npmBin}/gemini`;
+        const p = IS_WIN ? `${npmBin}\\gemini.cmd` : `${npmBin}/gemini`;
         if (fs.existsSync(p)) return p;
         throw new Error('not found');
       },
@@ -248,7 +253,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     }
 
     this.logger.warn('gemini 경로 탐지 실패 — "gemini"로 폴백');
-    return 'gemini';
+    return IS_WIN ? 'gemini.cmd' : 'gemini';
   }
 
   private requireSession(sessionId: string): GeminiSession {

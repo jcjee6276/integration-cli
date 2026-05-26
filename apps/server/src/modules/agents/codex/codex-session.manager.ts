@@ -1,6 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 
+const IS_WIN = process.platform === 'win32';
+
 import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -221,14 +223,15 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
       'codex',
       [
         'exec',
-        '-c', 'approval_policy="never"',
-        '-c', 'sandbox_mode="danger-full-access"',
+        '-c', 'approval_policy=never',
+        '-c', 'sandbox_mode=danger-full-access',
         message,
       ],
       {
         cwd: session.workingDirectory,
         env: this.authManager.getEnvForCodex(),
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: IS_WIN,
       },
     );
     this.processes.set(sessionId, proc);
