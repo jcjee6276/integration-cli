@@ -41,12 +41,16 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 // ─── 개별 에이전트 로그 패널 ──────────────────────────────────────────────────
 
 interface AgentLogPanelProps {
+  agentId: number;
   log: AgentLog;
   role: AgentRole;
   customRole: string | null;
+  canRerun?: boolean;
+  rerunDisabled?: boolean;
+  onRerun?: (agentId: number) => void;
 }
 
-function AgentLogPanel({ log, role, customRole }: AgentLogPanelProps) {
+function AgentLogPanel({ agentId, log, role, customRole, canRerun, rerunDisabled, onRerun }: AgentLogPanelProps) {
   const outputRef = useRef<HTMLPreElement>(null);
   const quota = isQuotaExceeded((log.output ?? "") + (log.errorMessage ?? ""));
 
@@ -86,6 +90,20 @@ function AgentLogPanel({ log, role, customRole }: AgentLogPanelProps) {
               ${log.costUsd.toFixed(4)}
             </span>
           )}
+          {canRerun && (
+            <button
+              type="button"
+              onClick={() => onRerun?.(agentId)}
+              disabled={rerunDisabled}
+              className="flex items-center gap-1 rounded-md border border-blue-500/25 px-2 py-1 text-[10px] font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] disabled:opacity-40 dark:text-blue-400"
+              title="이 에이전트만 재실행"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
+              </svg>
+              재실행
+            </button>
+          )}
         </div>
       </div>
 
@@ -121,9 +139,12 @@ interface AgentOutputPanelProps {
   agentLogs: Record<number, AgentLog>;
   connected: boolean;
   taskStatus?: TaskStatus;
+  canRerun?: boolean;
+  rerunDisabled?: boolean;
+  onRerunAgent?: (agentId: number) => void;
 }
 
-export function AgentOutputPanel({ agents, agentLogs, connected, taskStatus }: AgentOutputPanelProps) {
+export function AgentOutputPanel({ agents, agentLogs, connected, taskStatus, canRerun, rerunDisabled, onRerunAgent }: AgentOutputPanelProps) {
   const fallbackStatus: AgentStatus =
     taskStatus === "completed" ? "completed" :
     taskStatus === "error"     ? "error" :
@@ -150,9 +171,13 @@ export function AgentOutputPanel({ agents, agentLogs, connected, taskStatus }: A
         return (
           <AgentLogPanel
             key={agent.id}
+            agentId={agent.id}
             log={log}
             role={agent.role}
             customRole={agent.customRole}
+            canRerun={canRerun}
+            rerunDisabled={rerunDisabled}
+            onRerun={onRerunAgent}
           />
         );
       })}

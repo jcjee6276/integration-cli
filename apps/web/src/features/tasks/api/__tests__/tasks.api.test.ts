@@ -9,6 +9,7 @@ import {
   fetchTaskRuns,
   fetchTasks,
   rerunTask,
+  rerunTaskAgent,
   stopTask,
   updateTask,
 } from "../tasks.api";
@@ -215,6 +216,21 @@ describe("execution controls", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ supplementNote: "추가 지시" }),
+      },
+    );
+  });
+
+  it("rerunTaskAgent posts supplement note as JSON", async () => {
+    mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "running" }));
+
+    await rerunTaskAgent("task-1", 7, "agent note");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1/agents/7/rerun"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplementNote: "agent note" }),
       },
     );
   });

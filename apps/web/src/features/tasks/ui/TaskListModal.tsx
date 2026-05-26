@@ -47,6 +47,7 @@ interface TaskCardProps {
   onStop: () => void;
   onEdit: () => void;
   onRerun: (note: string) => void;
+  onRerunAgent: (agentId: number, note: string) => void;
   onArchive: () => void;
   onDelete: () => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
@@ -61,6 +62,7 @@ function TaskCard({
   onStop,
   onEdit,
   onRerun,
+  onRerunAgent,
   onArchive,
   onDelete,
   onTaskStatusChange,
@@ -73,20 +75,32 @@ function TaskCard({
   const showLogs   = expanded && (isRunning || isFinished);
 
   const [rerunMode, setRerunMode] = useState(false);
+  const [rerunAgentId, setRerunAgentId] = useState<number | null>(null);
   const [supplementNote, setSupplementNote] = useState("");
   const [activeTab, setActiveTab] = useState<"logs" | "changelog" | "history">("logs");
   const [changelogMounted, setChangelogMounted] = useState(false);
   const [historyMounted, setHistoryMounted] = useState(false);
 
   const handleRerunConfirm = () => {
-    onRerun(supplementNote);
+    if (rerunAgentId != null) {
+      onRerunAgent(rerunAgentId, supplementNote);
+    } else {
+      onRerun(supplementNote);
+    }
     setRerunMode(false);
+    setRerunAgentId(null);
     setSupplementNote("");
   };
 
   const handleRerunCancel = () => {
     setRerunMode(false);
+    setRerunAgentId(null);
     setSupplementNote("");
+  };
+
+  const openAgentRerun = (agentId: number) => {
+    setRerunAgentId(agentId);
+    setRerunMode(true);
   };
 
   const { agentLogs, connected } = useTaskExecution(
@@ -97,6 +111,10 @@ function TaskCard({
   const hasQuotaError = Object.values(agentLogs).some((log) =>
     isQuotaExceeded((log.output ?? "") + (log.errorMessage ?? "")),
   );
+  const selectedRerunAgent = rerunAgentId != null ? task.agents.find((agent) => agent.id === rerunAgentId) : null;
+  const selectedRerunLabel = selectedRerunAgent
+    ? selectedRerunAgent.customRole ?? selectedRerunAgent.role
+    : null;
 
   return (
     <article className={[
@@ -207,6 +225,9 @@ function TaskCard({
                     agentLogs={agentLogs}
                     connected={connected}
                     taskStatus={task.status as TaskStatus}
+                    canRerun={canRerun}
+                    rerunDisabled={isActioning}
+                    onRerunAgent={openAgentRerun}
                   />
                 </div>
                 {changelogMounted && isFinished && (
@@ -216,7 +237,13 @@ function TaskCard({
                 )}
                 {historyMounted && isFinished && (
                   <div className={activeTab !== "history" ? "hidden" : ""}>
-                    <RunHistoryPanel taskId={task.id} agents={task.agents} />
+                    <RunHistoryPanel
+                      taskId={task.id}
+                      agents={task.agents}
+                      canRerunAgent={canRerun}
+                      rerunDisabled={isActioning}
+                      onRerunAgent={openAgentRerun}
+                    />
                   </div>
                 )}
               </div>
@@ -226,8 +253,9 @@ function TaskCard({
             {rerunMode && (
               <div className="flex flex-col gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.05] p-3">
                 <label className="text-xs font-medium text-blue-600 dark:text-blue-400/80">
+                  {selectedRerunLabel ? `${selectedRerunLabel} 에이전트 재실행` : "전체 재실행"}
                   보완할 점 입력
-                  <span className="ml-1 text-[10px] font-normal text-gray-900/25 dark:text-white/25">(선택 — 비워두면 동일 조건으로 재 실행)</span>
+                  <span className="ml-1 text-[10px] font-normal text-gray-900/25 dark:text-white/25">(선택 - 비워두면 동일 조건으로 재실행)</span>
                 </label>
                 <textarea
                   rows={3}
@@ -382,6 +410,7 @@ export function TaskListModal({ open, onClose }: Props) {
     execute,
     stop,
     rerun,
+    rerunAgent,
     archive,
     remove,
     onEditDone,
@@ -477,6 +506,10 @@ export function TaskListModal({ open, onClose }: Props) {
                   onEdit={() => setEditingTask(task)}
                   onRerun={(note) => {
                     void rerun(task.id, note || undefined);
+                    setExpandedId(task.id);
+                  }}
+                  onRerunAgent={(agentId, note) => {
+                    void rerunAgent(task.id, agentId, note || undefined);
                     setExpandedId(task.id);
                   }}
                   onArchive={() => void archive(task.id)}

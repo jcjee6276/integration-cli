@@ -31,9 +31,12 @@ interface RunRowProps {
   run: TaskRun;
   agents: TaskAgent[];
   isLatest: boolean;
+  canRerunAgent?: boolean;
+  rerunDisabled?: boolean;
+  onRerunAgent?: (agentId: number) => void;
 }
 
-function RunRow({ run, agents, isLatest }: RunRowProps) {
+function RunRow({ run, agents, isLatest, canRerunAgent, rerunDisabled, onRerunAgent }: RunRowProps) {
   const duration = run.completedAt
     ? Math.round((new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)
     : null;
@@ -106,6 +109,17 @@ function RunRow({ run, agents, isLatest }: RunRowProps) {
                     {(ar.durationMs / 1000).toFixed(1)}s
                   </span>
                 )}
+                {canRerunAgent && (
+                  <button
+                    type="button"
+                    onClick={() => onRerunAgent?.(ar.agentId)}
+                    disabled={rerunDisabled}
+                    className="ml-1 rounded-md border border-blue-500/25 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] disabled:opacity-40 dark:text-blue-400"
+                    title="이 에이전트만 재실행"
+                  >
+                    재실행
+                  </button>
+                )}
               </div>
             );
           })}
@@ -120,9 +134,12 @@ function RunRow({ run, agents, isLatest }: RunRowProps) {
 interface Props {
   taskId: string;
   agents: TaskAgent[];
+  canRerunAgent?: boolean;
+  rerunDisabled?: boolean;
+  onRerunAgent?: (agentId: number) => void;
 }
 
-export function RunHistoryPanel({ taskId, agents }: Props) {
+export function RunHistoryPanel({ taskId, agents, canRerunAgent, rerunDisabled, onRerunAgent }: Props) {
   const { runs, loading, error } = useTaskRuns(taskId);
 
   if (loading) {
@@ -166,6 +183,9 @@ export function RunHistoryPanel({ taskId, agents }: Props) {
           run={run}
           agents={agents}
           isLatest={idx === 0}
+          canRerunAgent={canRerunAgent}
+          rerunDisabled={rerunDisabled}
+          onRerunAgent={onRerunAgent}
         />
       ))}
     </div>

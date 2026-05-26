@@ -11,6 +11,7 @@ vi.mock("../../api/tasks.api", () => ({
   executeTask: vi.fn(),
   fetchTasks: vi.fn(),
   rerunTask: vi.fn(),
+  rerunTaskAgent: vi.fn(),
   stopTask: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ const mockFetchTasks = vi.mocked(tasksApi.fetchTasks);
 const mockExecuteTask = vi.mocked(tasksApi.executeTask);
 const mockStopTask = vi.mocked(tasksApi.stopTask);
 const mockRerunTask = vi.mocked(tasksApi.rerunTask);
+const mockRerunTaskAgent = vi.mocked(tasksApi.rerunTaskAgent);
 const mockArchiveTask = vi.mocked(tasksApi.archiveTask);
 const mockDeleteTask = vi.mocked(tasksApi.deleteTask);
 
@@ -105,6 +107,18 @@ describe("useTaskList", () => {
     await act(async () => { await result.current.rerun("task-1", "extra context"); });
 
     expect(mockRerunTask).toHaveBeenCalledWith("task-1", "extra context");
+    expect(result.current.tasks[0]).toEqual(updated);
+  });
+
+  it("passes agent id and supplement note to rerunAgent", async () => {
+    const updated = task({ id: "task-1", status: "running" });
+    mockRerunTaskAgent.mockResolvedValueOnce(updated);
+    const { result } = renderHook(() => useTaskList(true));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.rerunAgent("task-1", 3, "agent context"); });
+
+    expect(mockRerunTaskAgent).toHaveBeenCalledWith("task-1", 3, "agent context");
     expect(result.current.tasks[0]).toEqual(updated);
   });
 
