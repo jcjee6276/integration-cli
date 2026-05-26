@@ -413,21 +413,16 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   ): void {
     this.logger.log(`[Task:${taskTitle}] Codex Agent ${agentId} 실행 — cwd: ${workingDir}`);
 
-    const proc = spawn(
-      this.codexBin,
-      [
-        'exec',
-        '-c', 'approval_policy=never',
-        '-c', 'sandbox_mode=danger-full-access',
-        prompt,
-      ],
-      {
-        cwd: workingDir,
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: IS_WIN,
-      },
-    );
+    const codexArgs = ['exec', '-c', 'approval_policy=never', '-c', 'sandbox_mode=danger-full-access', prompt];
+    const [codexCmd, codexSpawnArgs] = IS_WIN
+      ? ['cmd.exe', ['/c', 'codex', ...codexArgs]]
+      : [this.codexBin, codexArgs];
+
+    const proc = spawn(codexCmd, codexSpawnArgs, {
+      cwd: workingDir,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     this.registerProcess(taskId, agentId, proc);
 
     let output = '';

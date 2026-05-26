@@ -219,21 +219,16 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     const sessionId = session.id;
     const parser = new CodexOutputParser();
 
-    const proc = spawn(
-      'codex',
-      [
-        'exec',
-        '-c', 'approval_policy=never',
-        '-c', 'sandbox_mode=danger-full-access',
-        message,
-      ],
-      {
-        cwd: session.workingDirectory,
-        env: this.authManager.getEnvForCodex(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: IS_WIN,
-      },
-    );
+    const codexArgs = ['exec', '-c', 'approval_policy=never', '-c', 'sandbox_mode=danger-full-access', message];
+    const [cmd, spawnArgs] = IS_WIN
+      ? ['cmd.exe', ['/c', 'codex', ...codexArgs]]
+      : ['codex', codexArgs];
+
+    const proc = spawn(cmd, spawnArgs, {
+      cwd: session.workingDirectory,
+      env: this.authManager.getEnvForCodex(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     this.processes.set(sessionId, proc);
 
     let output = '';
