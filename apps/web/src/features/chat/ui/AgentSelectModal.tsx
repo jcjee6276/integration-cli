@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { Modal } from "@/components/ui/Modal";
+import { useAgentStatusStore } from "@/store/agentStatusStore";
 
 export type AgentId = "claude" | "gemini" | "codex" | "opencode";
 type ConnectionStatus = "disconnected" | "connecting" | "connected";
@@ -192,6 +195,14 @@ interface AgentSelectModalProps {
 }
 
 export function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAgent }: AgentSelectModalProps) {
+  const { statusByAgent, refresh } = useAgentStatusStore();
+
+  useEffect(() => {
+    if (open) refresh();
+  }, [open, refresh]);
+
+  const effectiveStatus = connectionStatusByAgent ?? statusByAgent;
+
   return (
     <Modal open={open} onClose={onClose} title="에이전트 선택" maxWidth="max-w-md" zIndex="z-[60]">
       <div className="flex flex-col gap-2.5">
@@ -199,7 +210,7 @@ export function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAg
           <AgentCard
             key={agent.id}
             agent={agent}
-            connectionStatus={connectionStatusByAgent?.[agent.id] ?? "connected"}
+            connectionStatus={effectiveStatus[agent.id] ?? "disconnected"}
             onSelect={(id) => { onSelect(id); onClose(); }}
           />
         ))}
