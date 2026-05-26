@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchTaskChangelog, mergeAgentAll, mergeAgentFile } from "../changelog.api";
+import { fetchTaskChangelog, fetchTaskRunChangelog, mergeAgentAll, mergeAgentFile } from "../changelog.api";
 
 const mockFetch = vi.fn();
 
@@ -33,6 +33,20 @@ describe("changelog api", () => {
   it("fetchTaskChangelog throws on HTTP error", async () => {
     mockFetch.mockReturnValueOnce(err(404));
     await expect(fetchTaskChangelog("missing")).rejects.toThrow("HTTP 404");
+  });
+
+  it("fetchTaskRunChangelog passes the run id and abort signal", async () => {
+    const controller = new AbortController();
+    const body = [{ agentId: 1, files: [] }];
+    mockFetch.mockReturnValueOnce(ok(body));
+
+    const result = await fetchTaskRunChangelog("task-1", 3, controller.signal);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks/task-1/runs/3/changelog"),
+      { signal: controller.signal },
+    );
+    expect(result).toEqual(body);
   });
 
   it("mergeAgentAll posts to the agent merge endpoint", async () => {

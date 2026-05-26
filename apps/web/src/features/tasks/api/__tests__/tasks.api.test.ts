@@ -5,6 +5,7 @@ import {
   createTask,
   deleteTask,
   executeTask,
+  fetchTaskConversations,
   fetchTask,
   fetchTaskRuns,
   fetchTasks,
@@ -261,5 +262,17 @@ describe("fetchTaskRuns", () => {
   it("throws on HTTP error", async () => {
     mockFetch.mockReturnValueOnce(err(500));
     await expect(fetchTaskRuns("task-1")).rejects.toThrow("HTTP 500");
+  });
+});
+
+describe("fetchTaskConversations", () => {
+  it("returns task conversations", async () => {
+    const conversations = [{ id: "c1", sessionId: "task-1", promptId: "p1", agentId: 1, runId: 2, content: "log", agentModel: "claude", type: "agent_message", createdAt: "2024-01-01" }];
+    mockFetch.mockReturnValueOnce(ok(conversations));
+
+    const result = await fetchTaskConversations("task-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/conversations/session/task-1"));
+    expect(result).toEqual(conversations);
   });
 });

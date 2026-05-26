@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
@@ -362,6 +363,15 @@ function TaskCard({
                     수정
                   </button>
                 )}
+
+                <Link
+                  href={`/task/${task.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/40 transition-colors hover:border-blue-500/30 hover:text-blue-600 dark:border-white/[0.08] dark:text-white/40 dark:hover:text-blue-400"
+                >
+                  상세
+                </Link>
 
                 {/* 보관 */}
                 <button
