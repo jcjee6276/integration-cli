@@ -101,6 +101,8 @@ English:
 
 - Provides the `jccli` binary.
 - Supports `jccli init` and `jccli check`.
+- When this repository is published to npm, installing the root package exposes `jccli`.
+- `jccli init [dir]` can scaffold the full project, install dependencies, create `~/.ji` runtime folders, and verify Claude Code, Gemini CLI, and Codex.
 
 한국어:
 
@@ -123,6 +125,25 @@ English:
 
 ```bash
 npm install
+```
+
+### Install From npm / npm 패키지로 설치
+
+After publishing the root package, users can install the CLI globally and initialize a project:
+
+```bash
+npm install -g ji
+jccli init my-app
+cd my-app
+npm run dev
+```
+
+`jccli init` also supports:
+
+```bash
+jccli init --skip-install
+jccli init --skip-agents
+jccli check
 ```
 
 ### Run Everything / 전체 개발 서버 실행
