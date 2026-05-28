@@ -25,6 +25,8 @@ jest.mock('./task-execution.service', () => ({
     GitChangelogService: class MockGitChangelogService {
       mergeAll = jest.fn().mockReturnValue({ success: true, message: '전체 병합이 완료되었습니다.' });
       mergeFile = jest.fn().mockReturnValue({ success: true, message: 'file.ts 병합이 완료되었습니다.' });
+      mergeAllFromChangelog = jest.fn().mockResolvedValue({ success: false, message: 'No stored changelog patch exists for this agent.' });
+      mergeFileFromChangelog = jest.fn().mockResolvedValue({ success: false, message: 'No stored changelog patch exists for this file.' });
       getByTask = jest.fn().mockResolvedValue([
         { agentId: 1, files: [{ id: 1, filePath: 'src/app.ts', changeType: 'modified', additions: 1, deletions: 0, patch: null }] },
       ]);
@@ -55,7 +57,13 @@ describe('TasksService', () => {
   let agentRepo: ReturnType<typeof mockRepo>;
   let runRepo: ReturnType<typeof mockRepo>;
   let executionService: { spawnTask: jest.Mock; stopTask: jest.Mock };
-  let gitChangelogService: { mergeAll: jest.Mock; mergeFile: jest.Mock; getByTask: jest.Mock };
+  let gitChangelogService: {
+    mergeAll: jest.Mock;
+    mergeFile: jest.Mock;
+    mergeAllFromChangelog: jest.Mock;
+    mergeFileFromChangelog: jest.Mock;
+    getByTask: jest.Mock;
+  };
 
   const baseTask: TaskEntity = {
     id: 'task-1',

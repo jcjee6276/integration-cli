@@ -25,6 +25,9 @@ export class AgentChangelogEntity {
   @Column('text', { nullable: true })
   patch!: string | null;
 
+  @Column('text', { nullable: true })
+  patchPath!: string | null;
+
   @Column('integer', { default: 0 })
   additions!: number;
 

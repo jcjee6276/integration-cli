@@ -10,6 +10,7 @@ export const JI_PATHS = {
   logs:        path.join(JI_HOME, 'logs'),
   serverLog:   path.join(JI_HOME, 'logs', 'server.log'),
   worktrees:   path.join(JI_HOME, 'worktrees'),
+  patches:     path.join(JI_HOME, 'patches'),
   harness:     path.join(JI_HOME, 'harness'),
   agents: {
     gemini: {
@@ -29,6 +30,7 @@ export function ensureJiDirs(): void {
     JI_PATHS.home,
     JI_PATHS.logs,
     JI_PATHS.worktrees,
+    JI_PATHS.patches,
     JI_PATHS.harness,
     JI_PATHS.agents.gemini.dir,
     JI_PATHS.agents.codex.dir,

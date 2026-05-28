@@ -8,12 +8,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
 import { TaskAgentRunEntity } from '../../database/entities/task-agent-run.entity';
 import { TaskRequirementEntity } from '../../database/entities/task-requirement.entity';
-import { TaskEntity } from '../../database/entities/task.entity';
 import { TaskRunEntity } from '../../database/entities/task-run.entity';
+import { TaskEntity } from '../../database/entities/task.entity';
 import { GitChangelogService } from '../changelog/changelog.service';
-import { TaskExecutionService } from './task-execution.service';
 import type { CreateTaskDto } from './dto/create-task.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
+import { TaskExecutionService } from './task-execution.service';
 
 @Injectable()
 export class TasksService {
@@ -32,20 +32,29 @@ export class TasksService {
     private readonly gitChangelogService: GitChangelogService,
   ) {}
 
-  // ─── 생성 ────────────────────────────────────────────────────────────
-
   async create(dto: CreateTaskDto): Promise<TaskEntity> {
     const id = uuidv4();
-    const task = this.taskRepo.create({ id, title: dto.title, workingDir: dto.workingDir ?? null, status: 'pending' });
+    const task = this.taskRepo.create({
+      id,
+      title: dto.title,
+      workingDir: dto.workingDir ?? null,
+      status: 'pending',
+    });
     await this.taskRepo.save(task);
 
     if (dto.requirements?.length) {
       await this.requirementRepo.save(
         dto.requirements.map((r, i) =>
-          this.requirementRepo.create({ taskId: id, content: r.content, orderIndex: r.orderIndex ?? i, status: 'pending' }),
+          this.requirementRepo.create({
+            taskId: id,
+            content: r.content,
+            orderIndex: r.orderIndex ?? i,
+            status: 'pending',
+          }),
         ),
       );
     }
+
     if (dto.agents?.length) {
       await this.agentRepo.save(
         dto.agents.map((a) =>
@@ -59,10 +68,9 @@ export class TasksService {
         ),
       );
     }
+
     return this.findOne(id);
   }
-
-  // ─── 수정 ────────────────────────────────────────────────────────────
 
   async update(id: string, dto: UpdateTaskDto): Promise<TaskEntity> {
     const task = await this.findOne(id);
@@ -76,11 +84,17 @@ export class TasksService {
       if (dto.requirements.length) {
         await this.requirementRepo.save(
           dto.requirements.map((r, i) =>
-            this.requirementRepo.create({ taskId: id, content: r.content, orderIndex: r.orderIndex ?? i, status: 'pending' }),
+            this.requirementRepo.create({
+              taskId: id,
+              content: r.content,
+              orderIndex: r.orderIndex ?? i,
+              status: 'pending',
+            }),
           ),
         );
       }
     }
+
     if (dto.agents !== undefined) {
       await this.agentRepo.delete({ taskId: id });
       if (dto.agents.length) {
@@ -97,10 +111,9 @@ export class TasksService {
         );
       }
     }
+
     return this.findOne(id);
   }
-
-  // ─── 실행 ────────────────────────────────────────────────────────────
 
   async execute(id: string): Promise<TaskEntity> {
     const task = await this.findOne(id);
@@ -117,23 +130,18 @@ export class TasksService {
     return this.findOne(id);
   }
 
-  // ─── 재 실행 ─────────────────────────────────────────────────────────
-
   async rerun(id: string, supplementNote?: string): Promise<TaskEntity> {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
     await this.resetTaskForRun(task);
     const nextVersion = await this.getNextRunVersion(id);
-
     const run = await this.createRun(id, nextVersion, supplementNote ?? null);
 
     const refreshed = await this.findOne(id);
     await this.spawnWithRun(refreshed, supplementNote, run.id);
     return this.findOne(id);
   }
-
-  // ─── 중지 ────────────────────────────────────────────────────────────
 
   async rerunAgent(id: string, agentId: number, supplementNote?: string): Promise<TaskEntity> {
     const task = await this.findOne(id);
@@ -161,7 +169,6 @@ export class TasksService {
     const task = await this.findOne(id);
     await this.executionService.stopTask(task);
 
-    // 진행 중인 run을 stopped으로 업데이트
     await this.runRepo.update(
       { taskId: id, status: 'running' },
       { status: 'stopped', completedAt: new Date() },
@@ -169,8 +176,6 @@ export class TasksService {
 
     return this.findOne(id);
   }
-
-  // ─── 조회 ────────────────────────────────────────────────────────────
 
   findAll(): Promise<TaskEntity[]> {
     return this.taskRepo.find({
@@ -199,9 +204,12 @@ export class TasksService {
       this.agentRepo.findOne({ where: { id: agentId, taskId } }),
     ]);
     if (!agent) throw new NotFoundException(`Agent ${agentId} not found`);
-    if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
 
     const workingDir = this.resolveWorkingDir(task.workingDir);
+    const storedPatchResult = await this.gitChangelogService.mergeAllFromChangelog(taskId, agentId, workingDir);
+    if (storedPatchResult.success) return storedPatchResult;
+    if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
+
     return this.gitChangelogService.mergeAll(agent.worktreePath, workingDir);
   }
 
@@ -211,9 +219,12 @@ export class TasksService {
       this.agentRepo.findOne({ where: { id: agentId, taskId } }),
     ]);
     if (!agent) throw new NotFoundException(`Agent ${agentId} not found`);
-    if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
 
     const workingDir = this.resolveWorkingDir(task.workingDir);
+    const storedPatchResult = await this.gitChangelogService.mergeFileFromChangelog(taskId, agentId, workingDir, filePath);
+    if (storedPatchResult.success) return storedPatchResult;
+    if (!agent.worktreePath) return { success: false, message: 'worktree가 존재하지 않습니다.' };
+
     await this.assertFileBelongsToAgentChangelog(taskId, agentId, filePath);
     return this.gitChangelogService.mergeFile(agent.worktreePath, workingDir, filePath);
   }
@@ -260,8 +271,6 @@ export class TasksService {
   async remove(id: string): Promise<void> {
     await this.taskRepo.delete(id);
   }
-
-  // ─── 내부 헬퍼 ────────────────────────────────────────────────────────
 
   private async resetTaskForRun(task: TaskEntity): Promise<void> {
     for (const agent of task.agents) {
