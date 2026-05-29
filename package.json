@@ -70,6 +70,7 @@
     "ora": "^8.2.0"
   },
   "devDependencies": {
+    "@vitest/ui": "^2.1.9",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "turbo": "^2.5.4"
