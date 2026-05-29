@@ -25,4 +25,11 @@ export class SessionService {
     if (!entity) throw new NotFoundException(`Session ${sessionId} not found`);
     return entity;
   }
+
+  /** 타이틀 업데이트 */
+  async updateTitle(sessionId: string, title: string): Promise<SessionEntity> {
+    const entity = await this.findOne(sessionId);
+    entity.title = title;
+    return this.repo.save(entity);
+  }
 }

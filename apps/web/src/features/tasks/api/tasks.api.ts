@@ -2,6 +2,38 @@ import { SERVER_URL } from "@/lib/constants";
 
 export type AgentRole = "frontend" | "backend" | "doc" | "operation" | "other";
 
+export interface TaskAgentRun {
+  id: number;
+  agentId: number;
+  status: string;
+  worktreePath: string | null;
+  startCommitHash: string | null;
+  durationMs: number | null;
+  costUsd: number | null;
+}
+
+export interface TaskRun {
+  id: number;
+  version: number;
+  supplementNote: string | null;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  agentRuns: TaskAgentRun[];
+}
+
+export interface TaskConversation {
+  id: string;
+  sessionId: string;
+  promptId: string;
+  agentId: number | null;
+  runId: number | null;
+  content: string;
+  agentModel: string;
+  type: "user_message" | "agent_message";
+  createdAt: string;
+}
+
 export type TaskStatus = "pending" | "running" | "stopped" | "completed" | "error";
 export type AgentStatus = "pending" | "running" | "stopped" | "completed" | "error";
 
@@ -83,7 +115,8 @@ export async function archiveTask(id: string): Promise<void> {
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  await fetch(`${SERVER_URL}/tasks/${id}`, { method: "DELETE" });
+  const res = await fetch(`${SERVER_URL}/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 // ─── 실행 제어 ────────────────────────────────────────────────────────────────
@@ -100,8 +133,30 @@ export async function stopTask(id: string): Promise<Task> {
   return res.json();
 }
 
+export async function fetchTaskRuns(id: string): Promise<TaskRun[]> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/runs`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTaskConversations(id: string): Promise<TaskConversation[]> {
+  const res = await fetch(`${SERVER_URL}/conversations/session/${id}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function rerunTask(id: string, supplementNote?: string): Promise<Task> {
   const res = await fetch(`${SERVER_URL}/tasks/${id}/rerun`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ supplementNote }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function rerunTaskAgent(id: string, agentId: number, supplementNote?: string): Promise<Task> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/agents/${agentId}/rerun`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ supplementNote }),

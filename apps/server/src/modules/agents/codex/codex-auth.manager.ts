@@ -6,6 +6,8 @@ import * as path from 'path';
 import { Injectable, Logger } from '@nestjs/common';
 import * as pty from 'node-pty';
 
+const IS_WIN = process.platform === 'win32';
+
 export interface CodexAuthStatus {
   installed: boolean;
   loggedIn: boolean;
@@ -41,7 +43,7 @@ export class CodexAuthManager {
   ): void {
     this.cancelLogin(clientId);
 
-    const proc = pty.spawn('codex', ['login', '--device-auth'], {
+    const proc = pty.spawn(IS_WIN ? 'codex.cmd' : 'codex', ['login', '--device-auth'], {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
@@ -75,7 +77,7 @@ export class CodexAuthManager {
 
   private isInstalled(): boolean {
     try {
-      execFileSync('codex', ['--version'], { stdio: 'ignore' });
+      execFileSync('codex', ['--version'], { stdio: 'ignore', shell: true });
       return true;
     } catch {
       return false;
@@ -87,6 +89,7 @@ export class CodexAuthManager {
       execFileSync('codex', ['login', 'status'], {
         timeout: 5000,
         stdio: 'ignore',
+        shell: true,
       });
       return true;
     } catch {

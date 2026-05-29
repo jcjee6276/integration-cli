@@ -41,5 +41,6 @@ export async function saveHarness(role: HarnessRole, content: string, ext: Harne
 }
 
 export async function deleteHarness(role: HarnessRole): Promise<void> {
-  await fetch(`${SERVER_URL}/harness/${role}`, { method: "DELETE" });
+  const res = await fetch(`${SERVER_URL}/harness/${role}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }

@@ -1,6 +1,8 @@
-import { execSync, spawn } from 'child_process';
+import { execSync, spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
+
+const IS_WIN = process.platform === 'win32';
 import * as path from 'path';
 
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
@@ -18,6 +20,7 @@ import type { ResultEvent, SessionExitEvent, TextDeltaEvent } from './interfaces
 export class GeminiSessionManager extends EventEmitter implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GeminiSessionManager.name);
   private readonly sessions = new Map<string, GeminiSession>();
+  private readonly processes = new Map<string, ChildProcess>();
   private geminiBin = 'gemini';
 
   constructor(
@@ -57,6 +60,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   terminateSession(sessionId: string): void {
     const session = this.requireSession(sessionId);
     session.status = 'terminated';
+    this.killProcess(sessionId);
     this.sessions.delete(sessionId);
 
     if (session.persisted) {
@@ -83,7 +87,13 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     existing.lastActivity = new Date();
 
     if (!existing.persisted) {
-      void this.persistSession(existing).then(() => this.spawnGemini(existing, message));
+      void this.persistSession(existing).then(() => {
+        if (existing.status === 'terminated' || !this.sessions.has(sessionId)) {
+          void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
+          return;
+        }
+        this.spawnGemini(existing, message);
+      });
       return;
     }
 
@@ -128,6 +138,9 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   // ─── 정리 ────────────────────────────────────────────────────────────
 
   onModuleDestroy(): void {
+    for (const sessionId of this.processes.keys()) {
+      this.killProcess(sessionId);
+    }
     for (const session of this.sessions.values()) {
       session.status = 'terminated';
     }
@@ -162,6 +175,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
       env: this.authManager.getEnvForGemini(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    this.processes.set(sessionId, proc);
 
     // Gemini CLI는 stdout/stderr 모두에 출력 — 두 스트림 합산 캡처
     // ANSI 이스케이프 시퀀스(색상, 커서 이동 등) 전체 제거
@@ -181,6 +195,14 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      this.processes.delete(sessionId);
+      const exitEvent: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
+
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        this.emit('exit', exitEvent);
+        return;
+      }
+
       this.logger.log(`[${sessionId}] gemini exited with code ${exitCode}`);
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
@@ -188,11 +210,15 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
       const resultEvent: ResultEvent = { sessionId, isError: (exitCode ?? 0) !== 0 };
       this.emit('result', resultEvent);
 
-      const exitEvent: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
       this.emit('exit', exitEvent);
     });
 
     proc.on('error', (err) => {
+      this.processes.delete(sessionId);
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        return;
+      }
+
       this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
@@ -203,17 +229,20 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
   }
 
   private resolveGemini(): string {
+    const whichCmd = IS_WIN ? 'where gemini' : 'which gemini';
     const candidates = [
-      (): string => execSync('which gemini', { encoding: 'utf8', timeout: 2000 }).trim(),
+      (): string => execSync(whichCmd, { encoding: 'utf8', timeout: 2000 }).trim().split(/\r?\n/)[0],
       (): string => {
-        const home = process.env.HOME ?? '';
-        const p = `${home}/.nvm/versions/node/${process.version}/bin/gemini`;
+        const home = IS_WIN ? (process.env.USERPROFILE ?? '') : (process.env.HOME ?? '');
+        const p = IS_WIN
+          ? `${home}\\AppData\\Roaming\\npm\\gemini.cmd`
+          : `${home}/.nvm/versions/node/${process.version}/bin/gemini`;
         if (fs.existsSync(p)) return p;
         throw new Error('not found');
       },
       (): string => {
         const npmBin = execSync('npm bin -g', { encoding: 'utf8', timeout: 2000 }).trim();
-        const p = `${npmBin}/gemini`;
+        const p = IS_WIN ? `${npmBin}\\gemini.cmd` : `${npmBin}/gemini`;
         if (fs.existsSync(p)) return p;
         throw new Error('not found');
       },
@@ -224,7 +253,7 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     }
 
     this.logger.warn('gemini 경로 탐지 실패 — "gemini"로 폴백');
-    return 'gemini';
+    return IS_WIN ? 'gemini.cmd' : 'gemini';
   }
 
   private requireSession(sessionId: string): GeminiSession {
@@ -232,6 +261,18 @@ export class GeminiSessionManager extends EventEmitter implements OnModuleInit, 
     if (!session) throw new NotFoundException(`Gemini session ${sessionId} not found`);
     if (session.status === 'terminated') throw new Error(`Gemini session ${sessionId} is terminated`);
     return session;
+  }
+
+  private killProcess(sessionId: string): void {
+    const proc = this.processes.get(sessionId);
+    if (!proc) return;
+
+    this.processes.delete(sessionId);
+    try {
+      if (!proc.killed) proc.kill('SIGTERM');
+    } catch (err) {
+      this.logger.warn(`Failed to kill Gemini session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private toSessionInfo(session: GeminiSession): SessionInfo {

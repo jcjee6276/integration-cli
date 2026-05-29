@@ -1,8 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { Modal } from "@/components/ui/Modal";
+import { useAgentStatusStore } from "@/store/agentStatusStore";
 
 export type AgentId = "claude" | "gemini" | "codex" | "opencode";
+type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
 interface AgentDef {
   id: AgentId;
@@ -102,18 +106,21 @@ const AGENTS: AgentDef[] = [
 
 interface AgentCardProps {
   agent: AgentDef;
+  connectionStatus: ConnectionStatus;
   onSelect: (id: AgentId) => void;
 }
 
-function AgentCard({ agent, onSelect }: AgentCardProps) {
+function AgentCard({ agent, connectionStatus, onSelect }: AgentCardProps) {
+  const canSelect = agent.available && connectionStatus === "connected";
+
   return (
     <button
-      onClick={() => agent.available && onSelect(agent.id)}
-      disabled={!agent.available}
+      onClick={() => canSelect && onSelect(agent.id)}
+      disabled={!canSelect}
       className={[
         "group relative flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all duration-200",
         "border-gray-900/[0.07] bg-gray-900/[0.02] dark:border-white/[0.07] dark:bg-white/[0.02]",
-        agent.available
+        canSelect
           ? `cursor-pointer ${agent.hoverBorder} ${agent.hoverBg}`
           : "cursor-not-allowed opacity-45",
       ].join(" ")}
@@ -143,20 +150,29 @@ function AgentCard({ agent, onSelect }: AgentCardProps) {
 
       {/* Status badge */}
       <div className="shrink-0">
-        {agent.available ? (
+        {!agent.available ? (
+          <span className="rounded-full border border-gray-900/[0.06] bg-gray-900/[0.03] px-2.5 py-1 text-[11px] font-medium text-gray-900/30 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-white/30">
+            준비 중
+          </span>
+        ) : connectionStatus === "connected" ? (
           <span className="flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
             사용 가능
           </span>
+        ) : connectionStatus === "connecting" ? (
+          <span className="flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/[0.08] px-2.5 py-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+            연결 중
+          </span>
         ) : (
           <span className="rounded-full border border-gray-900/[0.06] bg-gray-900/[0.03] px-2.5 py-1 text-[11px] font-medium text-gray-900/30 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-white/30">
-            준비 중
+            연결 끊김
           </span>
         )}
       </div>
 
       {/* Arrow */}
-      {agent.available && (
+      {canSelect && (
         <svg
           viewBox="0 0 16 16"
           fill="currentColor"
@@ -175,9 +191,18 @@ interface AgentSelectModalProps {
   open: boolean;
   onClose: () => void;
   onSelect: (agentId: AgentId) => void;
+  connectionStatusByAgent?: Record<AgentId, ConnectionStatus>;
 }
 
-export function AgentSelectModal({ open, onClose, onSelect }: AgentSelectModalProps) {
+export function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAgent }: AgentSelectModalProps) {
+  const { statusByAgent, refresh } = useAgentStatusStore();
+
+  useEffect(() => {
+    if (open) refresh();
+  }, [open, refresh]);
+
+  const effectiveStatus = connectionStatusByAgent ?? statusByAgent;
+
   return (
     <Modal open={open} onClose={onClose} title="에이전트 선택" maxWidth="max-w-md" zIndex="z-[60]">
       <div className="flex flex-col gap-2.5">
@@ -185,6 +210,7 @@ export function AgentSelectModal({ open, onClose, onSelect }: AgentSelectModalPr
           <AgentCard
             key={agent.id}
             agent={agent}
+            connectionStatus={effectiveStatus[agent.id] ?? "disconnected"}
             onSelect={(id) => { onSelect(id); onClose(); }}
           />
         ))}

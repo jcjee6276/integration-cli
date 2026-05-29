@@ -5,7 +5,7 @@ import { Injectable } from '@nestjs/common';
 
 import { ClaudeAuthManager } from './claude-auth.manager';
 import { ClaudePtyManager } from './claude-pty.manager';
-import type { CreateSessionDto } from './dto/create-session.dto';
+import type { ClaudeCreateSessionDto as CreateSessionDto } from './dto/create-session.dto';
 import type { SessionInfo } from './interfaces/claude-session.interface';
 
 export interface ClaudeStatus {

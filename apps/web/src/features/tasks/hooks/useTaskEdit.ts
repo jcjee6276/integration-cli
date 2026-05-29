@@ -26,7 +26,7 @@ function toRequirementDrafts(reqs: Task["requirements"]): RequirementDraft[] {
 function toAgentDrafts(agents: Task["agents"]): AgentDraft[] {
   return agents.map((a) => ({
     id: nextDraftId(),
-    agentType: "claude" as AgentId,
+    agentType: a.agentType as AgentId,
     role: a.role,
     customRole: a.customRole ?? "",
   }));

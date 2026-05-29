@@ -1,12 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 
 import { JI_PATHS } from '../../common/ji-paths';
 
-export type HarnessRole = 'common' | 'frontend' | 'backend' | 'doc' | 'operation' | 'other';
-export type HarnessExt = 'md' | 'tsx';
+export const HARNESS_ROLES = ['common', 'frontend', 'backend', 'doc', 'operation', 'other'] as const;
+const HARNESS_EXTENSIONS = ['md', 'tsx'] as const;
+
+export type HarnessRole = (typeof HARNESS_ROLES)[number];
+export type HarnessExt = (typeof HARNESS_EXTENSIONS)[number];
 
 export interface Harness {
   role: HarnessRole;
@@ -14,41 +17,96 @@ export interface Harness {
   content: string;
 }
 
-const ALL_ROLES: HarnessRole[] = ['common', 'frontend', 'backend', 'doc', 'operation', 'other'];
+const ALL_ROLES: HarnessRole[] = [...HARNESS_ROLES];
+const HARNESS_ROOT = path.resolve(JI_PATHS.harness);
 
 @Injectable()
 export class HarnessService {
 
   findAll(): Harness[] {
-    return ALL_ROLES.map((role) => this.findOne(role)).filter(Boolean) as Harness[];
+    try {
+      return ALL_ROLES.map((role) => this.findOne(role)).filter(Boolean) as Harness[];
+    } catch (err) {
+      this.rethrowHarnessError(err);
+    }
   }
 
-  findOne(role: HarnessRole): Harness | null {
-    for (const ext of ['md', 'tsx'] as HarnessExt[]) {
-      const filePath = path.join(JI_PATHS.harness, `${role}.${ext}`);
-      if (fs.existsSync(filePath)) {
-        return { role, ext, content: fs.readFileSync(filePath, 'utf8') };
+  findOne(role: string): Harness | null {
+    try {
+      const harnessRole = this.parseRole(role);
+
+      for (const ext of HARNESS_EXTENSIONS) {
+        const filePath = this.resolveHarnessPath(harnessRole, ext);
+        if (fs.existsSync(filePath)) {
+          return { role: harnessRole, ext, content: fs.readFileSync(filePath, 'utf8') };
+        }
       }
+      return null;
+    } catch (err) {
+      this.rethrowHarnessError(err);
     }
-    return null;
   }
 
-  save(role: HarnessRole, content: string, ext: HarnessExt): Harness {
-    const targetPath = path.join(JI_PATHS.harness, `${role}.${ext}`);
-    const otherExt: HarnessExt = ext === 'md' ? 'tsx' : 'md';
-    const otherPath = path.join(JI_PATHS.harness, `${role}.${otherExt}`);
+  save(role: string, content: string, ext: HarnessExt): Harness {
+    try {
+      const harnessRole = this.parseRole(role);
+      const harnessExt = this.parseExt(ext);
+      const targetPath = this.resolveHarnessPath(harnessRole, harnessExt);
+      const otherExt: HarnessExt = harnessExt === 'md' ? 'tsx' : 'md';
+      const otherPath = this.resolveHarnessPath(harnessRole, otherExt);
 
-    // 다른 확장자 파일 존재 시 제거 (확장자 변경 처리)
-    if (fs.existsSync(otherPath)) fs.unlinkSync(otherPath);
+      // 다른 확장자 파일 존재 시 제거 (확장자 변경 처리)
+      if (fs.existsSync(otherPath)) fs.unlinkSync(otherPath);
 
-    fs.writeFileSync(targetPath, content, 'utf8');
-    return { role, ext, content };
+      fs.writeFileSync(targetPath, content, 'utf8');
+      return { role: harnessRole, ext: harnessExt, content };
+    } catch (err) {
+      this.rethrowHarnessError(err);
+    }
   }
 
-  remove(role: HarnessRole): void {
-    for (const ext of ['md', 'tsx'] as HarnessExt[]) {
-      const filePath = path.join(JI_PATHS.harness, `${role}.${ext}`);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  remove(role: string): void {
+    try {
+      const harnessRole = this.parseRole(role);
+
+      for (const ext of HARNESS_EXTENSIONS) {
+        const filePath = this.resolveHarnessPath(harnessRole, ext);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    } catch (err) {
+      this.rethrowHarnessError(err);
     }
+  }
+
+  private parseRole(role: string): HarnessRole {
+    if (!HARNESS_ROLES.includes(role as HarnessRole)) {
+      throw new BadRequestException(`지원하지 않는 harness role입니다: ${role}`);
+    }
+    return role as HarnessRole;
+  }
+
+  private parseExt(ext: string): HarnessExt {
+    if (!HARNESS_EXTENSIONS.includes(ext as HarnessExt)) {
+      throw new BadRequestException(`지원하지 않는 harness 확장자입니다: ${ext}`);
+    }
+    return ext as HarnessExt;
+  }
+
+  private resolveHarnessPath(role: HarnessRole, ext: HarnessExt): string {
+    const targetPath = path.resolve(HARNESS_ROOT, `${role}.${ext}`);
+
+    if (path.dirname(targetPath) !== HARNESS_ROOT) {
+      throw new BadRequestException(`유효하지 않은 harness 경로입니다: ${role}`);
+    }
+
+    return targetPath;
+  }
+
+  private rethrowHarnessError(err: unknown): never {
+    if (err instanceof BadRequestException) {
+      throw err;
+    }
+
+    throw new InternalServerErrorException('하네스 파일 처리 중 오류가 발생했습니다.');
   }
 }

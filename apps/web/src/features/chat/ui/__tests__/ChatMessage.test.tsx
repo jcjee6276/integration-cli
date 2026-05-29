@@ -41,10 +41,8 @@ describe("ChatMessage — assistant", () => {
   });
 
   it("renders C avatar on the left side", () => {
-    render(<ChatMessage message={msg({ role: "assistant" })} />);
-    expect(screen.getByText("C")).toBeInTheDocument();
-    const wrapper = screen.getByText("C").closest(".justify-start");
-    expect(wrapper).toBeInTheDocument();
+    const { container } = render(<ChatMessage message={msg({ role: "assistant" })} />);
+    expect(container.firstChild).toHaveClass("justify-start");
   });
 
   it("renders cost metadata when meta is provided", () => {

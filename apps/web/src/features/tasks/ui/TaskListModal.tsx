@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
@@ -10,6 +11,7 @@ import { useTaskList } from "../hooks/useTaskList";
 import { AgentRoleBadge } from "./AgentRoleSelect";
 import { AgentOutputPanel } from "./AgentOutputPanel";
 import { ChangelogPanel } from "./ChangelogPanel";
+import { RunHistoryPanel } from "./RunHistoryPanel";
 import { TaskEditModal } from "./TaskEditModal";
 
 // ─── 상태 뱃지 ───────────────────────────────────────────────────────────────
@@ -46,6 +48,7 @@ interface TaskCardProps {
   onStop: () => void;
   onEdit: () => void;
   onRerun: (note: string) => void;
+  onRerunAgent: (agentId: number, note: string) => void;
   onArchive: () => void;
   onDelete: () => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
@@ -60,30 +63,45 @@ function TaskCard({
   onStop,
   onEdit,
   onRerun,
+  onRerunAgent,
   onArchive,
   onDelete,
   onTaskStatusChange,
 }: TaskCardProps) {
   const isRunning  = task.status === "running";
-  const isFinished = task.status === "completed" || task.status === "error";
+  const isFinished = task.status === "completed" || task.status === "error" || task.status === "stopped";
   const canExecute = task.status === "pending" || task.status === "stopped";
   const canStop    = isRunning;
   const canRerun   = isFinished;
   const showLogs   = expanded && (isRunning || isFinished);
 
   const [rerunMode, setRerunMode] = useState(false);
+  const [rerunAgentId, setRerunAgentId] = useState<number | null>(null);
   const [supplementNote, setSupplementNote] = useState("");
-  const [activeTab, setActiveTab] = useState<"logs" | "changelog">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "changelog" | "history">("logs");
+  const [changelogMounted, setChangelogMounted] = useState(false);
+  const [historyMounted, setHistoryMounted] = useState(false);
 
   const handleRerunConfirm = () => {
-    onRerun(supplementNote);
+    if (rerunAgentId != null) {
+      onRerunAgent(rerunAgentId, supplementNote);
+    } else {
+      onRerun(supplementNote);
+    }
     setRerunMode(false);
+    setRerunAgentId(null);
     setSupplementNote("");
   };
 
   const handleRerunCancel = () => {
     setRerunMode(false);
+    setRerunAgentId(null);
     setSupplementNote("");
+  };
+
+  const openAgentRerun = (agentId: number) => {
+    setRerunAgentId(agentId);
+    setRerunMode(true);
   };
 
   const { agentLogs, connected } = useTaskExecution(
@@ -94,6 +112,10 @@ function TaskCard({
   const hasQuotaError = Object.values(agentLogs).some((log) =>
     isQuotaExceeded((log.output ?? "") + (log.errorMessage ?? "")),
   );
+  const selectedRerunAgent = rerunAgentId != null ? task.agents.find((agent) => agent.id === rerunAgentId) : null;
+  const selectedRerunLabel = selectedRerunAgent
+    ? selectedRerunAgent.customRole ?? selectedRerunAgent.role
+    : null;
 
   return (
     <article className={[
@@ -176,11 +198,15 @@ function TaskCard({
               <div className="flex flex-col gap-2">
                 {isFinished && (
                   <div className="flex gap-1 rounded-lg border border-gray-900/[0.06] bg-gray-900/[0.02] p-0.5 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                    {(["logs", "changelog"] as const).map((tab) => (
+                    {(["logs", "changelog", "history"] as const).map((tab) => (
                       <button
                         key={tab}
                         type="button"
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => {
+                          setActiveTab(tab);
+                          if (tab === "changelog") setChangelogMounted(true);
+                          if (tab === "history") setHistoryMounted(true);
+                        }}
                         className={[
                           "flex-1 rounded-md px-3 py-1 text-xs font-medium transition-colors",
                           activeTab === tab
@@ -188,21 +214,38 @@ function TaskCard({
                             : "text-gray-900/35 hover:text-gray-900/60 dark:text-white/35 dark:hover:text-white/60",
                         ].join(" ")}
                       >
-                        {tab === "logs" ? "실행 로그" : "변경사항"}
+                        {tab === "logs" ? "실행 로그" : tab === "changelog" ? "변경사항" : "실행 기록"}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {activeTab === "logs" && (
+                <div className={activeTab !== "logs" ? "hidden" : ""}>
                   <AgentOutputPanel
                     agents={task.agents}
                     agentLogs={agentLogs}
                     connected={connected}
+                    taskStatus={task.status as TaskStatus}
+                    canRerun={canRerun}
+                    rerunDisabled={isActioning}
+                    onRerunAgent={openAgentRerun}
                   />
+                </div>
+                {changelogMounted && isFinished && (
+                  <div className={activeTab !== "changelog" ? "hidden" : ""}>
+                    <ChangelogPanel taskId={task.id} agents={task.agents} />
+                  </div>
                 )}
-                {activeTab === "changelog" && isFinished && (
-                  <ChangelogPanel taskId={task.id} agents={task.agents} />
+                {historyMounted && isFinished && (
+                  <div className={activeTab !== "history" ? "hidden" : ""}>
+                    <RunHistoryPanel
+                      taskId={task.id}
+                      agents={task.agents}
+                      canRerunAgent={canRerun}
+                      rerunDisabled={isActioning}
+                      onRerunAgent={openAgentRerun}
+                    />
+                  </div>
                 )}
               </div>
             )}
@@ -211,8 +254,9 @@ function TaskCard({
             {rerunMode && (
               <div className="flex flex-col gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.05] p-3">
                 <label className="text-xs font-medium text-blue-600 dark:text-blue-400/80">
+                  {selectedRerunLabel ? `${selectedRerunLabel} 에이전트 재실행` : "전체 재실행"}
                   보완할 점 입력
-                  <span className="ml-1 text-[10px] font-normal text-gray-900/25 dark:text-white/25">(선택 — 비워두면 동일 조건으로 재 실행)</span>
+                  <span className="ml-1 text-[10px] font-normal text-gray-900/25 dark:text-white/25">(선택 - 비워두면 동일 조건으로 재실행)</span>
                 </label>
                 <textarea
                   rows={3}
@@ -320,6 +364,15 @@ function TaskCard({
                   </button>
                 )}
 
+                <Link
+                  href={`/task/${task.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/40 transition-colors hover:border-blue-500/30 hover:text-blue-600 dark:border-white/[0.08] dark:text-white/40 dark:hover:text-blue-400"
+                >
+                  상세
+                </Link>
+
                 {/* 보관 */}
                 <button
                   onClick={onArchive}
@@ -367,6 +420,7 @@ export function TaskListModal({ open, onClose }: Props) {
     execute,
     stop,
     rerun,
+    rerunAgent,
     archive,
     remove,
     onEditDone,
@@ -462,6 +516,10 @@ export function TaskListModal({ open, onClose }: Props) {
                   onEdit={() => setEditingTask(task)}
                   onRerun={(note) => {
                     void rerun(task.id, note || undefined);
+                    setExpandedId(task.id);
+                  }}
+                  onRerunAgent={(agentId, note) => {
+                    void rerunAgent(task.id, agentId, note || undefined);
                     setExpandedId(task.id);
                   }}
                   onArchive={() => void archive(task.id)}

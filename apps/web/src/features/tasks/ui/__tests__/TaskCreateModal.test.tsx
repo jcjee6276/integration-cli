@@ -94,6 +94,9 @@ describe("TaskCreateModal — agents", () => {
     const user = userEvent.setup();
     render(<TaskCreateModal open={true} onClose={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: /에이전트 추가/ }));
+    await user.click(screen.getByRole("button", { name: /Claude Code/ }));
+
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Frontend" })).toBeInTheDocument();
   });
 
@@ -101,6 +104,8 @@ describe("TaskCreateModal — agents", () => {
     const user = userEvent.setup();
     render(<TaskCreateModal open={true} onClose={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: /에이전트 추가/ }));
+    await user.click(screen.getByRole("button", { name: /Claude Code/ }));
+
     expect(screen.getByText(/UI 구현/)).toBeInTheDocument();
   });
 });

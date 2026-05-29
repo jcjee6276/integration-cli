@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { archiveTask, deleteTask, executeTask, fetchTasks, rerunTask, stopTask } from "../api/tasks.api";
+import { archiveTask, deleteTask, executeTask, fetchTasks, rerunTask, rerunTaskAgent, stopTask } from "../api/tasks.api";
 import type { Task, TaskStatus } from "../api/tasks.api";
 
 export function useTaskList(open: boolean) {
@@ -88,6 +88,18 @@ export function useTaskList(open: boolean) {
     }
   }, []);
 
+  const rerunAgent = useCallback(async (id: string, agentId: number, supplementNote?: string) => {
+    setActioningId(id);
+    try {
+      const updated = await rerunTaskAgent(id, agentId, supplementNote);
+      setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "에이전트 재실행 실패");
+    } finally {
+      setActioningId(null);
+    }
+  }, []);
+
   const archive = useCallback(async (id: string) => {
     setActioningId(id);
     try {
@@ -138,6 +150,7 @@ export function useTaskList(open: boolean) {
     execute,
     stop,
     rerun,
+    rerunAgent,
     archive,
     remove,
     onEditDone,

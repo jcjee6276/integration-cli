@@ -160,7 +160,7 @@ describe("useTaskCreate — submit", () => {
     await act(async () => { await result.current.submit(); });
     expect(mockCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        agents: [{ role: "backend", customRole: undefined }],
+        agents: [{ agentType: "claude", role: "backend", customRole: undefined }],
       }),
     );
   });
@@ -176,7 +176,7 @@ describe("useTaskCreate — submit", () => {
     await act(async () => { await result.current.submit(); });
     expect(mockCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        agents: [{ role: "other", customRole: "DevOps" }],
+        agents: [{ agentType: "claude", role: "other", customRole: "DevOps" }],
       }),
     );
   });

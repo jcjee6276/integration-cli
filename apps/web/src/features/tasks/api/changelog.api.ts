@@ -21,8 +21,14 @@ export interface MergeResult {
   message: string;
 }
 
-export async function fetchTaskChangelog(taskId: string): Promise<AgentChangelog[]> {
-  const res = await fetch(`${SERVER_URL}/tasks/${taskId}/changelog`);
+export async function fetchTaskChangelog(taskId: string, signal?: AbortSignal): Promise<AgentChangelog[]> {
+  const res = await fetch(`${SERVER_URL}/tasks/${taskId}/changelog`, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTaskRunChangelog(taskId: string, runId: number, signal?: AbortSignal): Promise<AgentChangelog[]> {
+  const res = await fetch(`${SERVER_URL}/tasks/${taskId}/runs/${runId}/changelog`, { signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

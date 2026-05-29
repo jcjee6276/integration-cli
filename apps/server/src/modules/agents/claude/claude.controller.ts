@@ -10,15 +10,17 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ClaudeAuthManager } from './claude-auth.manager';
 import type { AuthStatus } from './claude-auth.manager';
 import { ClaudeService } from './claude.service';
 import type { ClaudeStatus } from './claude.service';
-import { CreateSessionDto } from './dto/create-session.dto';
+import { ClaudeCreateSessionDto as CreateSessionDto } from './dto/create-session.dto';
 import { SendInputDto } from './dto/send-input.dto';
 import type { SessionInfo } from './interfaces/claude-session.interface';
 
+@ApiTags('agents/claude')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 @Controller('agents/claude')
 export class ClaudeController {
@@ -27,48 +29,54 @@ export class ClaudeController {
     private readonly authManager: ClaudeAuthManager,
   ) {}
 
-  /** GET /agents/claude/auth/status — Claude Code 인증 상태 확인 */
+  @ApiOperation({ summary: 'Claude Code 인증 상태 조회' })
+  @ApiOkResponse({ description: '인증 상태 반환' })
   @Get('auth/status')
   getAuthStatus(): Promise<AuthStatus> {
     return this.authManager.getAuthStatus();
   }
 
-  /** GET /agents/claude/status — 버전·인증·세션 통합 상태 */
+  @ApiOperation({ summary: 'Claude Code 통합 상태 조회 (버전·인증·세션 수)' })
+  @ApiOkResponse({ description: '버전, 플랫폼, 인증, 활성 세션 수' })
   @Get('status')
   getStatus(): Promise<ClaudeStatus> {
     return this.claudeService.getStatus();
   }
 
-  /** POST /agents/claude/sessions — 새 세션 생성 */
+  @ApiOperation({ summary: '새 Claude 세션 생성' })
+  @ApiOkResponse({ description: '생성된 세션 정보' })
   @Post('sessions')
   createSession(@Body() dto: CreateSessionDto): SessionInfo {
     return this.claudeService.createSession(dto);
   }
 
-  /** GET /agents/claude/sessions — 세션 목록 */
+  @ApiOperation({ summary: '활성 Claude 세션 목록 조회' })
+  @ApiOkResponse({ description: '세션 목록' })
   @Get('sessions')
   listSessions(): SessionInfo[] {
     return this.claudeService.listSessions();
   }
 
-  /** GET /agents/claude/sessions/:id — 세션 정보 */
+  @ApiOperation({ summary: '특정 Claude 세션 조회' })
+  @ApiOkResponse({ description: '세션 정보' })
   @Get('sessions/:id')
   getSession(@Param('id') id: string): SessionInfo {
     return this.claudeService.getSession(id);
   }
 
-  /**
-   * POST /agents/claude/sessions/:id/message
-   * 메시지를 전송하고 claude를 실행한다.
-   * 응답은 WebSocket session:text / session:result 이벤트로 수신.
-   */
+  @ApiOperation({
+    summary: '세션에 메시지 전송',
+    description: '응답은 WebSocket `/agents/claude` 네임스페이스의 `session:text` / `session:result` 이벤트로 수신',
+  })
+  @ApiNoContentResponse({ description: '전송 완료 (응답 본문 없음)' })
   @Post('sessions/:id/message')
   @HttpCode(HttpStatus.NO_CONTENT)
   sendMessage(@Param('id') id: string, @Body() dto: SendInputDto): void {
     this.claudeService.sendMessage(id, dto.input);
   }
 
-  /** DELETE /agents/claude/sessions/:id — 세션 종료 */
+  @ApiOperation({ summary: '세션 종료' })
+  @ApiNoContentResponse({ description: '종료 완료 (응답 본문 없음)' })
   @Delete('sessions/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   terminateSession(@Param('id') id: string): void {

@@ -26,6 +26,14 @@ export class ConversationService {
     });
   }
 
+  /** 특정 run의 대화 조회 (생성 순) */
+  findByRun(runId: number): Promise<ConversationEntity[]> {
+    return this.repo.find({
+      where: { runId },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   /** 단건 조회 */
   async findOne(id: string): Promise<ConversationEntity> {
     const entity = await this.repo.findOne({ where: { id } });

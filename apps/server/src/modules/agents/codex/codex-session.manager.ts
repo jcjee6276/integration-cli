@@ -1,5 +1,7 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+
+const IS_WIN = process.platform === 'win32';
 
 import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -98,6 +100,7 @@ class CodexOutputParser {
 export class CodexSessionManager extends EventEmitter implements OnModuleDestroy {
   private readonly logger = new Logger(CodexSessionManager.name);
   private readonly sessions = new Map<string, CodexSession>();
+  private readonly processes = new Map<string, ChildProcess>();
 
   constructor(
     @InjectRepository(AgentSessionEntity)
@@ -139,7 +142,11 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     const session = this.sessions.get(id);
     if (!session) throw new NotFoundException(`Session ${id} not found`);
     session.status = 'terminated';
+    this.killProcess(id);
     this.sessions.delete(id);
+    if (session.persisted) {
+      void this.agentSessionRepo.update(id, { status: 'terminated' });
+    }
     this.logger.log(`Terminated Codex session ${id}`);
   }
 
@@ -155,10 +162,17 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     existing.lastActivity = new Date();
 
     if (!existing.persisted) {
-      void this.persistSession(existing).then(() => this.spawnCodex(existing, message));
+      void this.persistSession(existing).then(() => {
+        if (existing.status === 'terminated' || !this.sessions.has(sessionId)) {
+          void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
+          return;
+        }
+        this.spawnCodex(existing, message);
+      });
       return;
     }
 
+    void this.agentSessionRepo.update(sessionId, { status: 'processing' });
     this.spawnCodex(existing, message);
   }
 
@@ -182,6 +196,7 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     };
     this.sessions.set(sessionId, session);
     this.logger.log(`Restored Codex session ${sessionId} (cwd: ${record.workingDirectory})`);
+    void this.agentSessionRepo.update(sessionId, { status: 'processing' });
     this.spawnCodex(session, message);
   }
 
@@ -204,20 +219,17 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     const sessionId = session.id;
     const parser = new CodexOutputParser();
 
-    const proc = spawn(
-      'codex',
-      [
-        'exec',
-        '-c', 'approval_policy="never"',
-        '-c', 'sandbox_mode="danger-full-access"',
-        message,
-      ],
-      {
-        cwd: session.workingDirectory,
-        env: this.authManager.getEnvForCodex(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
+    const codexArgs = ['exec', '-c', 'approval_policy=never', '-c', 'sandbox_mode=danger-full-access', message];
+    const [cmd, spawnArgs] = IS_WIN
+      ? ['cmd.exe', ['/c', 'codex', ...codexArgs]]
+      : ['codex', codexArgs];
+
+    const proc = spawn(cmd, spawnArgs, {
+      cwd: session.workingDirectory,
+      env: this.authManager.getEnvForCodex(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    this.processes.set(sessionId, proc);
 
     let output = '';
 
@@ -232,25 +244,55 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      this.processes.delete(sessionId);
+      const exitPayload = { sessionId, exitCode: exitCode ?? -1 };
+
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        this.emit('session:exit', exitPayload);
+        return;
+      }
+
       const tail = parser.flush();
       if (tail) { output += tail; this.emit('session:text', { sessionId, text: tail }); }
 
       session.status = 'idle';
+      void this.agentSessionRepo.update(sessionId, { status: 'idle' });
       const isError = (exitCode ?? 0) !== 0;
       this.emit('session:result', { sessionId, result: output.trim(), isError, durationMs: 0, costUsd: 0 });
-      this.emit('session:exit', { sessionId, exitCode: exitCode ?? -1 });
+      this.emit('session:exit', exitPayload);
       this.logger.log(`Codex session ${sessionId} finished (exit: ${exitCode})`);
     });
 
     proc.on('error', (err) => {
+      this.processes.delete(sessionId);
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        return;
+      }
+
       session.status = 'idle';
+      void this.agentSessionRepo.update(sessionId, { status: 'idle' });
       this.logger.error(`Codex session ${sessionId} spawn error: ${err.message}`);
       this.emit('error', { sessionId, message: err.message });
     });
   }
 
   onModuleDestroy(): void {
+    for (const sessionId of this.processes.keys()) {
+      this.killProcess(sessionId);
+    }
     this.sessions.clear();
+  }
+
+  private killProcess(sessionId: string): void {
+    const proc = this.processes.get(sessionId);
+    if (!proc) return;
+
+    this.processes.delete(sessionId);
+    try {
+      if (!proc.killed) proc.kill('SIGTERM');
+    } catch (err) {
+      this.logger.warn(`Failed to kill Codex session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private toInfo(session: CodexSession): CodexSessionInfo {

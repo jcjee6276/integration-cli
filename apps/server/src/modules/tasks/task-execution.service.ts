@@ -1,14 +1,18 @@
-import { execSync, spawn } from 'child_process';
+import { execSync, spawn, type ChildProcess } from 'child_process';
+
+const IS_WIN = process.platform === 'win32';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { TaskAgentEntity } from '../../database/entities/task-agent.entity';
+import { TaskAgentRunEntity } from '../../database/entities/task-agent-run.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
+import { TaskRunEntity } from '../../database/entities/task-run.entity';
 import { GeminiAuthManager } from '../agents/gemini/gemini-auth.manager';
 import { ConversationService } from '../conversations/conversation.service';
 import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
@@ -60,12 +64,25 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   private readonly worktreeMap = new Map<string, { worktreePath: string; branchName: string; mainRepoDir: string }>();
   /** result 이벤트를 수신한 에이전트 키 (`${taskId}-${agentId}`) 집합 */
   private readonly resultReceivedSet = new Set<string>();
+  /** `${taskId}-${agentId}` → runId */
+  private readonly runIdMap = new Map<string, number>();
+  /** taskId → runId (태스크 단위 run 추적) */
+  private readonly taskRunIdMap = new Map<string, number>();
+  /** `${taskId}-${agentId}` → 실행 중인 child process */
+  private readonly processMap = new Map<string, ChildProcess>();
+  /** 사용자가 중지를 요청한 에이전트 키 */
+  private readonly stoppingAgentSet = new Set<string>();
+  private isShuttingDown = false;
 
   constructor(
     @InjectRepository(TaskAgentEntity)
     private readonly agentRepo: Repository<TaskAgentEntity>,
+    @InjectRepository(TaskAgentRunEntity)
+    private readonly agentRunRepo: Repository<TaskAgentRunEntity>,
     @InjectRepository(TaskEntity)
     private readonly taskRepo: Repository<TaskEntity>,
+    @InjectRepository(TaskRunEntity)
+    private readonly runRepo: Repository<TaskRunEntity>,
     private readonly geminiAuthManager: GeminiAuthManager,
     private readonly conversationService: ConversationService,
     private readonly gitChangelogService: GitChangelogService,
@@ -74,26 +91,94 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     super();
   }
 
-  onModuleInit(): void {
+  async onModuleInit(): Promise<void> {
     this.claudeBin = this.resolveClaude();
     this.logger.log(`claude 경로: ${this.claudeBin}`);
     this.geminiBin = this.resolveGemini();
     this.logger.log(`gemini 경로: ${this.geminiBin}`);
     this.codexBin = this.resolveCodex();
     this.logger.log(`codex 경로: ${this.codexBin}`);
+    await this.recoverStuckTasks();
+  }
+
+  /** 서버 재시작 시 running 상태로 남은 task/agent를 stopped으로 복구 */
+  private async recoverStuckTasks(): Promise<void> {
+    const [stuckAgents, stuckTasks, stuckRuns] = await Promise.all([
+      this.agentRepo.find({ where: { status: 'running' } }),
+      this.taskRepo.find({ where: { status: 'running' } }),
+      this.runRepo.find({ where: { status: 'running' } }),
+    ]);
+
+    if (stuckAgents.length === 0 && stuckTasks.length === 0 && stuckRuns.length === 0) return;
+
+    const taskIds = new Set<string>([
+      ...stuckAgents.map((a) => a.taskId),
+      ...stuckTasks.map((t) => t.id),
+      ...stuckRuns.map((r) => r.taskId),
+    ]);
+    const now = new Date();
+
+    if (stuckAgents.length > 0) {
+      await this.agentRepo.update(
+        stuckAgents.map((a) => a.id),
+        { status: 'stopped' },
+      );
+    }
+
+    // 연결된 task_agent_runs도 stopped 처리
+    const stuckAgentIds = stuckAgents.map((a) => a.id);
+    if (stuckAgentIds.length > 0) {
+      const stuckAgentRuns = await this.agentRunRepo.find({
+        where: stuckAgentIds.map((id) => ({ agentId: id, status: 'running' })),
+      });
+      if (stuckAgentRuns.length > 0) {
+        await this.agentRunRepo.update(
+          stuckAgentRuns.map((r) => r.id),
+          { status: 'stopped' },
+        );
+      }
+    }
+
+    if (taskIds.size > 0) {
+      const ids = Array.from(taskIds);
+      await Promise.all([
+        this.taskRepo.update({ id: In(ids), status: 'running' }, { status: 'stopped' }),
+        this.runRepo.update(
+          { taskId: In(ids), status: 'running' },
+          { status: 'stopped', completedAt: now },
+        ),
+      ]);
+    }
+
+    this.logger.warn(
+      `서버 재시작 복구: ${stuckAgents.length}개 에이전트, ${taskIds.size}개 작업을 stopped으로 변경`,
+    );
   }
 
   onModuleDestroy(): void {
+    this.isShuttingDown = true;
+    for (const [key, proc] of this.processMap.entries()) {
+      this.stoppingAgentSet.add(key);
+      try {
+        proc.kill('SIGTERM');
+      } catch (err) {
+        this.logger.warn(`프로세스 종료 실패 (${key}): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     this.logBuffer.clear();
     this.pendingMap.clear();
     this.promptIdMap.clear();
     this.worktreeMap.clear();
     this.resultReceivedSet.clear();
+    this.runIdMap.clear();
+    this.taskRunIdMap.clear();
+    this.processMap.clear();
+    this.stoppingAgentSet.clear();
   }
 
   // ─── 공개 API ─────────────────────────────────────────────────────────
 
-  async spawnTask(task: TaskEntity, supplementNote?: string): Promise<void> {
+  async spawnTask(task: TaskEntity, supplementNote?: string, runId?: number): Promise<void> {
     if (!task.agents.length) {
       throw new Error('에이전트가 없습니다. 최소 하나의 에이전트를 추가하세요.');
     }
@@ -108,6 +193,10 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     this.logBuffer.set(task.id, new Map());
     this.pendingMap.set(task.id, new Set(task.agents.map((a) => a.id)));
+
+    if (runId != null) {
+      this.taskRunIdMap.set(task.id, runId);
+    }
 
     for (const agent of task.agents) {
       const roleLabel = agent.role === 'other' && agent.customRole ? agent.customRole : agent.role;
@@ -132,15 +221,32 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       await this.agentRepo.update(agent.id, { status: 'running' });
       this.initAgentBuffer(task.id, agent.id);
 
+      // runId 맵 등록
+      if (runId != null) {
+        this.runIdMap.set(`${task.id}-${agent.id}`, runId);
+
+        // TaskAgentRunEntity 생성
+        const agentRun = this.agentRunRepo.create({
+          runId,
+          agentId: agent.id,
+          status: 'running',
+        });
+        const savedAgentRun = await this.agentRunRepo.save(agentRun);
+
+        // agentRunId도 맵에 저장 (완료 시 업데이트 용)
+        this.runIdMap.set(`agentRunId-${task.id}-${agent.id}`, savedAgentRun.id);
+      }
+
       const promptId = uuidv4();
       this.promptIdMap.set(`${task.id}-${agent.id}`, promptId);
-      void this.conversationService.create({
+      await this.conversationService.create({
         sessionId: task.id,
         promptId,
         content: prompt,
-        agentModel: (agent.agentType === 'gemini' ? AgentModel.GEMINI : AgentModel.CLAUDE),
+        agentModel: this.getAgentModel(agent.agentType),
         type: ConversationType.USER_MESSAGE,
         agentId: agent.id,
+        runId: runId ?? null,
       });
 
       // git repo인 경우 에이전트별 worktree 생성
@@ -150,6 +256,15 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
           const { worktreePath, branchName, agentWorkDir: worktreeAgentDir } = this.gitChangelogService.createWorktree(workingDir, agent.agentType);
           const startCommitHash = this.gitChangelogService.getCurrentHead(workingDir);
           await this.agentRepo.update(agent.id, { worktreePath, startCommitHash });
+
+          // TaskAgentRunEntity에도 worktree 정보 저장
+          if (runId != null) {
+            const agentRunId = this.runIdMap.get(`agentRunId-${task.id}-${agent.id}`);
+            if (agentRunId != null) {
+              await this.agentRunRepo.update(agentRunId as number, { worktreePath, startCommitHash });
+            }
+          }
+
           this.worktreeMap.set(`${task.id}-${agent.id}`, { worktreePath, branchName, mainRepoDir: workingDir });
           agentWorkDir = worktreeAgentDir;
         } catch (err) {
@@ -178,15 +293,28 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     }
 
     for (const agent of task.agents) {
-      if (agent.status === 'running') {
+      const isRunning = agent.status === 'running' || this.processMap.has(this.getAgentKey(task.id, agent.id));
+      if (isRunning) {
+        this.requestAgentStop(task.id, agent.id);
         await this.agentRepo.update(agent.id, { status: 'stopped' });
         this.updateAgentBuffer(task.id, agent.id, { status: 'stopped' });
+
+        // TaskAgentRunEntity 상태 업데이트
+        await this.updateAgentRunStatus(task.id, agent.id, 'stopped');
+
         const ev: AgentErrorEvent = { taskId: task.id, agentId: agent.id, message: '수동으로 중지됐습니다.' };
         this.emit('agent:error', ev);
       }
     }
 
     await this.taskRepo.update(task.id, { status: 'stopped' });
+
+    const taskRunId = this.taskRunIdMap.get(task.id);
+    if (taskRunId != null) {
+      await this.runRepo.update(taskRunId, { status: 'stopped', completedAt: new Date() });
+      this.taskRunIdMap.delete(task.id);
+    }
+
     this.emit('task:status', { taskId: task.id, status: 'stopped', title: task.title } as TaskStatusEvent);
   }
 
@@ -220,10 +348,12 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    this.registerProcess(taskId, agentId, proc);
 
     let buffer = '';
 
     proc.stdout.on('data', (chunk: Buffer) => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       buffer += chunk.toString();
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
@@ -234,20 +364,26 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     });
 
     proc.stderr.on('data', (chunk: Buffer) => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       this.logger.warn(`[Task:${taskId}] Claude Agent ${agentId} stderr: ${chunk.toString().slice(0, 200)}`);
     });
 
     proc.on('close', (exitCode) => {
+      if (this.isAgentStopping(taskId, agentId)) {
+        this.cleanupAgentRuntime(taskId, agentId);
+        return;
+      }
+
       if (buffer.trim()) this.handleClaudeLine(taskId, agentId, buffer.trim());
 
       const key = `${taskId}-${agentId}`;
       const hadResult = this.resultReceivedSet.delete(key);
 
       if (!hadResult) {
-        // result 이벤트 없이 종료 → 오류 처리
         this.logger.warn(`[Task:${taskId}] Claude Agent ${agentId} exited (code: ${exitCode}) without result`);
         void this.agentRepo.update(agentId, { status: 'error' });
         this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: `종료 코드: ${exitCode}` });
+        void this.updateAgentRunStatus(taskId, agentId, 'error');
         this.emit('agent:error', { taskId, agentId, message: `프로세스가 코드 ${exitCode}로 종료됐습니다.` } as AgentErrorEvent);
       }
 
@@ -255,10 +391,12 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     });
 
     proc.on('error', (err) => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       this.logger.error(`[Task:${taskId}] Claude Agent ${agentId} spawn error: ${err.message}`);
       this.resultReceivedSet.delete(`${taskId}-${agentId}`);
       void this.agentRepo.update(agentId, { status: 'error' });
       this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
+      void this.updateAgentRunStatus(taskId, agentId, 'error');
       this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
       void this.finalizeAgent(taskId, agentId);
     });
@@ -275,24 +413,22 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   ): void {
     this.logger.log(`[Task:${taskTitle}] Codex Agent ${agentId} 실행 — cwd: ${workingDir}`);
 
-    const proc = spawn(
-      this.codexBin,
-      [
-        'exec',
-        '-c', 'approval_policy="never"',
-        '-c', 'sandbox_mode="danger-full-access"',
-        prompt,
-      ],
-      {
-        cwd: workingDir,
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
+    const codexArgs = ['exec', '-c', 'approval_policy=never', '-c', 'sandbox_mode=danger-full-access', prompt];
+    const [codexCmd, codexSpawnArgs] = IS_WIN
+      ? ['cmd.exe', ['/c', 'codex', ...codexArgs]]
+      : [this.codexBin, codexArgs];
+
+    const proc = spawn(codexCmd, codexSpawnArgs, {
+      cwd: workingDir,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    this.registerProcess(taskId, agentId, proc);
 
     let output = '';
 
     const handleChunk = (chunk: Buffer): void => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       const raw = chunk.toString();
       const text = raw
         .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
@@ -309,11 +445,17 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      if (this.isAgentStopping(taskId, agentId)) {
+        this.cleanupAgentRuntime(taskId, agentId);
+        return;
+      }
+
       const isError = (exitCode ?? 0) !== 0;
       const status = isError ? 'error' : 'completed';
 
       void this.agentRepo.update(agentId, { status });
       this.updateAgentBuffer(taskId, agentId, { status });
+      void this.updateAgentRunStatus(taskId, agentId, status, 0, 0);
 
       if (isError) {
         this.updateAgentBuffer(taskId, agentId, { errorMessage: `종료 코드: ${exitCode}` });
@@ -331,9 +473,11 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     });
 
     proc.on('error', (err) => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       this.logger.error(`[Task:${taskId}] Codex Agent ${agentId} spawn error: ${err.message}`);
       void this.agentRepo.update(agentId, { status: 'error' });
       this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
+      void this.updateAgentRunStatus(taskId, agentId, 'error');
       this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
       void this.finalizeAgent(taskId, agentId);
     });
@@ -355,10 +499,12 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       env: this.geminiAuthManager.getEnvForGemini(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    this.registerProcess(taskId, agentId, proc);
 
     let output = '';
 
     const handleChunk = (chunk: Buffer): void => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       const raw = chunk.toString();
       const text = raw
         .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
@@ -375,11 +521,17 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     proc.stderr.on('data', handleChunk);
 
     proc.on('close', (exitCode) => {
+      if (this.isAgentStopping(taskId, agentId)) {
+        this.cleanupAgentRuntime(taskId, agentId);
+        return;
+      }
+
       const isError = (exitCode ?? 0) !== 0;
       const status = isError ? 'error' : 'completed';
 
       void this.agentRepo.update(agentId, { status });
       this.updateAgentBuffer(taskId, agentId, { status });
+      void this.updateAgentRunStatus(taskId, agentId, status, 0, 0);
 
       if (isError) {
         this.updateAgentBuffer(taskId, agentId, { errorMessage: `종료 코드: ${exitCode}` });
@@ -397,9 +549,11 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     });
 
     proc.on('error', (err) => {
+      if (this.isAgentStopping(taskId, agentId)) return;
       this.logger.error(`[Task:${taskId}] Gemini Agent ${agentId} spawn error: ${err.message}`);
       void this.agentRepo.update(agentId, { status: 'error' });
       this.updateAgentBuffer(taskId, agentId, { status: 'error', errorMessage: err.message });
+      void this.updateAgentRunStatus(taskId, agentId, 'error');
       this.emit('agent:error', { taskId, agentId, message: err.message } as AgentErrorEvent);
       void this.finalizeAgent(taskId, agentId);
     });
@@ -435,7 +589,6 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
         const e = event as ClaudeResultEvent;
         const status = e.is_error ? 'error' : 'completed';
 
-        // close 핸들러가 error로 처리하지 않도록 result 수신 마킹
         this.resultReceivedSet.add(`${taskId}-${agentId}`);
 
         void this.agentRepo.update(agentId, { status });
@@ -444,6 +597,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
           durationMs: e.duration_ms,
           costUsd: e.total_cost_usd,
         });
+        void this.updateAgentRunStatus(taskId, agentId, status, e.duration_ms, e.total_cost_usd);
 
         this.emit('agent:done', {
           taskId,
@@ -460,42 +614,42 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
   // ─── 에이전트 완료 후처리 ─────────────────────────────────────────────
 
-  /**
-   * 에이전트 종료 시 순서대로:
-   * 1. changelog 캡처 (worktree → diff → DB 저장)
-   * 2. worktree 제거
-   * 3. 태스크 완료 여부 체크
-   */
   private async finalizeAgent(taskId: string, agentId: number): Promise<void> {
-    const worktreeKey = `${taskId}-${agentId}`;
-    const worktreeInfo = this.worktreeMap.get(worktreeKey);
-    this.worktreeMap.delete(worktreeKey);
+    try {
+      const worktreeKey = this.getAgentKey(taskId, agentId);
+      const worktreeInfo = this.worktreeMap.get(worktreeKey);
+      this.worktreeMap.delete(worktreeKey);
 
-    if (worktreeInfo) {
-      const { worktreePath } = worktreeInfo;
+      if (worktreeInfo) {
+        const { worktreePath } = worktreeInfo;
 
-      const [agent, task] = await Promise.all([
-        this.agentRepo.findOne({ where: { id: agentId } }),
-        this.taskRepo.findOne({ where: { id: taskId } }),
-      ]);
+        const [agent, task] = await Promise.all([
+          this.agentRepo.findOne({ where: { id: agentId } }),
+          this.taskRepo.findOne({ where: { id: taskId } }),
+        ]);
 
-      if (agent?.startCommitHash) {
-        const roleLabel = agent.role === 'other' && agent.customRole
-          ? agent.customRole
-          : agent.role;
-        const commitMessage = `feat(${agent.agentType}/${roleLabel}): ${task?.title ?? taskId}`;
+        if (agent?.startCommitHash) {
+          const roleLabel = agent.role === 'other' && agent.customRole
+            ? agent.customRole
+            : agent.role;
+          const commitMessage = `feat(${agent.agentType}/${roleLabel}): ${task?.title ?? taskId}`;
 
-        await this.gitChangelogService.captureAndSave(
-          taskId,
-          agentId,
-          worktreePath,
-          agent.startCommitHash,
-          commitMessage,
-        );
+          const runId = this.runIdMap.get(`${taskId}-${agentId}`);
+          await this.gitChangelogService.captureAndSave(
+            taskId,
+            agentId,
+            worktreePath,
+            agent.startCommitHash,
+            commitMessage,
+            runId,
+          );
+        }
       }
-    }
 
-    await this.checkTaskCompletion(taskId, agentId);
+      await this.checkTaskCompletion(taskId, agentId);
+    } finally {
+      this.cleanupAgentRuntime(taskId, agentId);
+    }
   }
 
   // ─── 완료 감지 ────────────────────────────────────────────────────────
@@ -519,6 +673,13 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     await this.taskRepo.update(taskId, { status: newStatus });
 
+    // TaskRunEntity 완료 처리
+    const taskRunId = this.taskRunIdMap.get(taskId);
+    if (taskRunId != null) {
+      await this.runRepo.update(taskRunId, { status: newStatus, completedAt: new Date() });
+      this.taskRunIdMap.delete(taskId);
+    }
+
     this.emit('task:status', { taskId, status: newStatus, title: taskEntity?.title } as TaskStatusEvent);
     this.logger.log(`Task ${taskId} → ${newStatus}`);
   }
@@ -532,24 +693,43 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (!buf.output.trim()) return;
 
     const agent = await this.agentRepo.findOne({ where: { id: agentId } });
-    const agentModel = agent?.agentType === 'gemini' ? AgentModel.GEMINI : AgentModel.CLAUDE;
+    const agentModel = this.getAgentModel(agent?.agentType ?? 'claude');
 
-    void this.conversationService.create({
-      sessionId: taskId,
-      promptId,
-      content: buf.output.trim(),
-      agentModel,
-      type: ConversationType.AGENT_MESSAGE,
-      agentId,
-    });
+    const runId = this.runIdMap.get(`${taskId}-${agentId}`);
+
+    try {
+      await this.conversationService.create({
+        sessionId: taskId,
+        promptId,
+        content: buf.output.trim(),
+        agentModel,
+        type: ConversationType.AGENT_MESSAGE,
+        agentId,
+        runId: runId ?? null,
+      });
+    } catch (err) {
+      this.logger.error(`Agent ${agentId} 메시지 저장 실패: ${err}`);
+    }
   }
 
-  /** 서버 재시작 후 버퍼가 비어있을 때 DB에서 로그 복원 */
+  /** 서버 재시작 후 버퍼가 비어있을 때 DB에서 로그 복원 — 최신 run 기준 */
   async getLogsFromDb(taskId: string): Promise<BufferedAgentLog[]> {
-    const [conversations, agents] = await Promise.all([
-      this.conversationService.findBySession(taskId),
-      this.agentRepo.find({ where: { taskId } }),
-    ]);
+    const agents = await this.agentRepo.find({ where: { taskId } });
+    if (!agents.length) return [];
+
+    // 최신 run의 conversations만 조회
+    const latestRun = await this.agentRunRepo.findOne({
+      where: { agentId: agents[0].id },
+      order: { runId: 'DESC' },
+    });
+
+    let conversations;
+    if (latestRun?.runId != null) {
+      conversations = await this.conversationService.findByRun(latestRun.runId);
+    } else {
+      // runId가 없는 레거시 데이터: sessionId로 조회
+      conversations = await this.conversationService.findBySession(taskId);
+    }
 
     const statusMap = new Map(agents.map((a) => [a.id, a.status]));
 
@@ -559,15 +739,33 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
     const byAgent = new Map<number, string>();
     for (const msg of agentMessages) {
-      const id = msg.agentId!;
+      const id = Number(msg.agentId!);
       byAgent.set(id, (byAgent.get(id) ?? '') + msg.content);
     }
 
-    return Array.from(byAgent.entries()).map(([agentId, output]) => ({
-      agentId,
-      status: statusMap.get(agentId) ?? 'completed',
-      output,
+    return agents.map((agent) => ({
+      agentId: agent.id,
+      status: statusMap.get(agent.id) ?? 'stopped',
+      output: byAgent.get(agent.id) ?? '',
     }));
+  }
+
+  // ─── TaskAgentRun 상태 업데이트 헬퍼 ─────────────────────────────────
+
+  private async updateAgentRunStatus(
+    taskId: string,
+    agentId: number,
+    status: string,
+    durationMs?: number,
+    costUsd?: number,
+  ): Promise<void> {
+    const agentRunId = this.runIdMap.get(`agentRunId-${taskId}-${agentId}`);
+    if (agentRunId == null) return;
+    await this.agentRunRepo.update(agentRunId as number, {
+      status,
+      ...(durationMs != null ? { durationMs } : {}),
+      ...(costUsd != null ? { costUsd } : {}),
+    });
   }
 
   // ─── 버퍼 헬퍼 ────────────────────────────────────────────────────────
@@ -586,6 +784,58 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     if (!agentMap) return;
     const cur = agentMap.get(agentId) ?? { agentId, status: 'running', output: '' };
     agentMap.set(agentId, { ...cur, ...patch });
+  }
+
+  private getAgentKey(taskId: string, agentId: number): string {
+    return `${taskId}-${agentId}`;
+  }
+
+  private getAgentModel(agentType: TaskAgentEntity['agentType']): AgentModel {
+    if (agentType === 'gemini') return AgentModel.GEMINI;
+    if (agentType === 'codex') return AgentModel.CODEX;
+    if (agentType === 'opencode') return AgentModel.OPENCODE;
+    return AgentModel.CLAUDE;
+  }
+
+  private registerProcess(taskId: string, agentId: number, proc: ChildProcess): void {
+    this.processMap.set(this.getAgentKey(taskId, agentId), proc);
+  }
+
+  private isAgentStopping(taskId: string, agentId: number): boolean {
+    return this.isShuttingDown || this.stoppingAgentSet.has(this.getAgentKey(taskId, agentId));
+  }
+
+  private requestAgentStop(taskId: string, agentId: number): void {
+    const key = this.getAgentKey(taskId, agentId);
+    const proc = this.processMap.get(key);
+    if (!proc) return;
+
+    this.stoppingAgentSet.add(key);
+    try {
+      proc.kill('SIGTERM');
+      const forceKill = setTimeout(() => {
+        if (!this.processMap.has(key)) return;
+        try {
+          proc.kill('SIGKILL');
+        } catch (err) {
+          this.logger.warn(`프로세스 강제 종료 실패 (${key}): ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }, 5000);
+      forceKill.unref?.();
+    } catch (err) {
+      this.logger.warn(`프로세스 종료 실패 (${key}): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private cleanupAgentRuntime(taskId: string, agentId: number): void {
+    const key = this.getAgentKey(taskId, agentId);
+    this.processMap.delete(key);
+    this.stoppingAgentSet.delete(key);
+    this.resultReceivedSet.delete(key);
+    this.promptIdMap.delete(key);
+    this.worktreeMap.delete(key);
+    this.runIdMap.delete(key);
+    this.runIdMap.delete(`agentRunId-${key}`);
   }
 
   // ─── 환경 헬퍼 ────────────────────────────────────────────────────────
@@ -675,10 +925,21 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   }
 
   private resolveWorkingDir(workingDir: string | null): string {
-    if (!workingDir) return process.cwd();
-    if (fs.existsSync(workingDir)) return workingDir;
-
-    this.logger.warn(`workingDir "${workingDir}" 이(가) 존재하지 않습니다. 서버 CWD로 폴백합니다.`);
-    return process.cwd();
+    try {
+      if (!workingDir) {
+        return process.cwd();
+      }
+      if (!fs.existsSync(workingDir)) {
+        throw new BadRequestException(`작업 디렉토리가 존재하지 않습니다: ${workingDir}`);
+      }
+      if (!fs.statSync(workingDir).isDirectory()) {
+        throw new BadRequestException(`작업 디렉토리가 폴더가 아닙니다: ${workingDir}`);
+      }
+      return workingDir;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(`작업 디렉토리를 확인할 수 없습니다: ${workingDir}`);
+    }
   }
+
 }

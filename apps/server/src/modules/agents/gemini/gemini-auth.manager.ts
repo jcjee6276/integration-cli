@@ -7,6 +7,8 @@ import * as path from 'path';
 import { JI_PATHS } from '../../../common/ji-paths';
 import { Injectable, Logger } from '@nestjs/common';
 
+const IS_WIN = process.platform === 'win32';
+
 export type GeminiAuthType = 'api-key' | 'gca';
 
 export interface GeminiAuthStatus {
@@ -80,7 +82,7 @@ export class GeminiAuthManager {
   ): void {
     this.cancelLogin(clientId);
 
-    const proc = spawn('gcloud', ['auth', 'application-default', 'login'], {
+    const proc = spawn(IS_WIN ? 'gcloud.cmd' : 'gcloud', ['auth', 'application-default', 'login'], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: process.env,
     });
@@ -118,7 +120,7 @@ export class GeminiAuthManager {
 
   private isInstalled(): boolean {
     try {
-      execFileSync('gemini', ['--version'], { stdio: 'ignore' });
+      execFileSync('gemini', ['--version'], { stdio: 'ignore', shell: true });
       return true;
     } catch {
       return false;

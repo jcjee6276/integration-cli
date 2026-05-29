@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 
@@ -25,6 +25,7 @@ import type {
 export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   private readonly logger = new Logger(ClaudePtyManager.name);
   private readonly sessions = new Map<string, ClaudeSession>();
+  private readonly processes = new Map<string, ChildProcess>();
 
   constructor(
     @InjectRepository(AgentSessionEntity)
@@ -75,6 +76,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   terminateSession(sessionId: string): void {
     const session = this.requireSession(sessionId);
     session.status = 'terminated';
+    this.killProcess(sessionId);
     this.sessions.delete(sessionId);
 
     if (session.persisted) {
@@ -101,7 +103,13 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     existing.lastActivity = new Date();
 
     if (!existing.persisted) {
-      void this.persistSession(existing).then(() => this.spawnClaude(existing, message));
+      void this.persistSession(existing).then(() => {
+        if (existing.status === 'terminated' || !this.sessions.has(sessionId)) {
+          void this.agentSessionRepo.update(sessionId, { status: 'terminated' });
+          return;
+        }
+        this.spawnClaude(existing, message);
+      });
       return;
     }
 
@@ -144,6 +152,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    this.processes.set(sessionId, proc);
 
     let buffer = '';
 
@@ -164,6 +173,14 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     });
 
     proc.on('close', (exitCode) => {
+      this.processes.delete(sessionId);
+      const event: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
+
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        this.emit('exit', event);
+        return;
+      }
+
       if (buffer.trim()) {
         this.handleLine(sessionId, session, buffer.trim());
       }
@@ -172,11 +189,15 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
 
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
 
-      const event: SessionExitEvent = { sessionId, exitCode: exitCode ?? -1 };
       this.emit('exit', event);
     });
 
     proc.on('error', (err) => {
+      this.processes.delete(sessionId);
+      if (session.status === 'terminated' || !this.sessions.has(sessionId)) {
+        return;
+      }
+
       session.status = 'idle';
       void this.agentSessionRepo.update(sessionId, { status: 'idle' });
       this.logger.error(`[${sessionId}] spawn error: ${err.message}`);
@@ -257,6 +278,9 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   // ─── 정리 ────────────────────────────────────────────────────────────
 
   onModuleDestroy(): void {
+    for (const sessionId of this.processes.keys()) {
+      this.killProcess(sessionId);
+    }
     for (const session of this.sessions.values()) {
       session.status = 'terminated';
     }
@@ -271,6 +295,18 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
     if (session.status === 'terminated') throw new Error(`Session ${sessionId} is terminated`);
     return session;
+  }
+
+  private killProcess(sessionId: string): void {
+    const proc = this.processes.get(sessionId);
+    if (!proc) return;
+
+    this.processes.delete(sessionId);
+    try {
+      if (!proc.killed) proc.kill('SIGTERM');
+    } catch (err) {
+      this.logger.warn(`Failed to kill Claude session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private toSessionInfo(session: ClaudeSession): SessionInfo {

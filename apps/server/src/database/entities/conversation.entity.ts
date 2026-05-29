@@ -20,6 +20,10 @@ export class ConversationEntity {
   @Column({ type: 'integer', name: 'agent_id', nullable: true })
   agentId!: number | null;
 
+  /** 실행 버전 ID (task_runs.id) — rerun 버전 구분용 */
+  @Column({ type: 'integer', name: 'run_id', nullable: true })
+  runId!: number | null;
+
   /** 메시지 내용 */
   @Column({ type: 'text' })
   content!: string;

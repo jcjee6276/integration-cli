@@ -6,6 +6,7 @@
  * @Description:
  */
 import nextConfig from "@ji/eslint-config/next";
+import path from "node:path";
 
 export default [
   ...nextConfig,

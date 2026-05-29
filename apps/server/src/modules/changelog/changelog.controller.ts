@@ -11,4 +11,10 @@ export class ChangelogController {
   getChangelog(@Param('taskId') taskId: string) {
     return this.changelogService.getByTask(taskId);
   }
+
+  /** GET /tasks/:taskId/runs/:runId/changelog */
+  @Get(':taskId/runs/:runId/changelog')
+  getRunChangelog(@Param('taskId') taskId: string, @Param('runId') runId: string) {
+    return this.changelogService.getByTask(taskId, Number(runId));
+  }
 }

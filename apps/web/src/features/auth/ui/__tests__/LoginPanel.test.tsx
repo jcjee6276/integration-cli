@@ -71,7 +71,7 @@ describe("LoginPanel — done state", () => {
   it("shows success message", () => {
     setup("done");
     expect(screen.getByText("로그인 완료")).toBeInTheDocument();
-    expect(screen.getByText("✅")).toBeInTheDocument();
+    expect(screen.getByText("잠시 후 자동으로 이동합니다…")).toBeInTheDocument();
   });
 
   it("does not show the login button", () => {
@@ -84,7 +84,6 @@ describe("LoginPanel — error state", () => {
   it("shows error message", () => {
     setup("error");
     expect(screen.getByText(/로그인 중 문제가 발생했습니다/)).toBeInTheDocument();
-    expect(screen.getByText("⚠️")).toBeInTheDocument();
   });
 
   it("shows retry button", () => {

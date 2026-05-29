@@ -51,7 +51,8 @@ export async function createSession(workingDirectory?: string): Promise<SessionI
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  await fetch(`${SERVER_URL}/agents/claude/sessions/${id}`, { method: "DELETE" });
+  const res = await fetch(`${SERVER_URL}/agents/claude/sessions/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 export async function createGeminiSession(workingDirectory?: string): Promise<SessionInfo> {
@@ -65,7 +66,8 @@ export async function createGeminiSession(workingDirectory?: string): Promise<Se
 }
 
 export async function deleteGeminiSession(id: string): Promise<void> {
-  await fetch(`${SERVER_URL}/agents/gemini/sessions/${id}`, { method: "DELETE" });
+  const res = await fetch(`${SERVER_URL}/agents/gemini/sessions/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 export function saveGeminiConversation(
@@ -92,7 +94,8 @@ export async function createCodexSession(workingDirectory?: string): Promise<Ses
 }
 
 export async function deleteCodexSession(id: string): Promise<void> {
-  await fetch(`${SERVER_URL}/agents/codex/sessions/${id}`, { method: "DELETE" });
+  const res = await fetch(`${SERVER_URL}/agents/codex/sessions/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 export function saveCodexConversation(
@@ -106,6 +109,17 @@ export function saveCodexConversation(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, promptId, content, agentModel: "codex", type }),
   }).catch(() => undefined);
+}
+
+// ─── Session Title ───────────────────────────────────────────────────────────
+
+export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/sessions/${sessionId}/title`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 // ─── Conversations ───────────────────────────────────────────────────────────
