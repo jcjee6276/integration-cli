@@ -103,9 +103,9 @@ describe('TasksController', () => {
       const running = { ...mockTask, status: 'running' };
       service.execute.mockResolvedValue(running);
 
-      const result = await controller.execute('task-1');
+      const result = await controller.execute('task-1', { agentTestCodePreferences: [{ agentId: 1, writeTestCode: true }] });
 
-      expect(service.execute).toHaveBeenCalledWith('task-1');
+      expect(service.execute).toHaveBeenCalledWith('task-1', [{ agentId: 1, writeTestCode: true }]);
       expect(result).toBe(running);
     });
   });
@@ -128,7 +128,7 @@ describe('TasksController', () => {
 
       const result = await controller.rerun('task-1', { supplementNote: '보완 작업' });
 
-      expect(service.rerun).toHaveBeenCalledWith('task-1', '보완 작업');
+      expect(service.rerun).toHaveBeenCalledWith('task-1', '보완 작업', undefined);
       expect(result).toBe(mockTask);
     });
 
@@ -137,7 +137,7 @@ describe('TasksController', () => {
 
       await controller.rerun('task-1', {});
 
-      expect(service.rerun).toHaveBeenCalledWith('task-1', undefined);
+      expect(service.rerun).toHaveBeenCalledWith('task-1', undefined, undefined);
     });
   });
 
@@ -145,9 +145,9 @@ describe('TasksController', () => {
     it('service.rerunAgent를 agentId와 supplementNote로 호출한다', async () => {
       service.rerunAgent.mockResolvedValue(mockTask);
 
-      const result = await controller.rerunAgent('task-1', '2', { supplementNote: 'agent only' });
+      const result = await controller.rerunAgent('task-1', '2', { supplementNote: 'agent only', writeTestCode: true });
 
-      expect(service.rerunAgent).toHaveBeenCalledWith('task-1', 2, 'agent only');
+      expect(service.rerunAgent).toHaveBeenCalledWith('task-1', 2, 'agent only', true);
       expect(result).toBe(mockTask);
     });
   });

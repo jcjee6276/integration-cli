@@ -33,6 +33,10 @@ export interface AgentDoneEvent   { taskId: string; agentId: number; result: str
 export interface AgentErrorEvent  { taskId: string; agentId: number; message: string }
 export interface TaskStatusEvent  { taskId: string; status: string; title?: string }
 
+export interface TaskSpawnOptions {
+  testCodeAgentIds?: number[];
+}
+
 // ─── 버퍼 엔트리 (늦은 구독자 리플레이용) ───────────────────────────────────
 
 export interface BufferedAgentLog {
@@ -178,7 +182,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
   // ─── 공개 API ─────────────────────────────────────────────────────────
 
-  async spawnTask(task: TaskEntity, supplementNote?: string, runId?: number): Promise<void> {
+  async spawnTask(task: TaskEntity, supplementNote?: string, runId?: number, options: TaskSpawnOptions = {}): Promise<void> {
     if (!task.agents.length) {
       throw new Error('에이전트가 없습니다. 최소 하나의 에이전트를 추가하세요.');
     }
@@ -198,8 +202,11 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       this.taskRunIdMap.set(task.id, runId);
     }
 
+    const testCodeAgentIds = new Set(options.testCodeAgentIds ?? []);
+
     for (const agent of task.agents) {
       const roleLabel = agent.role === 'other' && agent.customRole ? agent.customRole : agent.role;
+      const shouldWriteTestCode = testCodeAgentIds.has(agent.id);
 
       // 공통 하네스 + 역할별 하네스 로드
       const commonHarness = this.harnessService.findOne('common');
@@ -215,6 +222,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
         `\n\n[작업 목표]\n${task.title}`,
         reqList ? `\n\n[요구사항]\n${reqList}` : '',
         supplementNote ? `\n\n[이전 결과 보완 사항]\n${supplementNote}` : '',
+        shouldWriteTestCode
+          ? '\n\n[테스트 코드 작성 지시]\n이번 실행에서는 구현 변경뿐 아니라 관련 테스트 코드를 반드시 작성하세요. 프로젝트의 기존 테스트 프레임워크, 파일 위치, 네이밍 패턴을 따르고 가능한 경우 테스트를 실행해 결과를 남기세요.'
+          : '',
         `\n\n위 작업을 수행해주세요.`,
       ].join('');
 

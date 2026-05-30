@@ -268,9 +268,9 @@ describe('TasksService', () => {
       const mockRun = { id: 1, taskId: 'task-1', version: 1, status: 'running' };
       runRepo.save.mockResolvedValue(mockRun);
 
-      await service.execute('task-1');
+      await service.execute('task-1', [{ agentId: 1, writeTestCode: true }]);
 
-      expect(executionService.spawnTask).toHaveBeenCalledWith(pendingTask, undefined, mockRun.id);
+      expect(executionService.spawnTask).toHaveBeenCalledWith(pendingTask, undefined, mockRun.id, { testCodeAgentIds: [1] });
     });
 
     it('이전 실행 기록이 있으면 다음 버전으로 실행한다', async () => {
@@ -316,7 +316,7 @@ describe('TasksService', () => {
 
       expect(agentRepo.update).toHaveBeenCalledWith(baseAgent.id, { status: 'pending', claudeSessionId: null });
       expect(taskRepo.update).toHaveBeenCalledWith('task-1', { status: 'pending' });
-      expect(executionService.spawnTask).toHaveBeenCalledWith(taskWithAgents, '보완 메모', mockRun.id);
+      expect(executionService.spawnTask).toHaveBeenCalledWith(taskWithAgents, '보완 메모', mockRun.id, { testCodeAgentIds: [] });
     });
 
     it('실행 기록이 없으면 버전 1로 시작한다', async () => {
@@ -351,7 +351,7 @@ describe('TasksService', () => {
       const mockRun = { id: 3, taskId: 'task-1', version: 3, status: 'running' };
       runRepo.save.mockResolvedValue(mockRun);
 
-      await service.rerunAgent('task-1', 1, 'agent note');
+      await service.rerunAgent('task-1', 1, 'agent note', true);
 
       expect(agentRepo.update).toHaveBeenCalledWith(baseAgent.id, { status: 'pending', claudeSessionId: null });
       expect(agentRepo.update).not.toHaveBeenCalledWith(otherAgent.id, expect.anything());
@@ -366,6 +366,7 @@ describe('TasksService', () => {
         expect.objectContaining({ agents: [expect.objectContaining({ id: baseAgent.id })] }),
         'agent note',
         mockRun.id,
+        { testCodeAgentIds: [baseAgent.id] },
       );
     });
 
