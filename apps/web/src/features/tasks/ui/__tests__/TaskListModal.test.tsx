@@ -16,8 +16,19 @@ vi.mock("../../hooks/useTaskExecution", () => ({
 }));
 
 vi.mock("../AgentOutputPanel", () => ({
-  AgentOutputPanel: ({ connected }: { connected: boolean }) => (
-    <div data-testid="agent-output">connected:{String(connected)}</div>
+  AgentOutputPanel: ({
+    connected,
+    onWriteTestsAgent,
+  }: {
+    connected: boolean;
+    onWriteTestsAgent?: (agentId: number) => void;
+  }) => (
+    <div data-testid="agent-output">
+      connected:{String(connected)}
+      <button type="button" onClick={() => onWriteTestsAgent?.(1)}>
+        테스트 작성
+      </button>
+    </div>
   ),
 }));
 
@@ -149,10 +160,10 @@ describe("TaskListModal", () => {
 
     await user.click(screen.getByRole("button", { name: /Build feature/ }));
     expect(screen.getByText("Requirement")).toBeInTheDocument();
-    expect(screen.getByText("Frontend")).toBeInTheDocument();
+    expect(screen.getAllByText("Frontend").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "실행" }));
-    expect(api.execute).toHaveBeenCalledWith("task-123456789");
+    expect(api.execute).toHaveBeenCalledWith("task-123456789", [{ agentId: 1, writeTestCode: false }]);
 
     await user.click(screen.getByRole("button", { name: "수정" }));
     expect(api.setEditingTask).toHaveBeenCalledWith(expect.objectContaining({ id: "task-123456789" }));
@@ -162,6 +173,29 @@ describe("TaskListModal", () => {
 
     await user.click(screen.getByRole("button", { name: "삭제" }));
     expect(api.remove).toHaveBeenCalledWith("task-123456789");
+  });
+
+  it("passes checked test-code preferences when executing", async () => {
+    const user = userEvent.setup();
+    const api = setup({
+      tasks: [
+        task({
+          agents: [
+            { id: 1, agentType: "claude", role: "frontend", customRole: null, status: "pending" },
+            { id: 2, agentType: "codex", role: "backend", customRole: null, status: "pending" },
+          ],
+        }),
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: /Build feature/ }));
+    await user.click(screen.getAllByRole("checkbox")[1]);
+    await user.click(screen.getByRole("button", { name: "실행" }));
+
+    expect(api.execute).toHaveBeenCalledWith("task-123456789", [
+      { agentId: 1, writeTestCode: false },
+      { agentId: 2, writeTestCode: true },
+    ]);
   });
 
   it("renders running stop button and logs when expanded", async () => {
@@ -190,5 +224,20 @@ describe("TaskListModal", () => {
     await user.click(screen.getByRole("button", { name: "재 실행" }));
 
     await waitFor(() => expect(api.rerun).toHaveBeenCalledWith("task-123456789", "more tests"));
+  });
+
+  it("can request test code for a completed agent", async () => {
+    const user = userEvent.setup();
+    const api = setup({ tasks: [task({ status: "completed" })] });
+
+    await user.click(screen.getByRole("button", { name: /Build feature/ }));
+    await user.click(screen.getByRole("button", { name: "테스트 작성" }));
+
+    expect(api.rerunAgent).toHaveBeenCalledWith(
+      "task-123456789",
+      1,
+      expect.stringContaining("테스트 코드를 작성"),
+      true,
+    );
   });
 });

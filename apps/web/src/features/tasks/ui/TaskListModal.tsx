@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { isQuotaExceeded } from "@/lib/quota";
-import type { Task, TaskStatus } from "../api/tasks.api";
+import type { AgentTestCodePreference, Task, TaskStatus } from "../api/tasks.api";
 import { useTaskExecution } from "../hooks/useTaskExecution";
 import { useTaskList } from "../hooks/useTaskList";
 import { AgentRoleBadge } from "./AgentRoleSelect";
@@ -13,6 +13,9 @@ import { AgentOutputPanel } from "./AgentOutputPanel";
 import { ChangelogPanel } from "./ChangelogPanel";
 import { RunHistoryPanel } from "./RunHistoryPanel";
 import { TaskEditModal } from "./TaskEditModal";
+
+const TEST_CODE_SUPPLEMENT_NOTE =
+  "기존 구현은 유지하면서 이 에이전트가 담당한 변경 사항에 대한 테스트 코드를 작성해주세요. 프로젝트의 기존 테스트 패턴을 따르고 가능한 경우 테스트 실행 결과도 남겨주세요.";
 
 // ─── 상태 뱃지 ───────────────────────────────────────────────────────────────
 
@@ -44,11 +47,12 @@ interface TaskCardProps {
   isActioning: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
-  onExecute: () => void;
+  onExecute: (preferences: AgentTestCodePreference[]) => void;
   onStop: () => void;
   onEdit: () => void;
   onRerun: (note: string) => void;
   onRerunAgent: (agentId: number, note: string) => void;
+  onWriteTestsAgent: (agentId: number) => void;
   onArchive: () => void;
   onDelete: () => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
@@ -64,6 +68,7 @@ function TaskCard({
   onEdit,
   onRerun,
   onRerunAgent,
+  onWriteTestsAgent,
   onArchive,
   onDelete,
   onTaskStatusChange,
@@ -81,6 +86,7 @@ function TaskCard({
   const [activeTab, setActiveTab] = useState<"logs" | "changelog" | "history">("logs");
   const [changelogMounted, setChangelogMounted] = useState(false);
   const [historyMounted, setHistoryMounted] = useState(false);
+  const [testCodeByAgent, setTestCodeByAgent] = useState<Record<number, boolean>>({});
 
   const handleRerunConfirm = () => {
     if (rerunAgentId != null) {
@@ -102,6 +108,19 @@ function TaskCard({
   const openAgentRerun = (agentId: number) => {
     setRerunAgentId(agentId);
     setRerunMode(true);
+  };
+
+  const handleExecute = () => {
+    onExecute(
+      task.agents.map((agent) => ({
+        agentId: agent.id,
+        writeTestCode: Boolean(testCodeByAgent[agent.id]),
+      })),
+    );
+  };
+
+  const toggleTestCode = (agentId: number) => {
+    setTestCodeByAgent((prev) => ({ ...prev, [agentId]: !prev[agentId] }));
   };
 
   const { agentLogs, connected } = useTaskExecution(
@@ -193,6 +212,37 @@ function TaskCard({
               </div>
             )}
 
+            {/* 실행 전 테스트 코드 작성 여부 */}
+            {canExecute && task.agents.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-xl border border-gray-900/[0.06] bg-white/40 p-3 dark:border-white/[0.06] dark:bg-white/[0.03]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-gray-900/55 dark:text-white/55">실행 전 테스트 코드 작성 여부</p>
+                  <span className="text-[10px] text-gray-900/25 dark:text-white/25">에이전트별 선택</span>
+                </div>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {task.agents.map((agent) => (
+                    <label
+                      key={agent.id}
+                      className="flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-lg border border-gray-900/[0.06] bg-gray-900/[0.02] px-2.5 py-1.5 transition-colors hover:border-emerald-500/25 hover:bg-emerald-500/[0.05] dark:border-white/[0.06] dark:bg-white/[0.02]"
+                    >
+                      <span className="min-w-0">
+                        <AgentRoleBadge role={agent.role} customRole={agent.customRole} />
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-gray-900/45 dark:text-white/45">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(testCodeByAgent[agent.id])}
+                          onChange={() => toggleTestCode(agent.id)}
+                          className="h-3.5 w-3.5 accent-emerald-600"
+                        />
+                        테스트 코드
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 실행 로그 / 변경사항 탭 */}
             {showLogs && (
               <div className="flex flex-col gap-2">
@@ -229,6 +279,7 @@ function TaskCard({
                     canRerun={canRerun}
                     rerunDisabled={isActioning}
                     onRerunAgent={openAgentRerun}
+                    onWriteTestsAgent={onWriteTestsAgent}
                   />
                 </div>
                 {changelogMounted && isFinished && (
@@ -305,7 +356,7 @@ function TaskCard({
                 {/* 실행 (pending/stopped) */}
                 {canExecute && (
                   <button
-                    onClick={onExecute}
+                    onClick={handleExecute}
                     disabled={isActioning}
                     className="flex items-center gap-1.5 rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
                   >
@@ -508,8 +559,8 @@ export function TaskListModal({ open, onClose }: Props) {
                   isActioning={actioningId === task.id}
                   expanded={expandedId === task.id}
                   onToggleExpand={() => handleToggleExpand(task.id)}
-                  onExecute={() => {
-                    void execute(task.id);
+                  onExecute={(preferences) => {
+                    void execute(task.id, preferences);
                     setExpandedId(task.id);
                   }}
                   onStop={() => void stop(task.id)}
@@ -520,6 +571,10 @@ export function TaskListModal({ open, onClose }: Props) {
                   }}
                   onRerunAgent={(agentId, note) => {
                     void rerunAgent(task.id, agentId, note || undefined);
+                    setExpandedId(task.id);
+                  }}
+                  onWriteTestsAgent={(agentId) => {
+                    void rerunAgent(task.id, agentId, TEST_CODE_SUPPLEMENT_NOTE, true);
                     setExpandedId(task.id);
                   }}
                   onArchive={() => void archive(task.id)}

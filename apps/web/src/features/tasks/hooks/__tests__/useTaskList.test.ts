@@ -80,9 +80,9 @@ describe("useTaskList", () => {
     const { result } = renderHook(() => useTaskList(true));
     await waitFor(() => expect(result.current.tasks).toEqual([initial]));
 
-    await act(async () => { await result.current.execute("task-1"); });
+    await act(async () => { await result.current.execute("task-1", [{ agentId: 1, writeTestCode: true }]); });
 
-    expect(mockExecuteTask).toHaveBeenCalledWith("task-1");
+    expect(mockExecuteTask).toHaveBeenCalledWith("task-1", [{ agentId: 1, writeTestCode: true }]);
     expect(result.current.tasks[0].status).toBe("running");
     expect(result.current.actioningId).toBeNull();
   });
@@ -106,7 +106,7 @@ describe("useTaskList", () => {
 
     await act(async () => { await result.current.rerun("task-1", "extra context"); });
 
-    expect(mockRerunTask).toHaveBeenCalledWith("task-1", "extra context");
+    expect(mockRerunTask).toHaveBeenCalledWith("task-1", "extra context", undefined);
     expect(result.current.tasks[0]).toEqual(updated);
   });
 
@@ -116,9 +116,9 @@ describe("useTaskList", () => {
     const { result } = renderHook(() => useTaskList(true));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => { await result.current.rerunAgent("task-1", 3, "agent context"); });
+    await act(async () => { await result.current.rerunAgent("task-1", 3, "agent context", true); });
 
-    expect(mockRerunTaskAgent).toHaveBeenCalledWith("task-1", 3, "agent context");
+    expect(mockRerunTaskAgent).toHaveBeenCalledWith("task-1", 3, "agent context", true);
     expect(result.current.tasks[0]).toEqual(updated);
   });
 
