@@ -8,6 +8,7 @@ import {
   fetchConversations,
   fetchDBSessions,
   saveConversation,
+  createCodexSession,
 } from "../sessions.api";
 
 const mockFetch = vi.fn();
@@ -71,6 +72,19 @@ describe("createSession", () => {
     );
   });
 
+  it("sends POST with model and reasoning when provided", async () => {
+    mockFetch.mockReturnValueOnce(ok(mockSession));
+
+    await createSession({ workingDirectory: "/home/user/project", model: "sonnet", reasoning: "high" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({ workingDirectory: "/home/user/project", model: "sonnet", reasoning: "high" }),
+      }),
+    );
+  });
+
   it("returns session info", async () => {
     mockFetch.mockReturnValueOnce(ok(mockSession));
     const result = await createSession();
@@ -80,6 +94,21 @@ describe("createSession", () => {
   it("throws on HTTP error", async () => {
     mockFetch.mockReturnValueOnce(err(400));
     await expect(createSession()).rejects.toThrow("HTTP 400");
+  });
+});
+
+describe("createCodexSession", () => {
+  it("sends Codex model settings", async () => {
+    mockFetch.mockReturnValueOnce(ok({ id: "codex-1", title: "Codex", createdAt: "2024-01-01" }));
+
+    await createCodexSession({ model: "gpt-5.5", reasoning: "xhigh" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/agents/codex/sessions"),
+      expect.objectContaining({
+        body: JSON.stringify({ model: "gpt-5.5", reasoning: "xhigh" }),
+      }),
+    );
   });
 });
 

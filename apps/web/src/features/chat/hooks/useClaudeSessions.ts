@@ -13,6 +13,7 @@ import {
   updateSessionTitle,
 } from "../api/sessions.api";
 import type { DBConversation, SessionInfo } from "../api/sessions.api";
+import type { AgentModelSettings } from "../lib/agentModelOptions";
 import type { AgentId } from "../ui/AgentSelectModal";
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
@@ -224,10 +225,14 @@ export function useClaudeSessions() {
     void updateSessionTitle(sessionId, newTitle).catch(() => undefined);
   }, []);
 
-  const createSession = useCallback(async (agentId: AgentId, workingDirectory?: string): Promise<string | null> => {
+  const createSession = useCallback(async (
+    agentId: AgentId,
+    workingDirectory?: string,
+    modelSettings?: AgentModelSettings,
+  ): Promise<string | null> => {
     setError(null);
     try {
-      const raw = await apiCreateSession(workingDirectory);
+      const raw = await apiCreateSession({ workingDirectory, ...modelSettings });
       const title = raw.workingDirectory
         ? raw.workingDirectory.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? "Claude"
         : "Claude";
@@ -250,7 +255,7 @@ export function useClaudeSessions() {
     }
   }, []);
 
-  const sendMessage = useCallback((sessionId: string, text: string) => {
+  const sendMessage = useCallback((sessionId: string, text: string, modelSettings?: AgentModelSettings) => {
     const promptId = crypto.randomUUID();
     pendingPromptIdRef.current[sessionId] = promptId;
 
@@ -270,7 +275,11 @@ export function useClaudeSessions() {
     );
 
     saveConversation(sessionId, promptId, text, "user_message");
-    socketRef.current?.emit("session:message", { sessionId, input: text });
+    socketRef.current?.emit("session:message", {
+      sessionId,
+      input: text,
+      ...modelSettings,
+    });
   }, []);
 
   const terminateSession = useCallback(async (sessionId: string) => {

@@ -8,7 +8,15 @@ export interface SessionInfo {
   claudeSessionId?: string | null;
   status?: string;
   workingDirectory?: string;
+  model?: string | null;
+  reasoning?: string | null;
   createdAt: string;
+}
+
+export interface CreateAgentSessionPayload {
+  workingDirectory?: string;
+  model?: string;
+  reasoning?: string;
 }
 
 export interface DBSession {
@@ -40,11 +48,20 @@ export async function fetchDBSessions(agentType?: string): Promise<DBSession[]> 
   return res.json();
 }
 
-export async function createSession(workingDirectory?: string): Promise<SessionInfo> {
+function compactPayload(payload?: CreateAgentSessionPayload | string): CreateAgentSessionPayload {
+  if (typeof payload === "string") {
+    return payload ? { workingDirectory: payload } : {};
+  }
+  return Object.fromEntries(
+    Object.entries(payload ?? {}).filter(([, value]) => value !== undefined && value !== ""),
+  ) as CreateAgentSessionPayload;
+}
+
+export async function createSession(payload?: CreateAgentSessionPayload | string): Promise<SessionInfo> {
   const res = await fetch(`${SERVER_URL}/agents/claude/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(workingDirectory ? { workingDirectory } : {}),
+    body: JSON.stringify(compactPayload(payload)),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -83,11 +100,11 @@ export function saveGeminiConversation(
   }).catch(() => undefined);
 }
 
-export async function createCodexSession(workingDirectory?: string): Promise<SessionInfo> {
+export async function createCodexSession(payload?: CreateAgentSessionPayload | string): Promise<SessionInfo> {
   const res = await fetch(`${SERVER_URL}/agents/codex/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(workingDirectory ? { workingDirectory } : {}),
+    body: JSON.stringify(compactPayload(payload)),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

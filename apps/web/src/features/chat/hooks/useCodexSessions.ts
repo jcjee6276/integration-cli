@@ -13,6 +13,7 @@ import {
   updateSessionTitle,
 } from "../api/sessions.api";
 import type { DBConversation, SessionInfo } from "../api/sessions.api";
+import type { AgentModelSettings } from "../lib/agentModelOptions";
 import type { ChatMessage, ResultMeta, SessionState } from "./useClaudeSessions";
 
 export type { SessionInfo };
@@ -191,10 +192,13 @@ export function useCodexSessions() {
     void updateSessionTitle(sessionId, newTitle).catch(() => undefined);
   }, []);
 
-  const createSession = useCallback(async (workingDirectory?: string): Promise<string | null> => {
+  const createSession = useCallback(async (
+    workingDirectory?: string,
+    modelSettings?: AgentModelSettings,
+  ): Promise<string | null> => {
     setError(null);
     try {
-      const raw = await apiCreateSession(workingDirectory);
+      const raw = await apiCreateSession({ workingDirectory, ...modelSettings });
       const title = raw.workingDirectory
         ? raw.workingDirectory.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean).at(-1) ?? "Codex"
         : "Codex";
@@ -217,7 +221,7 @@ export function useCodexSessions() {
     }
   }, []);
 
-  const sendMessage = useCallback((sessionId: string, text: string) => {
+  const sendMessage = useCallback((sessionId: string, text: string, modelSettings?: AgentModelSettings) => {
     const promptId = crypto.randomUUID();
     pendingPromptIdRef.current[sessionId] = promptId;
     pendingUserMsgRef.current[sessionId] = { promptId, content: text };
@@ -237,7 +241,11 @@ export function useCodexSessions() {
       ),
     );
 
-    socketRef.current?.emit("session:message", { sessionId, input: text });
+    socketRef.current?.emit("session:message", {
+      sessionId,
+      input: text,
+      ...modelSettings,
+    });
   }, []);
 
   const terminateSession = useCallback(async (sessionId: string) => {

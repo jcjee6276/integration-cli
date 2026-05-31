@@ -14,6 +14,7 @@ import { ChatWorkspace } from "../ui/ChatWorkspace";
 import { CheckingSkeleton } from "../ui/CheckingSkeleton";
 import { ClaudeLoginView } from "../ui/ClaudeLoginView";
 import { SessionSidebar } from "../ui/SessionSidebar";
+import { useAgentModelSettings } from "../hooks/useAgentModelSettings";
 import { useSessionCommand } from "../hooks/useSessionCommand";
 import { useSessionRename } from "../hooks/useSessionRename";
 import { useSessionWorkingDirectories } from "../hooks/useSessionWorkingDirectories";
@@ -44,11 +45,13 @@ export function ClaudePageContainer() {
 
   const { sessionDirs, currentDir, handleDirChange, assignDirectoryToSession } =
     useSessionWorkingDirectories(selectedSessionId);
+  const { settingsByAgent, updateSettings } = useAgentModelSettings();
   const rename = useSessionRename(renameSession);
   const handleSend = useSessionCommand({
     selectedSession,
     selectedSessionId,
     sendMessage,
+    modelSettingsByAgent: settingsByAgent,
     injectClaudeMessage,
   });
   const { hasNew, clearNew } = useTaskNotification();
@@ -71,7 +74,7 @@ export function ClaudePageContainer() {
 
   const handleAgentSelect = (agentId: AgentId) => {
     const dir = currentDir || undefined;
-    createSession(agentId, dir).then((sessionId) => {
+    createSession(agentId, dir, settingsByAgent[agentId]).then((sessionId) => {
       if (sessionId && currentDir) {
         assignDirectoryToSession(sessionId, currentDir);
       }
@@ -137,10 +140,12 @@ export function ClaudePageContainer() {
         error={error}
         inputDisabled={inputDisabled}
         bottomRef={bottomRef}
+        modelSettingsByAgent={settingsByAgent}
         onTerminateSession={terminateSession}
         onSend={handleSend}
         onSendMessage={sendMessage}
         onDirChange={handleDirChange}
+        onModelSettingsChange={updateSettings}
       />
     </div>
   );

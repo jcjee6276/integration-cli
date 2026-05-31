@@ -22,10 +22,12 @@ function renderWorkspace(session: UnifiedSessionState) {
       error={null}
       inputDisabled={false}
       bottomRef={createRef<HTMLDivElement>()}
+      modelSettingsByAgent={{}}
       onTerminateSession={vi.fn()}
       onSend={vi.fn()}
       onSendMessage={vi.fn()}
       onDirChange={vi.fn()}
+      onModelSettingsChange={vi.fn()}
     />,
   );
 }
