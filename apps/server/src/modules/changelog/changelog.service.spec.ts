@@ -269,6 +269,73 @@ describe('GitChangelogService', () => {
     });
   });
 
+  // ─── directory snapshot changelog ────────────────────────────────────────
+
+  describe('directory snapshot changelog', () => {
+    const dirent = (name: string, type: 'file' | 'dir') => ({
+      name,
+      isDirectory: () => type === 'dir',
+      isFile: () => type === 'file',
+    }) as fs.Dirent;
+
+    it('일반 디렉토리 스냅샷을 생성하고 무거운 폴더를 건너뛴다', () => {
+      (fs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
+        if (dir === '/work') return [dirent('src', 'dir'), dirent('root.txt', 'file'), dirent('node_modules', 'dir')];
+        if (dir === path.join('/work', 'src')) return [dirent('app.ts', 'file')];
+        return [];
+      });
+      (fs.readFileSync as jest.Mock).mockImplementation((file: string) => Buffer.from(`content:${file}`));
+
+      const snapshot = service.createDirectorySnapshot('/work');
+
+      expect(snapshot.has('root.txt')).toBe(true);
+      expect(snapshot.has('src/app.ts')).toBe(true);
+      expect(snapshot.has('node_modules/pkg/index.js')).toBe(false);
+    });
+
+    it('일반 디렉토리 변경사항을 changelog로 저장한다', async () => {
+      const before = new Map([
+        ['src/app.ts', { hash: 'old-hash', content: 'old\n', isBinary: false }],
+        ['src/remove.ts', { hash: 'remove-hash', content: 'remove\n', isBinary: false }],
+      ]);
+      const after = new Map([
+        ['src/app.ts', { hash: 'new-hash', content: 'new\n', isBinary: false }],
+        ['src/add.ts', { hash: 'add-hash', content: 'add\n', isBinary: false }],
+      ]);
+
+      jest.spyOn(service, 'createDirectorySnapshot').mockReturnValue(after);
+      (fs.mkdirSync as jest.Mock).mockReturnValue(undefined);
+      (fs.writeFileSync as jest.Mock).mockReturnValue(undefined);
+
+      const result = await service.captureDirectoryAndSave('task-1', 1, '/work', before, 3);
+
+      expect(result).toBe(3);
+      expect(repo.save).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ filePath: 'src/add.ts', changeType: 'added', runId: 3 }),
+        expect.objectContaining({ filePath: 'src/app.ts', changeType: 'modified', runId: 3 }),
+        expect.objectContaining({ filePath: 'src/remove.ts', changeType: 'deleted', runId: 3 }),
+      ]));
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('agent-1'),
+        expect.stringContaining('diff --git'),
+        'utf8',
+      );
+    });
+
+    it('일반 디렉토리 변경사항이 없으면 DB에 저장하지 않는다', async () => {
+      const before = new Map([
+        ['src/app.ts', { hash: 'same-hash', content: 'same\n', isBinary: false }],
+      ]);
+
+      jest.spyOn(service, 'createDirectorySnapshot').mockReturnValue(before);
+
+      const result = await service.captureDirectoryAndSave('task-1', 1, '/work', before, 3);
+
+      expect(result).toBe(0);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── parseDiff (private, via any 접근) ──────────────────────────────────
 
   describe('parseDiff', () => {

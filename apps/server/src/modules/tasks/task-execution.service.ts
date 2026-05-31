@@ -16,7 +16,7 @@ import { TaskRunEntity } from '../../database/entities/task-run.entity';
 import { GeminiAuthManager } from '../agents/gemini/gemini-auth.manager';
 import { ConversationService } from '../conversations/conversation.service';
 import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
-import { GitChangelogService } from '../changelog/changelog.service';
+import { GitChangelogService, type DirectorySnapshot } from '../changelog/changelog.service';
 import { HarnessService } from '../harness/harness.service';
 import type { HarnessRole } from '../harness/harness.service';
 import type {
@@ -66,6 +66,8 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   private readonly promptIdMap = new Map<string, string>();
   /** `${taskId}-${agentId}` → { worktreePath, branchName, mainRepoDir } */
   private readonly worktreeMap = new Map<string, { worktreePath: string; branchName: string; mainRepoDir: string }>();
+  /** `${taskId}-${agentId}` → 일반 디렉토리 변경 추적용 스냅샷 */
+  private readonly directorySnapshotMap = new Map<string, { workingDir: string; snapshot: DirectorySnapshot }>();
   /** result 이벤트를 수신한 에이전트 키 (`${taskId}-${agentId}`) 집합 */
   private readonly resultReceivedSet = new Set<string>();
   /** `${taskId}-${agentId}` → runId */
@@ -173,6 +175,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     this.pendingMap.clear();
     this.promptIdMap.clear();
     this.worktreeMap.clear();
+    this.directorySnapshotMap.clear();
     this.resultReceivedSet.clear();
     this.runIdMap.clear();
     this.taskRunIdMap.clear();
@@ -261,6 +264,12 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
       // git repo인 경우 에이전트별 worktree 생성
       let agentWorkDir = workingDir;
+      const agentKey = this.getAgentKey(task.id, agent.id);
+      this.directorySnapshotMap.set(agentKey, {
+        workingDir,
+        snapshot: this.gitChangelogService.createDirectorySnapshot(workingDir),
+      });
+
       if (isGitRepo) {
         try {
           const { worktreePath, branchName, agentWorkDir: worktreeAgentDir } = this.gitChangelogService.createWorktree(workingDir, agent.agentType);
@@ -275,7 +284,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
             }
           }
 
-          this.worktreeMap.set(`${task.id}-${agent.id}`, { worktreePath, branchName, mainRepoDir: workingDir });
+          this.worktreeMap.set(agentKey, { worktreePath, branchName, mainRepoDir: workingDir });
           agentWorkDir = worktreeAgentDir;
         } catch (err) {
           this.logger.warn(`Agent ${agent.id} worktree 생성 실패, 원본 디렉토리 사용: ${err}`);
@@ -628,7 +637,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     try {
       const worktreeKey = this.getAgentKey(taskId, agentId);
       const worktreeInfo = this.worktreeMap.get(worktreeKey);
+      const directorySnapshotInfo = this.directorySnapshotMap.get(worktreeKey);
       this.worktreeMap.delete(worktreeKey);
+      this.directorySnapshotMap.delete(worktreeKey);
 
       if (worktreeInfo) {
         const { worktreePath } = worktreeInfo;
@@ -654,6 +665,17 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
             runId,
           );
         }
+      }
+
+      if (directorySnapshotInfo) {
+        const runId = this.runIdMap.get(`${taskId}-${agentId}`);
+        await this.gitChangelogService.captureDirectoryAndSave(
+          taskId,
+          agentId,
+          directorySnapshotInfo.workingDir,
+          directorySnapshotInfo.snapshot,
+          runId,
+        );
       }
 
       await this.checkTaskCompletion(taskId, agentId);
@@ -844,6 +866,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     this.resultReceivedSet.delete(key);
     this.promptIdMap.delete(key);
     this.worktreeMap.delete(key);
+    this.directorySnapshotMap.delete(key);
     this.runIdMap.delete(key);
     this.runIdMap.delete(`agentRunId-${key}`);
   }
