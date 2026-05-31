@@ -7,6 +7,16 @@ export class ClaudeCreateSessionDto {
   @IsString()
   workingDirectory?: string;
 
+  @ApiPropertyOptional({ example: 'sonnet', description: 'Claude CLI 모델명 또는 별칭' })
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional({ example: 'high', description: 'Claude reasoning effort' })
+  @IsOptional()
+  @IsString()
+  reasoning?: string;
+
   @ApiPropertyOptional({ example: { NODE_ENV: 'development' }, description: '추가 환경 변수' })
   @IsOptional()
   @IsObject()

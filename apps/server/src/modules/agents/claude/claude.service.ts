@@ -30,7 +30,7 @@ export class ClaudeService {
   ) {}
 
   createSession(dto: CreateSessionDto): SessionInfo {
-    return this.ptyManager.createSession(dto.workingDirectory);
+    return this.ptyManager.createSession(dto.workingDirectory, dto.model, dto.reasoning);
   }
 
   terminateSession(sessionId: string): void {

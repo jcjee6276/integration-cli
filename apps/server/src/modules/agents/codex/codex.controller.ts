@@ -39,8 +39,8 @@ export class CodexController {
 
   /** POST /agents/codex/sessions */
   @Post('sessions')
-  createSession(@Body() body: { workingDirectory?: string }): CodexSessionInfo {
-    return this.sessionManager.createSession(body.workingDirectory);
+  createSession(@Body() body: { workingDirectory?: string; model?: string; reasoning?: string }): CodexSessionInfo {
+    return this.sessionManager.createSession(body.workingDirectory, body.model, body.reasoning);
   }
 
   /** GET /agents/codex/sessions */
