@@ -16,6 +16,8 @@ export interface CodexSessionInfo {
   id: string;
   status: 'idle' | 'processing' | 'terminated';
   workingDirectory: string;
+  model: string | null;
+  reasoning: string | null;
   createdAt: Date;
   lastActivity: Date;
 }
@@ -25,6 +27,19 @@ interface CodexSession extends CodexSessionInfo {
 }
 
 const ANSI_STRIP = /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g;
+const CODEX_REASONING_LEVELS = new Set(['low', 'medium', 'high', 'xhigh']);
+
+function normalizeModel(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'default') return null;
+  return trimmed;
+}
+
+function normalizeReasoning(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'default') return null;
+  return CODEX_REASONING_LEVELS.has(trimmed) ? trimmed : null;
+}
 
 /**
  * codex exec 출력 형식:
@@ -112,13 +127,15 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     super();
   }
 
-  createSession(workingDirectory = process.cwd()): CodexSessionInfo {
+  createSession(workingDirectory = process.cwd(), model?: string, reasoning?: string): CodexSessionInfo {
     const id = uuidv4();
     const now = new Date();
     const session: CodexSession = {
       id,
       status: 'idle',
       workingDirectory,
+      model: normalizeModel(model),
+      reasoning: normalizeReasoning(reasoning),
       createdAt: now,
       lastActivity: now,
       persisted: false,
@@ -176,10 +193,15 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     this.spawnCodex(existing, message);
   }
 
-  private async restoreAndSend(sessionId: string, message: string): Promise<void> {
+  private async restoreAndSend(
+    sessionId: string,
+    message: string,
+    model?: string,
+    reasoning?: string,
+  ): Promise<void> {
     const record = await this.agentSessionRepo.findOne({ where: { id: sessionId } });
     if (!record) {
-      const newSession = this.createSession();
+      const newSession = this.createSession(undefined, model, reasoning);
       this.logger.log(`Session ${sessionId} not found — spawned new session ${newSession.id}`);
       this.emit('session:replaced', { oldSessionId: sessionId, newSessionId: newSession.id });
       this.sendMessage(newSession.id, message);
@@ -190,10 +212,13 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
       id: sessionId,
       status: 'processing',
       workingDirectory: record.workingDirectory,
+      model: normalizeModel(record.model),
+      reasoning: normalizeReasoning(record.reasoning),
       createdAt: record.createdAt,
       lastActivity: now,
       persisted: true,
     };
+    this.updateModelSettings(session, model, reasoning);
     this.sessions.set(sessionId, session);
     this.logger.log(`Restored Codex session ${sessionId} (cwd: ${record.workingDirectory})`);
     void this.agentSessionRepo.update(sessionId, { status: 'processing' });
@@ -208,6 +233,8 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
         claudeSessionId: null,
         status: 'processing',
         workingDirectory: session.workingDirectory,
+        model: session.model,
+        reasoning: session.reasoning,
       }),
       this.sessionRepo.save({ sessionId: session.id, title, agentType: 'codex' }),
     ]);
@@ -215,11 +242,39 @@ export class CodexSessionManager extends EventEmitter implements OnModuleDestroy
     this.logger.log(`Persisted Codex session ${session.id} (${title})`);
   }
 
+  private updateModelSettings(session: CodexSession, model?: string, reasoning?: string): void {
+    if (model !== undefined) session.model = normalizeModel(model);
+    if (reasoning !== undefined) session.reasoning = normalizeReasoning(reasoning);
+    if (session.persisted && (model !== undefined || reasoning !== undefined)) {
+      void this.agentSessionRepo.update(session.id, {
+        model: session.model,
+        reasoning: session.reasoning,
+      });
+    }
+  }
+
+  sendMessageWithSettings(sessionId: string, message: string, model?: string, reasoning?: string): void {
+    const existing = this.sessions.get(sessionId);
+    if (existing) {
+      this.updateModelSettings(existing, model, reasoning);
+      this.sendMessage(sessionId, message);
+      return;
+    }
+    void this.restoreAndSend(sessionId, message, model, reasoning);
+  }
+
   private spawnCodex(session: CodexSession, message: string): void {
     const sessionId = session.id;
     const parser = new CodexOutputParser();
 
-    const codexArgs = ['exec', '-c', 'approval_policy=never', '-c', 'sandbox_mode=danger-full-access', message];
+    const codexArgs = ['exec', '-c', 'approval_policy=never', '-c', 'sandbox_mode=danger-full-access'];
+    if (session.model) {
+      codexArgs.push('-m', session.model);
+    }
+    if (session.reasoning) {
+      codexArgs.push('-c', `model_reasoning_effort="${session.reasoning}"`);
+    }
+    codexArgs.push(message);
     const [cmd, spawnArgs] = IS_WIN
       ? ['cmd.exe', ['/c', 'codex', ...codexArgs]]
       : ['codex', codexArgs];

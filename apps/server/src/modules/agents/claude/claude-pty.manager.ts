@@ -21,6 +21,20 @@ import type {
   ToolUseEvent,
 } from './interfaces/stream-event.interface';
 
+const CLAUDE_REASONING_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+
+function normalizeModel(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'default') return null;
+  return trimmed;
+}
+
+function normalizeReasoning(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'default') return null;
+  return CLAUDE_REASONING_LEVELS.has(trimmed) ? trimmed : null;
+}
+
 @Injectable()
 export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   private readonly logger = new Logger(ClaudePtyManager.name);
@@ -38,7 +52,7 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
 
   // ─── 세션 생명주기 ───────────────────────────────────────────────────
 
-  createSession(workingDirectory = process.cwd()): SessionInfo {
+  createSession(workingDirectory = process.cwd(), model?: string, reasoning?: string): SessionInfo {
     const id = uuidv4();
     const now = new Date();
     const session: ClaudeSession = {
@@ -46,6 +60,8 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       claudeSessionId: null,
       status: 'idle',
       workingDirectory,
+      model: normalizeModel(model),
+      reasoning: normalizeReasoning(reasoning),
       createdAt: now,
       lastActivity: now,
       persisted: false,
@@ -66,6 +82,8 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
         claudeSessionId: null,
         status: 'processing',
         workingDirectory: session.workingDirectory,
+        model: session.model,
+        reasoning: session.reasoning,
       }),
       this.sessionRepo.save({ sessionId: session.id, title, agentType: 'claude' }),
     ]);
@@ -117,7 +135,12 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
     this.spawnClaude(existing, message);
   }
 
-  private async restoreAndSend(sessionId: string, message: string): Promise<void> {
+  private async restoreAndSend(
+    sessionId: string,
+    message: string,
+    model?: string,
+    reasoning?: string,
+  ): Promise<void> {
     const record = await this.agentSessionRepo.findOne({ where: { id: sessionId } });
     if (!record) {
       this.emit('error', { sessionId, message: '세션을 찾을 수 없습니다.' });
@@ -129,20 +152,53 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       claudeSessionId: record.claudeSessionId,
       status: 'processing',
       workingDirectory: record.workingDirectory,
+      model: normalizeModel(record.model),
+      reasoning: normalizeReasoning(record.reasoning),
       createdAt: record.createdAt,
       lastActivity: now,
       persisted: true,
     };
+    this.updateModelSettings(session, model, reasoning);
     this.sessions.set(sessionId, session);
     this.logger.log(`Restored Claude session ${sessionId} (claudeSessionId: ${record.claudeSessionId ?? 'none'})`);
     void this.agentSessionRepo.update(sessionId, { status: 'processing' });
     this.spawnClaude(session, message);
   }
 
+  private updateModelSettings(session: ClaudeSession, model?: string, reasoning?: string): void {
+    const nextModel = normalizeModel(model);
+    const nextReasoning = normalizeReasoning(reasoning);
+    if (model !== undefined) session.model = nextModel;
+    if (reasoning !== undefined) session.reasoning = nextReasoning;
+    if (session.persisted && (model !== undefined || reasoning !== undefined)) {
+      void this.agentSessionRepo.update(session.id, {
+        model: session.model,
+        reasoning: session.reasoning,
+      });
+    }
+  }
+
+  sendMessageWithSettings(sessionId: string, message: string, model?: string, reasoning?: string): void {
+    const existing = this.sessions.get(sessionId);
+    if (existing) {
+      this.updateModelSettings(existing, model, reasoning);
+      this.sendMessage(sessionId, message);
+      return;
+    }
+    void this.restoreAndSend(sessionId, message, model, reasoning);
+  }
+
   private spawnClaude(session: ClaudeSession, message: string): void {
     const sessionId = session.id;
 
-    const args = ['--output-format', 'stream-json', '--verbose', '--print', '-p', message];
+    const args = ['--output-format', 'stream-json', '--verbose'];
+    if (session.model) {
+      args.push('--model', session.model);
+    }
+    if (session.reasoning) {
+      args.push('--effort', session.reasoning);
+    }
+    args.push('--print', '-p', message);
     if (session.claudeSessionId) {
       args.push('--resume', session.claudeSessionId);
     }
@@ -315,6 +371,8 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
       claudeSessionId: session.claudeSessionId,
       status: session.status,
       workingDirectory: session.workingDirectory,
+      model: session.model,
+      reasoning: session.reasoning,
       createdAt: session.createdAt,
       lastActivity: session.lastActivity,
     };

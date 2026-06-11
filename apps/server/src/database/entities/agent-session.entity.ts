@@ -15,6 +15,12 @@ export class AgentSessionEntity {
   @Column({ type: 'text' })
   workingDirectory!: string;
 
+  @Column({ type: 'text', nullable: true })
+  model!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  reasoning!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

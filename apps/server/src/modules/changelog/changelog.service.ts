@@ -1,4 +1,5 @@
 import { execFileSync, execSync } from 'child_process';
+import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -18,6 +19,14 @@ interface ParsedFile {
   deletions: number;
 }
 
+export interface DirectorySnapshotEntry {
+  hash: string;
+  content: string | null;
+  isBinary: boolean;
+}
+
+export type DirectorySnapshot = Map<string, DirectorySnapshotEntry>;
+
 export interface AgentChangelog {
   agentId: number;
   files: Array<{
@@ -35,6 +44,18 @@ interface MergeResult {
   success: boolean;
   message: string;
 }
+
+const IGNORED_DIRS = new Set([
+  '.git',
+  '.ji',
+  '.next',
+  '.turbo',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+]);
+const MAX_TEXT_SNAPSHOT_BYTES = 1024 * 1024;
 
 @Injectable()
 export class GitChangelogService {
@@ -148,22 +169,7 @@ export class GitChangelogService {
 
       const files = this.parseDiff(diffOutput);
       if (files.length) {
-        await this.changelogRepo.save(
-          files.map((f, index) => {
-            const patchPath = this.writePatchFile(taskId, agentId, runId, f.filePath, f.fullPatch, index);
-            return this.changelogRepo.create({
-              taskId,
-              agentId,
-              runId: runId ?? null,
-              filePath: f.filePath,
-              changeType: f.changeType,
-              patch: f.patch,
-              patchPath,
-              additions: f.additions,
-              deletions: f.deletions,
-            });
-          }),
-        );
+        await this.saveParsedFiles(taskId, agentId, runId, files);
         this.logger.log(`Agent ${agentId}: saved ${files.length} changelog file(s)`);
       }
 
@@ -171,6 +177,43 @@ export class GitChangelogService {
     } catch (err) {
       this.logger.warn(`Agent ${agentId} changelog capture failed: ${err instanceof Error ? err.message : String(err)}`);
       return null;
+    }
+  }
+
+  createDirectorySnapshot(rootDir: string): DirectorySnapshot {
+    const snapshot: DirectorySnapshot = new Map();
+
+    try {
+      this.walkDirectory(rootDir, rootDir, snapshot);
+    } catch (err) {
+      this.logger.warn(`Directory snapshot failed (${rootDir}): ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    return snapshot;
+  }
+
+  async captureDirectoryAndSave(
+    taskId: string,
+    agentId: number,
+    rootDir: string,
+    before: DirectorySnapshot,
+    runId?: number,
+  ): Promise<number> {
+    try {
+      const after = this.createDirectorySnapshot(rootDir);
+      const files = this.diffDirectorySnapshots(before, after);
+
+      if (!files.length) {
+        this.logger.log(`Agent ${agentId}: no directory changes`);
+        return 0;
+      }
+
+      await this.saveParsedFiles(taskId, agentId, runId, files);
+      this.logger.log(`Agent ${agentId}: saved ${files.length} directory changelog file(s)`);
+      return files.length;
+    } catch (err) {
+      this.logger.warn(`Agent ${agentId} directory changelog capture failed: ${err instanceof Error ? err.message : String(err)}`);
+      return 0;
     }
   }
 
@@ -379,6 +422,188 @@ export class GitChangelogService {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
       } catch {}
     }
+  }
+
+  private async saveParsedFiles(
+    taskId: string,
+    agentId: number,
+    runId: number | undefined,
+    files: ParsedFile[],
+  ): Promise<void> {
+    await this.changelogRepo.save(
+      files.map((f, index) => {
+        const patchPath = this.writePatchFile(taskId, agentId, runId, f.filePath, f.fullPatch, index);
+        return this.changelogRepo.create({
+          taskId,
+          agentId,
+          runId: runId ?? null,
+          filePath: f.filePath,
+          changeType: f.changeType,
+          patch: f.patch,
+          patchPath,
+          additions: f.additions,
+          deletions: f.deletions,
+        });
+      }),
+    );
+  }
+
+  private walkDirectory(rootDir: string, currentDir: string, snapshot: DirectorySnapshot): void {
+    let entries: fs.Dirent[];
+
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch (err) {
+      this.logger.warn(`Directory read skipped (${currentDir}): ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+
+      try {
+        if (entry.isDirectory()) {
+          if (!IGNORED_DIRS.has(entry.name)) {
+            this.walkDirectory(rootDir, fullPath, snapshot);
+          }
+          continue;
+        }
+
+        if (!entry.isFile()) continue;
+
+        const relativePath = this.toRelativeGitPath(rootDir, fullPath);
+        if (!relativePath) continue;
+
+        const snapshotEntry = this.readSnapshotEntry(fullPath);
+        if (snapshotEntry) {
+          snapshot.set(relativePath, snapshotEntry);
+        }
+      } catch (err) {
+        this.logger.warn(`Directory entry skipped (${fullPath}): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  private readSnapshotEntry(filePath: string): DirectorySnapshotEntry | null {
+    try {
+      const data = fs.readFileSync(filePath);
+      const hash = createHash('sha256').update(data).digest('hex');
+      const isBinary = this.isBinaryBuffer(data);
+      const content = !isBinary && data.byteLength <= MAX_TEXT_SNAPSHOT_BYTES
+        ? data.toString('utf8')
+        : null;
+
+      return { hash, content, isBinary };
+    } catch (err) {
+      this.logger.warn(`File snapshot skipped (${filePath}): ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
+
+  private diffDirectorySnapshots(before: DirectorySnapshot, after: DirectorySnapshot): ParsedFile[] {
+    const paths = Array.from(new Set([...before.keys(), ...after.keys()])).sort();
+    const files: ParsedFile[] = [];
+
+    for (const filePath of paths) {
+      const beforeEntry = before.get(filePath);
+      const afterEntry = after.get(filePath);
+
+      if (beforeEntry && afterEntry && beforeEntry.hash === afterEntry.hash) continue;
+
+      const changeType: ChangeType = beforeEntry && afterEntry
+        ? 'modified'
+        : beforeEntry
+          ? 'deleted'
+          : 'added';
+
+      const beforeContent = beforeEntry?.content ?? null;
+      const afterContent = afterEntry?.content ?? null;
+      const fullPatch = this.buildDirectoryPatch(filePath, changeType, beforeContent, afterContent);
+      const additions = afterContent == null ? 0 : this.countContentLines(afterContent);
+      const deletions = beforeContent == null ? 0 : this.countContentLines(beforeContent);
+
+      files.push({
+        filePath,
+        changeType,
+        patch: fullPatch.length > 200_000 ? `${fullPatch.slice(0, 200_000)}\n... (truncated)` : fullPatch,
+        fullPatch,
+        additions,
+        deletions,
+      });
+    }
+
+    return files;
+  }
+
+  private buildDirectoryPatch(
+    filePath: string,
+    changeType: ChangeType,
+    beforeContent: string | null,
+    afterContent: string | null,
+  ): string {
+    const header = [`diff --git a/${filePath} b/${filePath}`];
+
+    if (changeType === 'added') header.push('new file mode 100644');
+    if (changeType === 'deleted') header.push('deleted file mode 100644');
+
+    const oldContent = changeType === 'added' ? '' : beforeContent;
+    const newContent = changeType === 'deleted' ? '' : afterContent;
+
+    if (oldContent == null || newContent == null) {
+      header.push('Binary files differ or file is too large to inline');
+      return `${header.join('\n')}\n`;
+    }
+
+    const beforeLines = this.countContentLines(oldContent);
+    const afterLines = this.countContentLines(newContent);
+    const oldPath = changeType === 'added' ? '/dev/null' : `a/${filePath}`;
+    const newPath = changeType === 'deleted' ? '/dev/null' : `b/${filePath}`;
+
+    header.push(`--- ${oldPath}`);
+    header.push(`+++ ${newPath}`);
+    header.push(`@@ -${this.formatHunkRange(beforeLines)} +${this.formatHunkRange(afterLines)} @@`);
+    header.push(this.prefixContentLines('-', oldContent).trimEnd());
+    header.push(this.prefixContentLines('+', newContent).trimEnd());
+
+    return `${header.filter((line) => line.length > 0).join('\n')}\n`;
+  }
+
+  private countContentLines(content: string): number {
+    if (!content) return 0;
+    const withoutTrailingNewline = content.endsWith('\n') ? content.slice(0, -1) : content;
+    return withoutTrailingNewline ? withoutTrailingNewline.split('\n').length : 0;
+  }
+
+  private formatHunkRange(lineCount: number): string {
+    return lineCount === 0 ? '0,0' : `1,${lineCount}`;
+  }
+
+  private prefixContentLines(prefix: string, content: string): string {
+    if (!content) return '';
+    const withoutTrailingNewline = content.endsWith('\n') ? content.slice(0, -1) : content;
+    if (!withoutTrailingNewline) return '';
+    return withoutTrailingNewline.split('\n').map((line) => `${prefix}${line}`).join('\n');
+  }
+
+  private isBinaryBuffer(data: Buffer): boolean {
+    return data.includes(0);
+  }
+
+  private toRelativeGitPath(rootDir: string, fullPath: string): string {
+    const relativePath = path.relative(rootDir, fullPath).replace(/\\/g, '/');
+    const normalized = path.posix.normalize(relativePath);
+
+    if (
+      !normalized ||
+      normalized === '.' ||
+      normalized === '..' ||
+      normalized.startsWith('../') ||
+      path.posix.isAbsolute(normalized)
+    ) {
+      return '';
+    }
+
+    return normalized;
   }
 
   private writePatchFile(

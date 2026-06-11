@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as changelogApi from "../../api/changelog.api";
 import type { TaskAgent } from "../../api/tasks.api";
@@ -45,6 +45,10 @@ const changelogs = [
 ];
 
 describe("ChangelogPanel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders loading, error, and empty states", () => {
     mockUseTaskChangelog.mockReturnValueOnce({ changelogs: [], loading: true, error: null });
     const { container, rerender } = render(<ChangelogPanel taskId="task-1" agents={agents} />);
@@ -75,6 +79,9 @@ describe("ChangelogPanel", () => {
 
     await user.click(screen.getByRole("button", { name: /수정.*App\.tsx/s }));
     expect(screen.getByText("+new")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "src/App.tsx 변경 코드 복사" }));
+    expect(screen.getByText("복사됨")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "전체 병합" }));
     await waitFor(() => expect(mockMergeAll).toHaveBeenCalledWith("task-1", 1));

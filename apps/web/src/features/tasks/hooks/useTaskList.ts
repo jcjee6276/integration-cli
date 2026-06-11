@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { archiveTask, deleteTask, executeTask, fetchTasks, rerunTask, rerunTaskAgent, stopTask } from "../api/tasks.api";
-import type { Task, TaskStatus } from "../api/tasks.api";
+import type { AgentTestCodePreference, Task, TaskStatus } from "../api/tasks.api";
 
 export function useTaskList(open: boolean) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -52,10 +52,10 @@ export function useTaskList(open: boolean) {
 
   // ─── 액션 ────────────────────────────────────────────────────────────
 
-  const execute = useCallback(async (id: string) => {
+  const execute = useCallback(async (id: string, agentTestCodePreferences: AgentTestCodePreference[] = []) => {
     setActioningId(id);
     try {
-      const updated = await executeTask(id);
+      const updated = await executeTask(id, agentTestCodePreferences);
       setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "실행 실패");
@@ -76,10 +76,10 @@ export function useTaskList(open: boolean) {
     }
   }, []);
 
-  const rerun = useCallback(async (id: string, supplementNote?: string) => {
+  const rerun = useCallback(async (id: string, supplementNote?: string, writeTestCode?: boolean) => {
     setActioningId(id);
     try {
-      const updated = await rerunTask(id, supplementNote);
+      const updated = await rerunTask(id, supplementNote, writeTestCode);
       setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "재 실행 실패");
@@ -88,10 +88,10 @@ export function useTaskList(open: boolean) {
     }
   }, []);
 
-  const rerunAgent = useCallback(async (id: string, agentId: number, supplementNote?: string) => {
+  const rerunAgent = useCallback(async (id: string, agentId: number, supplementNote?: string, writeTestCode?: boolean) => {
     setActioningId(id);
     try {
-      const updated = await rerunTaskAgent(id, agentId, supplementNote);
+      const updated = await rerunTaskAgent(id, agentId, supplementNote, writeTestCode);
       setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "에이전트 재실행 실패");

@@ -63,11 +63,11 @@ export class CodexGateway implements OnGatewayInit, OnGatewayDisconnect {
   @SubscribeMessage('session:message')
   handleSessionMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { sessionId: string; input: string },
+    @MessageBody() body: { sessionId: string; input: string; model?: string; reasoning?: string },
   ): void {
     try {
       void client.join(body.sessionId);
-      this.sessionManager.sendMessage(body.sessionId, body.input);
+      this.sessionManager.sendMessageWithSettings(body.sessionId, body.input, body.model, body.reasoning);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       client.emit('error', { message });

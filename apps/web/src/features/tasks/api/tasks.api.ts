@@ -75,6 +75,11 @@ export interface CreateTaskPayload {
 
 export type UpdateTaskPayload = Partial<CreateTaskPayload>;
 
+export interface AgentTestCodePreference {
+  agentId: number;
+  writeTestCode: boolean;
+}
+
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
 export async function createTask(payload: CreateTaskPayload): Promise<Task> {
@@ -121,8 +126,12 @@ export async function deleteTask(id: string): Promise<void> {
 
 // ─── 실행 제어 ────────────────────────────────────────────────────────────────
 
-export async function executeTask(id: string): Promise<Task> {
-  const res = await fetch(`${SERVER_URL}/tasks/${id}/execute`, { method: "POST" });
+export async function executeTask(id: string, agentTestCodePreferences: AgentTestCodePreference[] = []): Promise<Task> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/execute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agentTestCodePreferences }),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -145,21 +154,21 @@ export async function fetchTaskConversations(id: string): Promise<TaskConversati
   return res.json();
 }
 
-export async function rerunTask(id: string, supplementNote?: string): Promise<Task> {
+export async function rerunTask(id: string, supplementNote?: string, writeTestCode?: boolean): Promise<Task> {
   const res = await fetch(`${SERVER_URL}/tasks/${id}/rerun`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ supplementNote }),
+    body: JSON.stringify({ supplementNote, writeTestCode }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function rerunTaskAgent(id: string, agentId: number, supplementNote?: string): Promise<Task> {
+export async function rerunTaskAgent(id: string, agentId: number, supplementNote?: string, writeTestCode?: boolean): Promise<Task> {
   const res = await fetch(`${SERVER_URL}/tasks/${id}/agents/${agentId}/rerun`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ supplementNote }),
+    body: JSON.stringify({ supplementNote, writeTestCode }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

@@ -96,7 +96,7 @@ export class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     @MessageBody() dto: CreateSessionDto,
   ): void {
     try {
-      const session = this.ptyManager.createSession(dto.workingDirectory);
+      const session = this.ptyManager.createSession(dto.workingDirectory, dto.model, dto.reasoning);
       void client.join(session.id);
       this.subscriptions.get(client.id)?.add(session.id);
       client.emit('session:created', session);
@@ -108,12 +108,12 @@ export class ClaudeGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   @SubscribeMessage('session:message')
   handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { sessionId: string } & SendInputDto,
+    @MessageBody() body: { sessionId: string; model?: string; reasoning?: string } & SendInputDto,
   ): void {
     try {
       void client.join(body.sessionId);
       this.subscriptions.get(client.id)?.add(body.sessionId);
-      this.ptyManager.sendMessage(body.sessionId, body.input);
+      this.ptyManager.sendMessageWithSettings(body.sessionId, body.input, body.model, body.reasoning);
     } catch (err) {
       this.emitError(client, err);
     }

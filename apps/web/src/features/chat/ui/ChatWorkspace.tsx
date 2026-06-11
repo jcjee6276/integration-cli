@@ -5,7 +5,10 @@ import type { RefObject } from "react";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import type { PermissionPrompt } from "@/lib/ansi";
 import type { ConnectionStatus, UnifiedSessionState } from "../hooks/useUnifiedSessions";
+import type { AgentModelSettings, AgentModelSettingsByAgent } from "../lib/agentModelOptions";
 import { AGENT_META } from "./AgentSelectModal";
+import type { AgentId } from "./AgentSelectModal";
+import { AgentModelPicker } from "./AgentModelPicker";
 import { ChatInput } from "./ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "./ChatMessage";
 import { PermissionCard } from "./PermissionCard";
@@ -18,10 +21,12 @@ interface ChatWorkspaceProps {
   error: string | null;
   inputDisabled: boolean;
   bottomRef: RefObject<HTMLDivElement | null>;
+  modelSettingsByAgent: AgentModelSettingsByAgent;
   onTerminateSession: (sessionId: string) => void;
   onSend: (text: string) => void;
   onSendMessage: (sessionId: string, text: string) => void;
   onDirChange: (path: string) => void;
+  onModelSettingsChange: (agentId: AgentId, settings: AgentModelSettings) => void;
 }
 
 function parsePermissionPrompt(content: string): PermissionPrompt | null {
@@ -48,10 +53,12 @@ export function ChatWorkspace({
   error,
   inputDisabled,
   bottomRef,
+  modelSettingsByAgent,
   onTerminateSession,
   onSend,
   onSendMessage,
   onDirChange,
+  onModelSettingsChange,
 }: ChatWorkspaceProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -169,11 +176,18 @@ export function ChatWorkspace({
 
           <footer className="shrink-0 border-t border-gray-900/[0.07] px-4 pb-4 pt-3 dark:border-white/[0.07]">
             <div className="mx-auto max-w-2xl space-y-2">
-              <div className="flex items-center gap-2 border-b border-gray-900/[0.05] pb-2 dark:border-white/[0.05]">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-gray-900/25 dark:text-white/25">
-                  cwd
-                </span>
-                <WorkingDirPicker value={currentDir} onChange={onDirChange} variant="inline" />
+              <div className="flex items-center justify-between gap-3 border-b border-gray-900/[0.05] pb-2 dark:border-white/[0.05]">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-900/25 dark:text-white/25">
+                    cwd
+                  </span>
+                  <WorkingDirPicker value={currentDir} onChange={onDirChange} variant="inline" />
+                </div>
+                <AgentModelPicker
+                  agentId={selectedSession.agentId}
+                  value={modelSettingsByAgent[selectedSession.agentId]}
+                  onChange={onModelSettingsChange}
+                />
               </div>
               <ChatInput
                 onSend={onSend}

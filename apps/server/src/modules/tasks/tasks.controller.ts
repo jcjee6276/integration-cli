@@ -14,6 +14,7 @@ import {
 import { ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CreateTaskDto } from './dto/create-task.dto';
+import { ExecuteTaskDto } from './dto/execute-task.dto';
 import { MergeFileDto } from './dto/merge-file.dto';
 import { RerunTaskDto } from './dto/rerun-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -60,8 +61,8 @@ export class TasksController {
   @ApiOkResponse({ description: '실행 시작 확인' })
   @Post(':id/execute')
   @HttpCode(HttpStatus.OK)
-  execute(@Param('id') id: string) {
-    return this.tasksService.execute(id);
+  execute(@Param('id') id: string, @Body() dto: ExecuteTaskDto = {}) {
+    return this.tasksService.execute(id, dto.agentTestCodePreferences);
   }
 
   @ApiOperation({ summary: '실행 중인 작업 중지' })
@@ -77,7 +78,7 @@ export class TasksController {
   @Post(':id/rerun')
   @HttpCode(HttpStatus.OK)
   rerun(@Param('id') id: string, @Body() dto: RerunTaskDto) {
-    return this.tasksService.rerun(id, dto.supplementNote);
+    return this.tasksService.rerun(id, dto.supplementNote, dto.writeTestCode);
   }
 
   @ApiOperation({ summary: '에이전트 단위 작업 재실행', description: '보완 메모를 추가하여 특정 에이전트만 다시 실행' })
@@ -89,7 +90,7 @@ export class TasksController {
     @Param('agentId') agentId: string,
     @Body() dto: RerunTaskDto,
   ) {
-    return this.tasksService.rerunAgent(id, Number(agentId), dto.supplementNote);
+    return this.tasksService.rerunAgent(id, Number(agentId), dto.supplementNote, dto.writeTestCode);
   }
 
   @ApiOperation({ summary: '실행 버전 이력 조회' })

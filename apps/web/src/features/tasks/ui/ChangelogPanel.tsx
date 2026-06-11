@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { TaskAgent } from "../api/tasks.api";
 import type { AgentChangelog, ChangelogFile, ChangeType } from "../api/changelog.api";
 import { mergeAgentAll, mergeAgentFile } from "../api/changelog.api";
+import { useChangelogCodeCopy } from "../hooks/useChangelogCodeCopy";
 import { useTaskChangelog } from "../hooks/useTaskChangelog";
 
 // ─── 변경 유형 뱃지 ──────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ function FileRow({ file, taskId, agentId }: FileRowProps) {
   const [open, setOpen] = useState(false);
   const [merging, setMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState<{ success: boolean; message: string } | null>(null);
+  const { copyCode, status: copyStatus } = useChangelogCodeCopy();
 
   const fileName = file.filePath.split("/").pop() ?? file.filePath;
   const dirName = file.filePath.includes("/")
@@ -95,6 +97,12 @@ function FileRow({ file, taskId, agentId }: FileRowProps) {
     } finally {
       setMerging(false);
     }
+  };
+
+  const handleCopyPatch = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!file.patch) return;
+    await copyCode(file.patch);
   };
 
   return (
@@ -148,6 +156,30 @@ function FileRow({ file, taskId, agentId }: FileRowProps) {
 
       {open && file.patch && (
         <div className="border-t border-gray-900/[0.05] dark:border-white/[0.05]">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-900/[0.05] px-3 py-2 dark:border-white/[0.05]">
+            <span className="truncate text-[10px] font-medium text-gray-900/35 dark:text-white/35">
+              변경 코드
+            </span>
+            <button
+              type="button"
+              onClick={(e) => void handleCopyPatch(e)}
+              aria-label={`${file.filePath} 변경 코드 복사`}
+              className={[
+                "flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors",
+                copyStatus === "copied"
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : copyStatus === "error"
+                    ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
+                    : "border-gray-900/[0.08] text-gray-900/35 hover:border-blue-500/30 hover:text-blue-600 dark:border-white/[0.08] dark:text-white/35 dark:hover:text-blue-400",
+              ].join(" ")}
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5" aria-hidden="true">
+                <path d="M4.25 2A2.25 2.25 0 006.5 4.25h2.75A2.75 2.75 0 0112 7v4.75A2.25 2.25 0 009.75 14h-5.5A2.25 2.25 0 012 11.75v-7.5A2.25 2.25 0 014.25 2z" />
+                <path d="M6.5 2A2.25 2.25 0 004.25 4.25v7.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75V7A1.25 1.25 0 0010 5.75H6.5A2.25 2.25 0 014.25 3.5V3A1 1 0 015.25 2h1.25z" opacity=".35" />
+              </svg>
+              {copyStatus === "copied" ? "복사됨" : copyStatus === "error" ? "실패" : "복사"}
+            </button>
+          </div>
           <DiffView patch={file.patch} />
         </div>
       )}

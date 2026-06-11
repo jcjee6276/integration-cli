@@ -12,8 +12,13 @@ import { TaskRunEntity } from '../../database/entities/task-run.entity';
 import { TaskEntity } from '../../database/entities/task.entity';
 import { GitChangelogService } from '../changelog/changelog.service';
 import type { CreateTaskDto } from './dto/create-task.dto';
+import type { AgentTestCodePreferenceDto } from './dto/execute-task.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskExecutionService } from './task-execution.service';
+
+interface SpawnOptions {
+  testCodeAgentIds?: number[];
+}
 
 @Injectable()
 export class TasksService {
@@ -115,7 +120,7 @@ export class TasksService {
     return this.findOne(id);
   }
 
-  async execute(id: string): Promise<TaskEntity> {
+  async execute(id: string, agentTestCodePreferences: AgentTestCodePreferenceDto[] = []): Promise<TaskEntity> {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
@@ -126,11 +131,13 @@ export class TasksService {
     const version = await this.getNextRunVersion(id);
     const run = await this.createRun(id, version, null);
     const executableTask = task.status === 'pending' ? task : await this.findOne(id);
-    await this.spawnWithRun(executableTask, undefined, run.id);
+    await this.spawnWithRun(executableTask, undefined, run.id, {
+      testCodeAgentIds: this.getTestCodeAgentIds(agentTestCodePreferences),
+    });
     return this.findOne(id);
   }
 
-  async rerun(id: string, supplementNote?: string): Promise<TaskEntity> {
+  async rerun(id: string, supplementNote?: string, writeTestCode = false): Promise<TaskEntity> {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
@@ -139,11 +146,13 @@ export class TasksService {
     const run = await this.createRun(id, nextVersion, supplementNote ?? null);
 
     const refreshed = await this.findOne(id);
-    await this.spawnWithRun(refreshed, supplementNote, run.id);
+    await this.spawnWithRun(refreshed, supplementNote, run.id, {
+      testCodeAgentIds: writeTestCode ? refreshed.agents.map((agent) => agent.id) : [],
+    });
     return this.findOne(id);
   }
 
-  async rerunAgent(id: string, agentId: number, supplementNote?: string): Promise<TaskEntity> {
+  async rerunAgent(id: string, agentId: number, supplementNote?: string, writeTestCode = false): Promise<TaskEntity> {
     const task = await this.findOne(id);
     if (task.status === 'running') return task;
 
@@ -161,7 +170,9 @@ export class TasksService {
       agents: [{ ...agent, status: 'pending', claudeSessionId: null }],
     } as TaskEntity;
 
-    await this.spawnWithRun(agentOnlyTask, supplementNote, run.id);
+    await this.spawnWithRun(agentOnlyTask, supplementNote, run.id, {
+      testCodeAgentIds: writeTestCode ? [agent.id] : [],
+    });
     return this.findOne(id);
   }
 
@@ -287,9 +298,14 @@ export class TasksService {
     return (lastRun?.version ?? 0) + 1;
   }
 
-  private async spawnWithRun(task: TaskEntity, supplementNote: string | undefined, runId: number): Promise<void> {
+  private async spawnWithRun(
+    task: TaskEntity,
+    supplementNote: string | undefined,
+    runId: number,
+    options: SpawnOptions = {},
+  ): Promise<void> {
     try {
-      await this.executionService.spawnTask(task, supplementNote, runId);
+      await this.executionService.spawnTask(task, supplementNote, runId, options);
     } catch (err) {
       await Promise.all([
         this.runRepo.update(runId, { status: 'error', completedAt: new Date() }),
@@ -307,5 +323,11 @@ export class TasksService {
       status: 'running',
     });
     return this.runRepo.save(run);
+  }
+
+  private getTestCodeAgentIds(agentTestCodePreferences: AgentTestCodePreferenceDto[]): number[] {
+    return agentTestCodePreferences
+      .filter((preference) => preference.writeTestCode)
+      .map((preference) => preference.agentId);
   }
 }

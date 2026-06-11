@@ -185,11 +185,15 @@ describe("execution controls", () => {
   it("executeTask posts and returns the updated task", async () => {
     mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "running" }));
 
-    const result = await executeTask("task-1");
+    const result = await executeTask("task-1", [{ agentId: 7, writeTestCode: true }]);
 
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/tasks/task-1/execute"),
-      { method: "POST" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentTestCodePreferences: [{ agentId: 7, writeTestCode: true }] }),
+      },
     );
     expect(result.status).toBe("running");
   });
@@ -206,32 +210,32 @@ describe("execution controls", () => {
     expect(result.status).toBe("stopped");
   });
 
-  it("rerunTask posts supplement note as JSON", async () => {
+  it("rerunTask posts supplement note and test flag as JSON", async () => {
     mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "running" }));
 
-    await rerunTask("task-1", "추가 지시");
+    await rerunTask("task-1", "추가 지시", true);
 
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/tasks/task-1/rerun"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ supplementNote: "추가 지시" }),
+        body: JSON.stringify({ supplementNote: "추가 지시", writeTestCode: true }),
       },
     );
   });
 
-  it("rerunTaskAgent posts supplement note as JSON", async () => {
+  it("rerunTaskAgent posts supplement note and test flag as JSON", async () => {
     mockFetch.mockReturnValueOnce(ok({ ...mockTask, status: "running" }));
 
-    await rerunTaskAgent("task-1", 7, "agent note");
+    await rerunTaskAgent("task-1", 7, "agent note", true);
 
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/tasks/task-1/agents/7/rerun"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ supplementNote: "agent note" }),
+        body: JSON.stringify({ supplementNote: "agent note", writeTestCode: true }),
       },
     );
   });

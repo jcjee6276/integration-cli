@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import type { AgentId } from "../ui/AgentSelectModal";
+import type { AgentModelSettings, AgentModelSettingsByAgent } from "../lib/agentModelOptions";
 import { useClaudeSessions } from "./useClaudeSessions";
 import type { ChatMessage, SessionState } from "./useClaudeSessions";
 import { useCodexSessions } from "./useCodexSessions";
@@ -73,16 +74,20 @@ export function useUnifiedSessions() {
   );
 
   const createSession = useCallback(
-    async (agentId: AgentId, workingDirectory?: string): Promise<string | null> => {
+    async (
+      agentId: AgentId,
+      workingDirectory?: string,
+      modelSettings?: AgentModelSettings,
+    ): Promise<string | null> => {
       if (connectionStatusByAgent[agentId] !== "connected") return null;
 
       let sessionId: string | null = null;
       if (agentId === "gemini") {
         sessionId = await gemini.createSession(workingDirectory);
       } else if (agentId === "codex") {
-        sessionId = await codex.createSession(workingDirectory);
+        sessionId = await codex.createSession(workingDirectory, modelSettings);
       } else if (agentId === "claude") {
-        sessionId = await claude.createSession(agentId, workingDirectory);
+        sessionId = await claude.createSession(agentId, workingDirectory, modelSettings);
       }
 
       if (sessionId) setSelectedSessionId(sessionId);
@@ -92,12 +97,13 @@ export function useUnifiedSessions() {
   );
 
   const sendMessage = useCallback(
-    (sessionId: string, text: string) => {
+    (sessionId: string, text: string, modelSettingsByAgent?: AgentModelSettingsByAgent) => {
       const session = findSession(sessionId);
       if (!session) return;
+      const modelSettings = modelSettingsByAgent?.[session.agentId];
       if (session.agentId === "gemini") gemini.sendMessage(sessionId, text);
-      else if (session.agentId === "codex") codex.sendMessage(sessionId, text);
-      else claude.sendMessage(sessionId, text);
+      else if (session.agentId === "codex") codex.sendMessage(sessionId, text, modelSettings);
+      else claude.sendMessage(sessionId, text, modelSettings);
     },
     [findSession, claude, gemini, codex],
   );

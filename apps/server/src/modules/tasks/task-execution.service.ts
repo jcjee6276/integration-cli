@@ -16,7 +16,7 @@ import { TaskRunEntity } from '../../database/entities/task-run.entity';
 import { GeminiAuthManager } from '../agents/gemini/gemini-auth.manager';
 import { ConversationService } from '../conversations/conversation.service';
 import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
-import { GitChangelogService } from '../changelog/changelog.service';
+import { GitChangelogService, type DirectorySnapshot } from '../changelog/changelog.service';
 import { HarnessService } from '../harness/harness.service';
 import type { HarnessRole } from '../harness/harness.service';
 import type {
@@ -32,6 +32,10 @@ export interface AgentToolEvent   { taskId: string; agentId: number; tool: strin
 export interface AgentDoneEvent   { taskId: string; agentId: number; result: string; isError: boolean; durationMs: number; costUsd: number }
 export interface AgentErrorEvent  { taskId: string; agentId: number; message: string }
 export interface TaskStatusEvent  { taskId: string; status: string; title?: string }
+
+export interface TaskSpawnOptions {
+  testCodeAgentIds?: number[];
+}
 
 // ─── 버퍼 엔트리 (늦은 구독자 리플레이용) ───────────────────────────────────
 
@@ -62,6 +66,8 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
   private readonly promptIdMap = new Map<string, string>();
   /** `${taskId}-${agentId}` → { worktreePath, branchName, mainRepoDir } */
   private readonly worktreeMap = new Map<string, { worktreePath: string; branchName: string; mainRepoDir: string }>();
+  /** `${taskId}-${agentId}` → 일반 디렉토리 변경 추적용 스냅샷 */
+  private readonly directorySnapshotMap = new Map<string, { workingDir: string; snapshot: DirectorySnapshot }>();
   /** result 이벤트를 수신한 에이전트 키 (`${taskId}-${agentId}`) 집합 */
   private readonly resultReceivedSet = new Set<string>();
   /** `${taskId}-${agentId}` → runId */
@@ -169,6 +175,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     this.pendingMap.clear();
     this.promptIdMap.clear();
     this.worktreeMap.clear();
+    this.directorySnapshotMap.clear();
     this.resultReceivedSet.clear();
     this.runIdMap.clear();
     this.taskRunIdMap.clear();
@@ -178,7 +185,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
   // ─── 공개 API ─────────────────────────────────────────────────────────
 
-  async spawnTask(task: TaskEntity, supplementNote?: string, runId?: number): Promise<void> {
+  async spawnTask(task: TaskEntity, supplementNote?: string, runId?: number, options: TaskSpawnOptions = {}): Promise<void> {
     if (!task.agents.length) {
       throw new Error('에이전트가 없습니다. 최소 하나의 에이전트를 추가하세요.');
     }
@@ -198,8 +205,11 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
       this.taskRunIdMap.set(task.id, runId);
     }
 
+    const testCodeAgentIds = new Set(options.testCodeAgentIds ?? []);
+
     for (const agent of task.agents) {
       const roleLabel = agent.role === 'other' && agent.customRole ? agent.customRole : agent.role;
+      const shouldWriteTestCode = testCodeAgentIds.has(agent.id);
 
       // 공통 하네스 + 역할별 하네스 로드
       const commonHarness = this.harnessService.findOne('common');
@@ -215,6 +225,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
         `\n\n[작업 목표]\n${task.title}`,
         reqList ? `\n\n[요구사항]\n${reqList}` : '',
         supplementNote ? `\n\n[이전 결과 보완 사항]\n${supplementNote}` : '',
+        shouldWriteTestCode
+          ? '\n\n[테스트 코드 작성 지시]\n이번 실행에서는 구현 변경뿐 아니라 관련 테스트 코드를 반드시 작성하세요. 프로젝트의 기존 테스트 프레임워크, 파일 위치, 네이밍 패턴을 따르고 가능한 경우 테스트를 실행해 결과를 남기세요.'
+          : '',
         `\n\n위 작업을 수행해주세요.`,
       ].join('');
 
@@ -251,6 +264,12 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
 
       // git repo인 경우 에이전트별 worktree 생성
       let agentWorkDir = workingDir;
+      const agentKey = this.getAgentKey(task.id, agent.id);
+      this.directorySnapshotMap.set(agentKey, {
+        workingDir,
+        snapshot: this.gitChangelogService.createDirectorySnapshot(workingDir),
+      });
+
       if (isGitRepo) {
         try {
           const { worktreePath, branchName, agentWorkDir: worktreeAgentDir } = this.gitChangelogService.createWorktree(workingDir, agent.agentType);
@@ -265,7 +284,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
             }
           }
 
-          this.worktreeMap.set(`${task.id}-${agent.id}`, { worktreePath, branchName, mainRepoDir: workingDir });
+          this.worktreeMap.set(agentKey, { worktreePath, branchName, mainRepoDir: workingDir });
           agentWorkDir = worktreeAgentDir;
         } catch (err) {
           this.logger.warn(`Agent ${agent.id} worktree 생성 실패, 원본 디렉토리 사용: ${err}`);
@@ -618,7 +637,9 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     try {
       const worktreeKey = this.getAgentKey(taskId, agentId);
       const worktreeInfo = this.worktreeMap.get(worktreeKey);
+      const directorySnapshotInfo = this.directorySnapshotMap.get(worktreeKey);
       this.worktreeMap.delete(worktreeKey);
+      this.directorySnapshotMap.delete(worktreeKey);
 
       if (worktreeInfo) {
         const { worktreePath } = worktreeInfo;
@@ -644,6 +665,17 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
             runId,
           );
         }
+      }
+
+      if (directorySnapshotInfo) {
+        const runId = this.runIdMap.get(`${taskId}-${agentId}`);
+        await this.gitChangelogService.captureDirectoryAndSave(
+          taskId,
+          agentId,
+          directorySnapshotInfo.workingDir,
+          directorySnapshotInfo.snapshot,
+          runId,
+        );
       }
 
       await this.checkTaskCompletion(taskId, agentId);
@@ -834,6 +866,7 @@ export class TaskExecutionService extends EventEmitter implements OnModuleInit, 
     this.resultReceivedSet.delete(key);
     this.promptIdMap.delete(key);
     this.worktreeMap.delete(key);
+    this.directorySnapshotMap.delete(key);
     this.runIdMap.delete(key);
     this.runIdMap.delete(`agentRunId-${key}`);
   }

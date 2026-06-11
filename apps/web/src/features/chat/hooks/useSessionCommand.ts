@@ -3,12 +3,14 @@
 import { useCallback } from "react";
 
 import { getClaudeStatus } from "@/features/auth/api/auth.api";
+import type { AgentModelSettingsByAgent } from "../lib/agentModelOptions";
 import type { ChatMessage, SessionState } from "./useClaudeSessions";
 
 interface UseSessionCommandParams {
   selectedSession: SessionState | null;
   selectedSessionId: string | null;
-  sendMessage: (sessionId: string, text: string) => void;
+  sendMessage: (sessionId: string, text: string, modelSettingsByAgent?: AgentModelSettingsByAgent) => void;
+  modelSettingsByAgent?: AgentModelSettingsByAgent;
   injectClaudeMessage: (sessionId: string, message: Omit<ChatMessage, "id" | "createdAt">) => void;
 }
 
@@ -16,6 +18,7 @@ export function useSessionCommand({
   selectedSession,
   selectedSessionId,
   sendMessage,
+  modelSettingsByAgent,
   injectClaudeMessage,
 }: UseSessionCommandParams) {
   return useCallback(
@@ -56,8 +59,8 @@ export function useSessionCommand({
         return;
       }
 
-      sendMessage(selectedSessionId, trimmed);
+      sendMessage(selectedSessionId, trimmed, modelSettingsByAgent);
     },
-    [injectClaudeMessage, selectedSession, selectedSessionId, sendMessage],
+    [injectClaudeMessage, modelSettingsByAgent, selectedSession, selectedSessionId, sendMessage],
   );
 }
