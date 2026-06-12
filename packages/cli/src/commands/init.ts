@@ -3,10 +3,7 @@ import * as os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 
-import {
-  ensureProjectReady,
-  type InitProjectOptions,
-} from '../utils/project-init';
+import { ensureRuntimeDirs, JI_HOME } from '../utils/package-root';
 import {
   AGENT_TOOLS,
   MIN_NODE_MAJOR,
@@ -21,7 +18,7 @@ import {
   type SupportedPlatform,
 } from '../utils/agent-tools';
 
-export interface RunInitOptions extends InitProjectOptions {
+export interface RunInitOptions {
   skipAgents?: boolean;
 }
 
@@ -29,7 +26,7 @@ export async function runInit(options: RunInitOptions = {}): Promise<void> {
   const platform = getPlatform();
   const failures: string[] = [];
 
-  console.log(chalk.bold('\n🚀 jccli init - 프로젝트 초기화\n'));
+  console.log(chalk.bold('\n🚀 jccli init - 환경 초기화\n'));
   console.log(chalk.gray(`플랫폼: ${platform} (${os.arch()})`));
   console.log(chalk.gray(`Node.js: ${process.version}\n`));
 
@@ -43,14 +40,18 @@ export async function runInit(options: RunInitOptions = {}): Promise<void> {
     return;
   }
 
-  const projectReady = ensureProjectReady(options, platform);
-  if (!projectReady.ok) {
+  try {
+    ensureRuntimeDirs();
+    console.log(chalk.green(`✓ 데이터 디렉터리 준비: ${JI_HOME}\n`));
+  } catch (error) {
+    console.error(chalk.red(`✗ 데이터 디렉터리(${JI_HOME})를 만들 수 없습니다.`));
+    console.error(chalk.red(error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
     return;
   }
 
   if (options.skipAgents) {
-    printProjectOnlySummary(projectReady.projectRoot);
+    printSummary([], platform);
     return;
   }
 
@@ -61,7 +62,7 @@ export async function runInit(options: RunInitOptions = {}): Promise<void> {
     if (!ok) failures.push(tool.name);
   }
 
-  printSummary(failures, platform, projectReady.projectRoot);
+  printSummary(failures, platform);
 
   if (failures.length > 0) {
     process.exitCode = 1;
@@ -173,23 +174,11 @@ function printInstallError(
   console.log();
 }
 
-function printProjectOnlySummary(projectRoot: string): void {
-  console.log(chalk.bold.green('프로젝트 초기화가 완료되었습니다.\n'));
-  console.log(chalk.cyan('다음 명령으로 실행할 수 있습니다:'));
-  console.log(chalk.gray(`  cd ${projectRoot}`));
-  console.log(chalk.gray('  npm run dev\n'));
-}
-
-function printSummary(
-  failures: string[],
-  platform: SupportedPlatform,
-  projectRoot: string,
-): void {
+function printSummary(failures: string[], platform: SupportedPlatform): void {
   if (failures.length === 0) {
-    console.log(chalk.bold.green('모든 에이전트 CLI 설치 확인이 완료되었습니다.\n'));
-    console.log(chalk.cyan('다음 명령으로 시작할 수 있습니다:'));
-    console.log(chalk.gray(`  cd ${projectRoot}`));
-    console.log(chalk.gray('  npm run dev'));
+    console.log(chalk.bold.green('초기화가 완료되었습니다.\n'));
+    console.log(chalk.cyan('어디서든 다음 명령으로 실행할 수 있습니다:'));
+    console.log(chalk.gray('  jccli start   # http://localhost:3020'));
     console.log();
     console.log(chalk.cyan('에이전트 CLI 직접 실행:'));
     console.log(chalk.gray('  claude   # Claude Code'));

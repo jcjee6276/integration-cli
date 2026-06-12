@@ -1,6 +1,6 @@
 {
   "name": "@ji/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "jccli - Claude Code, Gemini CLI, and Codex web integration CLI",
   "private": true,
   "bin": {

@@ -3,13 +3,14 @@ import { Command } from 'commander';
 
 import { runInit } from './commands/init';
 import { runCheck } from './commands/check';
+import { runStart } from './commands/start';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   // 단축 플래그 처리
   if (args.includes('--init')) {
-    await runInit(parseInitArgs(args));
+    await runInit({ skipAgents: args.includes('--skip-agents') });
     return;
   }
   if (args.includes('--check')) {
@@ -22,21 +23,22 @@ async function main(): Promise<void> {
   program
     .name('jccli')
     .description('Claude Code, Gemini CLI, and Codex web integration CLI')
-    .version('0.1.0');
+    .version('0.2.0');
 
   program
-    .command('init [dir]')
-    .description('프로젝트를 복사/초기화하고 Claude Code, Gemini CLI, Codex 설치 상태를 확인합니다')
-    .option('-f, --force', '비어 있지 않은 대상 폴더에도 프로젝트 파일을 복사합니다')
-    .option('--skip-install', '프로젝트 npm install을 건너뜁니다')
+    .command('init')
+    .description('~/.ji 데이터 디렉터리를 준비하고 Claude Code, Gemini CLI, Codex 설치 상태를 확인합니다')
     .option('--skip-agents', '에이전트 CLI 설치 확인을 건너뜁니다')
-    .action(async (dir: string | undefined, options: { force?: boolean; skipInstall?: boolean; skipAgents?: boolean }) => {
-      await runInit({
-        targetDir: dir,
-        force: options.force,
-        skipInstall: options.skipInstall,
-        skipAgents: options.skipAgents,
-      });
+    .action(async (options: { skipAgents?: boolean }) => {
+      await runInit({ skipAgents: options.skipAgents });
+    });
+
+  program
+    .command('start')
+    .description('서버와 웹 앱을 실행하고 단일 포트(기본 3020)에서 서비스합니다')
+    .option('-p, --port <port>', '서비스 포트', '3020')
+    .action(async (options: { port?: string }) => {
+      await runStart({ port: options.port });
     });
 
   program
@@ -48,7 +50,7 @@ async function main(): Promise<void> {
 
   program.addHelpText(
     'after',
-    '\nExamples:\n  jccli --init\n  jccli init\n  jccli init my-app\n  jccli init --skip-install\n  jccli check\n',
+    '\nExamples:\n  jccli init\n  jccli start\n  jccli start --port 4000\n  jccli check\n',
   );
 
   if (args.length === 0) {
@@ -57,23 +59,6 @@ async function main(): Promise<void> {
   }
 
   await program.parseAsync(process.argv);
-}
-
-function parseInitArgs(args: string[]): {
-  targetDir?: string;
-  force?: boolean;
-  skipInstall?: boolean;
-  skipAgents?: boolean;
-} {
-  const initIndex = args[0] === 'init' ? 1 : 0;
-  const positional = args.slice(initIndex).find((arg) => !arg.startsWith('-'));
-
-  return {
-    targetDir: positional,
-    force: args.includes('--force') || args.includes('-f'),
-    skipInstall: args.includes('--skip-install'),
-    skipAgents: args.includes('--skip-agents'),
-  };
 }
 
 main().catch((err: unknown) => {
