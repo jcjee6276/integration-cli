@@ -132,19 +132,11 @@ npm install
 After publishing the root package, users can install the CLI globally and initialize a project:
 
 ```bash
-npm install -g ji
-jccli init my-app
-cd my-app
-npm run dev
+npm install -g @jcjeon/integration-cli
+jccli init
+jccli start
 ```
 
-`jccli init` also supports:
-
-```bash
-jccli init --skip-install
-jccli init --skip-agents
-jccli check
-```
 
 ### Run Everything / 전체 개발 서버 실행
 
@@ -155,33 +147,6 @@ npm run dev
 This runs workspace `dev` scripts through Turborepo.
 
 Turborepo를 통해 각 workspace의 `dev` 스크립트를 실행합니다.
-
-### Run Apps Separately / 앱별 실행
-
-```bash
-# Web / 웹
-npm run dev --workspace=@ji/web
-
-# Server / 서버
-npm run dev --workspace=@ji/server
-```
-
-Default ports:
-
-- Web: Next.js default dev port, usually `3000`.
-- Server: `3001`, unless `PORT` is set.
-
-기본 포트:
-
-- Web: Next.js 기본 개발 포트, 일반적으로 `3000`
-- Server: `PORT` 환경변수가 없으면 `3001`
-
-Server docs:
-
-```text
-http://localhost:3001/docs
-http://localhost:3001/docs-json
-```
 
 ## Scripts / 스크립트
 
