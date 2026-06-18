@@ -9,6 +9,7 @@ import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
 import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
 import { AgentSelectModal } from "../ui/AgentSelectModal";
+import { FloatingActionPanel } from "../ui/FloatingActionPanel";
 import type { AgentId } from "../ui/AgentSelectModal";
 import { ChatWorkspace } from "../ui/ChatWorkspace";
 import { CheckingSkeleton } from "../ui/CheckingSkeleton";
@@ -136,6 +137,7 @@ export function ClaudePageContainer() {
         onDeleteSession={deleteSession}
       />
 
+      <FloatingActionPanel />
       <ChatWorkspace
         selectedSession={selectedSession}
         selectedSessionDir={selectedSession ? (sessionDirs[selectedSession.info.id] ?? "") : ""}
