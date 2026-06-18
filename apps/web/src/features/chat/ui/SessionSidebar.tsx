@@ -40,6 +40,7 @@ interface SessionSidebarProps {
   onRenameValueChange: (value: string) => void;
   onConfirmRename: () => void;
   onCancelRename: () => void;
+  onDeleteSession: (sessionId: string) => void;
 }
 
 export function SessionSidebar({
@@ -62,6 +63,7 @@ export function SessionSidebar({
   onRenameValueChange,
   onConfirmRename,
   onCancelRename,
+  onDeleteSession,
 }: SessionSidebarProps) {
   return (
     <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
@@ -250,6 +252,19 @@ export function SessionSidebar({
                               <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609zm1.414 1.06a.25.25 0 00-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 000-.354l-1.086-1.086zM11.189 6.25L9.75 4.81l-6.286 6.287a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.249.249 0 00.108-.064l6.286-6.286z" />
                             </svg>
                             이름 바꾸기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSetMenuOpenId(null);
+                              onDeleteSession(session.info.id);
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-red-500/80 transition-colors hover:bg-red-500/[0.06] hover:text-red-500 dark:text-red-400/80 dark:hover:bg-red-400/[0.08] dark:hover:text-red-400"
+                          >
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                              <path d="M11 1.75V3h2.25a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75zM4.496 6.675l.66 6.6a.25.25 0 00.249.225h5.19a.25.25 0 00.249-.225l.66-6.6a.75.75 0 011.492.149l-.66 6.6A1.748 1.748 0 0110.595 15h-5.19a1.748 1.748 0 01-1.741-1.575l-.66-6.6a.75.75 0 111.492-.15zM6.5 1.75V3h3V1.75a.25.25 0 00-.25-.25h-2.5a.25.25 0 00-.25.25z" />
+                            </svg>
+                            삭제
                           </button>
                         </div>
                       )}

@@ -6,6 +6,7 @@ import { io, type Socket } from "socket.io-client";
 import { CLAUDE_WS_NAMESPACE, SERVER_URL } from "@/lib/constants";
 import {
   createSession as apiCreateSession,
+  deleteDBSession,
   deleteSession,
   fetchConversations,
   fetchDBSessions,
@@ -225,6 +226,12 @@ export function useClaudeSessions() {
     void updateSessionTitle(sessionId, newTitle).catch(() => undefined);
   }, []);
 
+  const deleteSessionFromDB = useCallback((sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
+    setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+    void deleteDBSession(sessionId).catch(() => undefined);
+  }, []);
+
   const createSession = useCallback(async (
     agentId: AgentId,
     workingDirectory?: string,
@@ -319,5 +326,6 @@ export function useClaudeSessions() {
     terminateSession,
     injectMessage,
     renameSession,
+    deleteSessionFromDB,
   };
 }

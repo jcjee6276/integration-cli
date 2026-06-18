@@ -40,6 +40,7 @@ export function ClaudePageContainer() {
     sendMessage,
     terminateSession,
     renameSession,
+    deleteSession,
     injectClaudeMessage,
   } = useUnifiedSessions();
 
@@ -130,6 +131,7 @@ export function ClaudePageContainer() {
         onRenameValueChange={rename.setRenameValue}
         onConfirmRename={rename.confirmRename}
         onCancelRename={rename.cancelRename}
+        onDeleteSession={deleteSession}
       />
 
       <ChatWorkspace

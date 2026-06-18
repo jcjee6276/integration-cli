@@ -6,6 +6,7 @@ import { io, type Socket } from "socket.io-client";
 import { GEMINI_WS_NAMESPACE, SERVER_URL } from "@/lib/constants";
 import {
   createGeminiSession as apiCreateSession,
+  deleteDBSession,
   deleteGeminiSession,
   fetchConversations,
   fetchDBSessions,
@@ -179,6 +180,12 @@ export function useGeminiSessions() {
     void updateSessionTitle(sessionId, newTitle).catch(() => undefined);
   }, []);
 
+  const deleteSessionFromDB = useCallback((sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
+    setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+    void deleteDBSession(sessionId).catch(() => undefined);
+  }, []);
+
   const createSession = useCallback(async (workingDirectory?: string): Promise<string | null> => {
     setError(null);
     try {
@@ -251,5 +258,6 @@ export function useGeminiSessions() {
     sendMessage,
     terminateSession,
     renameSession,
+    deleteSessionFromDB,
   };
 }

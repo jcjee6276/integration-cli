@@ -32,4 +32,10 @@ export class SessionService {
     entity.title = title;
     return this.repo.save(entity);
   }
+
+  /** 세션 삭제 */
+  async deleteSession(sessionId: string): Promise<void> {
+    const entity = await this.findOne(sessionId);
+    await this.repo.remove(entity);
+  }
 }

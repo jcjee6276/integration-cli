@@ -6,6 +6,7 @@ import { io, type Socket } from "socket.io-client";
 import { CODEX_WS_NAMESPACE, SERVER_URL } from "@/lib/constants";
 import {
   createCodexSession as apiCreateSession,
+  deleteDBSession,
   deleteCodexSession,
   fetchConversations,
   fetchDBSessions,
@@ -192,6 +193,12 @@ export function useCodexSessions() {
     void updateSessionTitle(sessionId, newTitle).catch(() => undefined);
   }, []);
 
+  const deleteSessionFromDB = useCallback((sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.info.id !== sessionId));
+    setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+    void deleteDBSession(sessionId).catch(() => undefined);
+  }, []);
+
   const createSession = useCallback(async (
     workingDirectory?: string,
     modelSettings?: AgentModelSettings,
@@ -271,5 +278,6 @@ export function useCodexSessions() {
     sendMessage,
     terminateSession,
     renameSession,
+    deleteSessionFromDB,
   };
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
@@ -39,5 +39,12 @@ export class SessionController {
     @Body() dto: UpdateTitleDto,
   ) {
     return this.sessionService.updateTitle(sessionId, dto.title);
+  }
+
+  @ApiOperation({ summary: '세션 삭제' })
+  @Delete(':sessionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteSession(@Param('sessionId') sessionId: string) {
+    await this.sessionService.deleteSession(sessionId);
   }
 }
