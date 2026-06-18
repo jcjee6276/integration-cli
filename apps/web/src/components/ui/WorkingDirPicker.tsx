@@ -49,7 +49,7 @@ function DirDropdown({
           onClick={onNavigateUp}
           disabled={isRoot || loading}
           title="상위 폴더"
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-900/40 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-900/70 disabled:opacity-30 dark:text-white/40 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+          className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-gray-900/40 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-30 dark:text-white/40 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
             <path d="M3.22 10.53a.75.75 0 001.06 0L8 6.81l3.72 3.72a.75.75 0 101.06-1.06L8.53 5.22a.75.75 0 00-1.06 0L3.22 9.47a.75.75 0 000 1.06z" />
@@ -74,7 +74,7 @@ function DirDropdown({
               <button
                 type="button"
                 onClick={() => onNavigate(`${currentPath}${sep}${dir}`)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-900/75 transition-colors hover:bg-gray-900/[0.04] dark:text-white/75 dark:hover:bg-white/[0.05]"
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-900/75 transition-colors hover:bg-gray-900/[0.04] dark:text-white/75 dark:hover:bg-white/[0.05]"
               >
                 <FolderIcon className="h-3.5 w-3.5 shrink-0 text-gray-900/30 dark:text-white/30" />
                 <span className="truncate">{dir}</span>
@@ -89,7 +89,7 @@ function DirDropdown({
           type="button"
           onClick={onSelect}
           disabled={!currentPath}
-          className="w-full rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:opacity-40"
+          className="w-full cursor-pointer rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-600 disabled:cursor-default disabled:opacity-40"
         >
           여기 선택
         </button>
@@ -140,7 +140,7 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
           type="button"
           onClick={handleOpenBrowser}
           title="워크 디렉토리 선택"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-900/30 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/60 dark:text-white/30 dark:hover:bg-white/[0.06] dark:hover:text-white/60"
+          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-900/30 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/60 dark:text-white/30 dark:hover:bg-white/[0.06] dark:hover:text-white/60"
         >
           <FolderIcon className="h-3.5 w-3.5" />
         </button>
@@ -154,7 +154,7 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
               type="button"
               onClick={() => onChange("")}
               title="지우기"
-              className="shrink-0 text-gray-900/20 transition-colors hover:text-gray-900/50 dark:text-white/20 dark:hover:text-white/50"
+              className="shrink-0 cursor-pointer text-gray-900/20 transition-colors hover:text-gray-900/50 dark:text-white/20 dark:hover:text-white/50"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                 <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
@@ -184,7 +184,7 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
         type="button"
         onClick={handleOpenBrowser}
         title="디렉토리 선택"
-        className="flex items-center justify-center rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
+        className="flex cursor-pointer items-center justify-center rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
       >
         <FolderIcon className="h-4 w-4" />
       </button>

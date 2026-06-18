@@ -193,7 +193,7 @@ function AgentAuthCard({ agentKey, badge, onAuth, index }: AgentAuthCardProps) {
               className={[
                 "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
                 canAuth
-                  ? "border-gray-900/[0.10] bg-gray-900/[0.04] text-gray-900/60 hover:border-gray-900/[0.18] hover:bg-gray-900/[0.08] hover:text-gray-900/90 dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/[0.18] dark:hover:bg-white/[0.08] dark:hover:text-white/90"
+                  ? "cursor-pointer border-gray-900/[0.10] bg-gray-900/[0.04] text-gray-900/60 hover:border-gray-900/[0.18] hover:bg-gray-900/[0.08] hover:text-gray-900/90 dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/[0.18] dark:hover:bg-white/[0.08] dark:hover:text-white/90"
                   : "cursor-not-allowed border-gray-900/[0.06] bg-gray-900/[0.02] text-gray-900/25 dark:border-white/[0.06] dark:bg-white/[0.02] dark:text-white/25",
               ].join(" ")}
             >
@@ -247,7 +247,7 @@ function ClaudeEntryButton({ canEnter, isLoading }: { canEnter: boolean; isLoadi
             </svg>
           </span>
           <div>
-            <p className="text-[15px] font-bold tracking-tight text-white">JI CLI 시작하기</p>
+            <p className="text-[15px] font-bold tracking-tight text-white">JC CLI 시작하기</p>
             <p className="text-[11px] text-white/60">멀티 에이전트 채팅 시작</p>
           </div>
         </div>
@@ -278,7 +278,7 @@ function ClaudeEntryButton({ canEnter, isLoading }: { canEnter: boolean; isLoadi
             </svg>
           </span>
           <div>
-            <p className="text-[15px] font-bold tracking-tight text-gray-900/60 dark:text-white/60">JI Claude 시작하기</p>
+            <p className="text-[15px] font-bold tracking-tight text-gray-900/60 dark:text-white/60">JC CLI 시작하기</p>
             <p className="text-[11px] text-gray-900/30 dark:text-white/30">멀티 에이전트 채팅 시작</p>
           </div>
         </div>
@@ -397,7 +397,7 @@ export default function Home() {
               backgroundClip: "text",
             }}
           >
-            JI-CLI
+            JC-CLI
           </h1>
           <p className="mt-2.5 text-[13px] font-medium uppercase tracking-[0.06em] text-gray-900/28 dark:text-white/28">
             하나의 플랫폼에서 모든 AI CLI를 제어합니다

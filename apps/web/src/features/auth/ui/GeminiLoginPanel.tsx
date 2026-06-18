@@ -35,7 +35,7 @@ function MethodSelect({ onSelect }: MethodSelectProps) {
     <div className="flex w-full max-w-sm flex-col gap-3">
       <button
         onClick={() => onSelect("api-key")}
-        className="flex items-center gap-3 rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.02] px-5 py-4 text-left transition-all hover:border-blue-500/40 hover:bg-blue-500/[0.04] dark:border-white/[0.08] dark:bg-white/[0.02] dark:hover:border-blue-400/40 dark:hover:bg-blue-400/[0.04]"
+        className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.02] px-5 py-4 text-left transition-all hover:border-blue-500/40 hover:bg-blue-500/[0.04] dark:border-white/[0.08] dark:bg-white/[0.02] dark:hover:border-blue-400/40 dark:hover:bg-blue-400/[0.04]"
       >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/[0.10]">
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-4.5 w-4.5 text-blue-500 dark:text-blue-400">
@@ -50,7 +50,7 @@ function MethodSelect({ onSelect }: MethodSelectProps) {
 
       <button
         onClick={() => onSelect("gca")}
-        className="flex items-center gap-3 rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.02] px-5 py-4 text-left transition-all hover:border-blue-500/40 hover:bg-blue-500/[0.04] dark:border-white/[0.08] dark:bg-white/[0.02] dark:hover:border-blue-400/40 dark:hover:bg-blue-400/[0.04]"
+        className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.02] px-5 py-4 text-left transition-all hover:border-blue-500/40 hover:bg-blue-500/[0.04] dark:border-white/[0.08] dark:bg-white/[0.02] dark:hover:border-blue-400/40 dark:hover:bg-blue-400/[0.04]"
       >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/[0.10]">
           {GOOGLE_LOGO}
@@ -118,7 +118,7 @@ function ApiKeyForm({ loginState, configError, onSubmit, onBack }: ApiKeyFormPro
         <button
           type="submit"
           disabled={loginState === "pending"}
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+          className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-default disabled:opacity-50"
         >
           {loginState === "pending" && (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -128,7 +128,7 @@ function ApiKeyForm({ loginState, configError, onSubmit, onBack }: ApiKeyFormPro
         <button
           type="button"
           onClick={onBack}
-          className="text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50"
+          className="cursor-pointer text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50"
         >
           ← 뒤로
         </button>
@@ -187,14 +187,14 @@ function GcaForm({ loginState, loginOutput, loginUrls, onStart, onCancel, onBack
           <div className="flex flex-col gap-2">
             <button
               onClick={onStart}
-              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
             >
               {GOOGLE_LOGO}
               Google 계정으로 로그인
             </button>
             <button
               onClick={onBack}
-              className="text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50"
+              className="cursor-pointer text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50"
             >
               ← 뒤로
             </button>

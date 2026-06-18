@@ -6,21 +6,21 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 const SLASH_COMMANDS = [
   { command: "/status",        description: "계정 및 시스템 상태" },
-  { command: "/help",          description: "도움말 표시" },
-  { command: "/clear",         description: "대화 내역 지우기" },
-  { command: "/compact",       description: "대화 요약 후 압축" },
-  { command: "/config",        description: "설정 보기 / 편집" },
-  { command: "/cost",          description: "현재 세션 비용 표시" },
-  { command: "/doctor",        description: "Claude 환경 진단" },
-  { command: "/exit",          description: "세션 종료" },
-  { command: "/memory",        description: "메모리 파일 관리" },
-  { command: "/model",         description: "모델 변경" },
-  { command: "/permissions",   description: "도구 권한 관리" },
-  { command: "/pr_comments",   description: "PR 코멘트 가져오기" },
-  { command: "/release-notes", description: "릴리즈 노트 표시" },
-  { command: "/review",        description: "코드 리뷰" },
-  { command: "/terminal-setup",description: "터미널 키 바인딩 설정" },
-  { command: "/vim",           description: "Vim 모드 전환" },
+  // { command: "/help",          description: "도움말 표시" },
+  // { command: "/clear",         description: "대화 내역 지우기" },
+  // { command: "/compact",       description: "대화 요약 후 압축" },
+  // { command: "/config",        description: "설정 보기 / 편집" },
+  // { command: "/cost",          description: "현재 세션 비용 표시" },
+  // { command: "/doctor",        description: "Claude 환경 진단" },
+  // { command: "/exit",          description: "세션 종료" },
+  // { command: "/memory",        description: "메모리 파일 관리" },
+  // { command: "/model",         description: "모델 변경" },
+  // { command: "/permissions",   description: "도구 권한 관리" },
+  // { command: "/pr_comments",   description: "PR 코멘트 가져오기" },
+  // { command: "/release-notes", description: "릴리즈 노트 표시" },
+  // { command: "/review",        description: "코드 리뷰" },
+  // { command: "/terminal-setup",description: "터미널 키 바인딩 설정" },
+  // { command: "/vim",           description: "Vim 모드 전환" },
 ] as const;
 
 // ─── SlashMenu ───────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ function SlashMenu({ query, activeIndex, onSelect }: SlashMenuProps) {
             type="button"
             onMouseDown={(e) => { e.preventDefault(); onSelect(item.command); }}
             className={[
-              "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+              "flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
               i === activeIndex
                 ? "bg-gray-900/[0.06] text-gray-900/90 dark:bg-white/[0.06] dark:text-white/90"
                 : "text-gray-900/55 hover:bg-gray-900/[0.03] hover:text-gray-900/80 dark:text-white/55 dark:hover:bg-white/[0.03] dark:hover:text-white/80",
@@ -149,7 +149,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "메시지 �
         <button
           onClick={submit}
           disabled={disabled || !value.trim()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-600 transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-25"
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-orange-600 transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-25"
           aria-label="전송"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 rotate-90 text-white">

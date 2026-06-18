@@ -92,6 +92,8 @@ export function useTaskCreate(onSuccess?: (task: Task) => void) {
 
   const submit = useCallback(async () => {
     if (!form.title.trim()) { setError("작업 제목을 입력하세요."); return; }
+    if (!form.workingDir.trim()) { setError("워크 디렉토리를 선택하세요."); return; }
+    if (form.agents.length === 0) { setError("서브 에이전트를 최소 1개 추가하세요."); return; }
     setError(null);
     setSubmitting(true);
     try {

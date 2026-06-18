@@ -32,7 +32,7 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
       {loginState === "idle" && (
         <button
           onClick={onStart}
-          className="rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-500"
+          className="cursor-pointer rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-500"
         >
           Claude Code 로그인
         </button>
@@ -70,7 +70,7 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
             </div>
           )}
 
-          <button onClick={onCancel} className="text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50">
+          <button onClick={onCancel} className="cursor-pointer text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50">
             취소
           </button>
         </div>
@@ -103,7 +103,7 @@ export function LoginPanel({ loginState, loginOutput, loginUrls, onStart, onCanc
           )}
           <button
             onClick={onStart}
-            className="rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-500"
+            className="cursor-pointer rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-500"
           >
             다시 시도
           </button>

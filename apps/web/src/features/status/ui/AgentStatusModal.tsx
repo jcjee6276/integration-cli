@@ -229,7 +229,7 @@ export function AgentStatusModal({ open, onClose }: AgentStatusModalProps) {
           <button
             onClick={() => void refresh()}
             disabled={loading}
-            className="flex items-center gap-1 rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-2.5 py-1 text-[11px] font-medium text-gray-900/45 transition-colors hover:border-gray-900/[0.14] hover:text-gray-900/75 disabled:opacity-40 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/45 dark:hover:border-white/[0.14] dark:hover:text-white/75"
+            className="flex cursor-pointer items-center gap-1 rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-2.5 py-1 text-[11px] font-medium text-gray-900/45 transition-colors hover:border-gray-900/[0.14] hover:text-gray-900/75 disabled:cursor-default disabled:opacity-40 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/45 dark:hover:border-white/[0.14] dark:hover:text-white/75"
           >
             <svg
               viewBox="0 0 16 16"

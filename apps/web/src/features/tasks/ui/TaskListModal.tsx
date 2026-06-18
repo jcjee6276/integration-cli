@@ -147,7 +147,7 @@ function TaskCard({
       <button
         type="button"
         onClick={onToggleExpand}
-        className="flex items-start justify-between gap-3 rounded-xl p-4 text-left"
+        className="flex cursor-pointer items-start justify-between gap-3 rounded-xl p-4 text-left"
       >
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -258,7 +258,7 @@ function TaskCard({
                           if (tab === "history") setHistoryMounted(true);
                         }}
                         className={[
-                          "flex-1 rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                          "flex-1 cursor-pointer rounded-md px-3 py-1 text-xs font-medium transition-colors",
                           activeTab === tab
                             ? "bg-white text-gray-900/70 shadow-sm dark:bg-white/[0.08] dark:text-white/70"
                             : "text-gray-900/35 hover:text-gray-900/60 dark:text-white/35 dark:hover:text-white/60",
@@ -321,7 +321,7 @@ function TaskCard({
                   <button
                     type="button"
                     onClick={handleRerunCancel}
-                    className="rounded-lg px-3 py-1.5 text-xs text-gray-900/35 transition-colors hover:text-gray-900/70 dark:text-white/35 dark:hover:text-white/70"
+                    className="cursor-pointer rounded-lg px-3 py-1.5 text-xs text-gray-900/35 transition-colors hover:text-gray-900/70 dark:text-white/35 dark:hover:text-white/70"
                   >
                     취소
                   </button>
@@ -329,7 +329,7 @@ function TaskCard({
                     type="button"
                     onClick={handleRerunConfirm}
                     disabled={isActioning}
-                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-40"
+                    className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-default disabled:opacity-40"
                   >
                     {isActioning ? (
                       <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
@@ -358,7 +358,7 @@ function TaskCard({
                   <button
                     onClick={handleExecute}
                     disabled={isActioning}
-                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+                    className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-default disabled:opacity-40"
                   >
                     {isActioning ? (
                       <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
@@ -376,7 +376,7 @@ function TaskCard({
                   <button
                     onClick={onStop}
                     disabled={isActioning}
-                    className="flex items-center gap-1.5 rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-40"
+                    className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-default disabled:opacity-40"
                   >
                     {isActioning ? (
                       <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
@@ -394,7 +394,7 @@ function TaskCard({
                   <button
                     onClick={() => setRerunMode(true)}
                     disabled={isActioning}
-                    className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] hover:text-blue-500 disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300"
+                    className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-blue-500/30 px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] hover:text-blue-500 disabled:cursor-default disabled:opacity-40 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                       <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />
@@ -408,7 +408,7 @@ function TaskCard({
                   <button
                     onClick={onEdit}
                     disabled={isActioning || isRunning}
-                    className="rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/40 transition-colors hover:border-gray-900/[0.15] hover:text-gray-900/75 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/40 dark:hover:border-white/[0.15] dark:hover:text-white/75"
+                    className="cursor-pointer rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/40 transition-colors hover:border-gray-900/[0.15] hover:text-gray-900/75 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/40 dark:hover:border-white/[0.15] dark:hover:text-white/75"
                     title={isRunning ? "실행 중에는 수정할 수 없습니다" : "수정"}
                   >
                     수정
@@ -428,7 +428,7 @@ function TaskCard({
                 <button
                   onClick={onArchive}
                   disabled={isActioning || isRunning}
-                  className="rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/25 transition-colors hover:border-gray-900/[0.18] hover:text-gray-900/55 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/25 dark:hover:border-white/[0.18] dark:hover:text-white/55"
+                  className="cursor-pointer rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/25 transition-colors hover:border-gray-900/[0.18] hover:text-gray-900/55 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/25 dark:hover:border-white/[0.18] dark:hover:text-white/55"
                   title={isRunning ? "실행 중에는 보관할 수 없습니다" : "보관"}
                 >
                   보관
@@ -438,7 +438,7 @@ function TaskCard({
                 <button
                   onClick={onDelete}
                   disabled={isActioning || isRunning}
-                  className="rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/25 transition-colors hover:border-red-500/30 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/25 dark:hover:text-red-400"
+                  className="cursor-pointer rounded-lg border border-gray-900/[0.08] px-3 py-1.5 text-xs font-medium text-gray-900/25 transition-colors hover:border-red-500/30 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 dark:border-white/[0.08] dark:text-white/25 dark:hover:text-red-400"
                   title={isRunning ? "실행 중에는 삭제할 수 없습니다" : "삭제"}
                 >
                   삭제
@@ -505,7 +505,7 @@ export function TaskListModal({ open, onClose }: Props) {
           <button
             onClick={() => void loadTasks()}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.02] px-2.5 py-1 text-xs text-gray-900/35 transition-colors hover:border-gray-900/[0.13] hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:opacity-40 dark:border-white/[0.07] dark:bg-white/[0.02] dark:text-white/35 dark:hover:border-white/[0.13] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.02] px-2.5 py-1 text-xs text-gray-900/35 transition-colors hover:border-gray-900/[0.13] hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-40 dark:border-white/[0.07] dark:bg-white/[0.02] dark:text-white/35 dark:hover:border-white/[0.13] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
           >
             <svg viewBox="0 0 16 16" fill="currentColor" className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}>
               <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 01.75.75v3.182a.75.75 0 01-.75.75h-3.182a.75.75 0 010-1.5h1.37A5.995 5.995 0 008 4a6 6 0 100 12 6 6 0 005.812-4.5h1.539A7.5 7.5 0 118 2.5c1.373 0 2.663.372 3.772 1.021l.314-.814a.75.75 0 01.75-.23z" clipRule="evenodd" />

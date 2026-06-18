@@ -64,7 +64,7 @@ export function AgentModelPicker({ agentId, value, onChange }: AgentModelPickerP
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         title="모델 및 추론 설정"
-        className="flex min-w-0 max-w-[260px] items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-900/45 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/75 disabled:cursor-not-allowed disabled:opacity-40 dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white/75"
+        className="flex min-w-0 max-w-[260px] cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-900/45 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/75 disabled:cursor-not-allowed disabled:opacity-40 dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white/75"
       >
         <ChipIcon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{disabled ? "모델 기본값" : getAgentModelSummary(agentId, value)}</span>
@@ -87,7 +87,7 @@ export function AgentModelPicker({ agentId, value, onChange }: AgentModelPickerP
                 key={option.value}
                 type="button"
                 onClick={() => changeModel(option.value)}
-                className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.05] ${
+                className={`flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.05] ${
                   selectedModel === option.value ? "text-orange-600 dark:text-orange-400" : "text-gray-900/75 dark:text-white/75"
                 }`}
               >
@@ -116,7 +116,7 @@ export function AgentModelPicker({ agentId, value, onChange }: AgentModelPickerP
                   key={option.value}
                   type="button"
                   onClick={() => changeReasoning(option.value)}
-                  className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                  className={`cursor-pointer rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
                     selectedReasoning === option.value
                       ? "bg-orange-500 text-white"
                       : "bg-gray-900/[0.04] text-gray-900/45 hover:bg-gray-900/[0.07] hover:text-gray-900/75 dark:bg-white/[0.05] dark:text-white/45 dark:hover:bg-white/[0.08] dark:hover:text-white/75"

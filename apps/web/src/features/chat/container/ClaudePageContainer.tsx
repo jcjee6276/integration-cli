@@ -40,6 +40,7 @@ export function ClaudePageContainer() {
     sendMessage,
     terminateSession,
     renameSession,
+    deleteSession,
     injectClaudeMessage,
   } = useUnifiedSessions();
 
@@ -53,6 +54,7 @@ export function ClaudePageContainer() {
     sendMessage,
     modelSettingsByAgent: settingsByAgent,
     injectClaudeMessage,
+    onShowStatus: () => setStatusPanelOpen(true),
   });
   const { hasNew, clearNew } = useTaskNotification();
 
@@ -62,6 +64,7 @@ export function ClaudePageContainer() {
   const [agentSelectOpen, setAgentSelectOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [harnessModalOpen, setHarnessModalOpen] = useState(false);
+  const [statusPanelOpen, setStatusPanelOpen] = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,6 +133,7 @@ export function ClaudePageContainer() {
         onRenameValueChange={rename.setRenameValue}
         onConfirmRename={rename.confirmRename}
         onCancelRename={rename.cancelRename}
+        onDeleteSession={deleteSession}
       />
 
       <ChatWorkspace
@@ -141,7 +145,9 @@ export function ClaudePageContainer() {
         inputDisabled={inputDisabled}
         bottomRef={bottomRef}
         modelSettingsByAgent={settingsByAgent}
+        statusPanelOpen={statusPanelOpen}
         onTerminateSession={terminateSession}
+        onCloseStatusPanel={() => setStatusPanelOpen(false)}
         onSend={handleSend}
         onSendMessage={sendMessage}
         onDirChange={handleDirChange}

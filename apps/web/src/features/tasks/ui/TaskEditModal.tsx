@@ -65,7 +65,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
             <button
               type="button"
               onClick={addRequirement}
-              className="flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+              className="flex cursor-pointer items-center gap-1 text-xs text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
             >
               <span className="text-base leading-none">+</span> 항목 추가
             </button>
@@ -89,7 +89,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
                   <button
                     type="button"
                     onClick={() => removeRequirement(req.id)}
-                    className="shrink-0 text-gray-300 transition-colors hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400"
+                    className="shrink-0 cursor-pointer text-gray-300 transition-colors hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400"
                   >
                     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                       <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
@@ -108,7 +108,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
             <button
               type="button"
               onClick={() => setAgentSelectOpen(true)}
-              className="flex items-center gap-1 text-xs text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+              className="flex cursor-pointer items-center gap-1 text-xs text-gray-400 transition-colors hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
             >
               <span className="text-base leading-none">+</span> 에이전트 추가
             </button>
@@ -145,7 +145,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-xl px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            className="cursor-pointer rounded-xl px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-default disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
           >
             취소
           </button>
@@ -153,7 +153,7 @@ export function TaskEditModal({ task, onClose, onSaved }: Props) {
             type="button"
             onClick={submit}
             disabled={submitting || !form.title.trim()}
-            className="rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="cursor-pointer rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {submitting ? "저장 중…" : "저장"}
           </button>

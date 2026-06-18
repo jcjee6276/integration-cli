@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "@/features/auth/api/auth.api";
+
 import { AgentStatusModal } from "../AgentStatusModal";
 
 vi.mock("@/features/auth/api/auth.api", () => ({
@@ -13,7 +14,9 @@ vi.mock("@/features/auth/api/auth.api", () => ({
 const mockClaude = vi.mocked(authApi.getClaudeStatus);
 const mockGemini = vi.mocked(authApi.getGeminiAuthStatus);
 
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("AgentStatusModal", () => {
   it("does not render when closed", () => {
@@ -26,6 +29,7 @@ describe("AgentStatusModal", () => {
       version: "1.0.0",
       platform: "darwin",
       activeSessions: 2,
+      usage: { available: false, label: "usage unavailable" },
       auth: {
         loggedIn: true,
         authMethod: "oauth",

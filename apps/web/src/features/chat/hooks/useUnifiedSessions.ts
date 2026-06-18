@@ -131,6 +131,18 @@ export function useUnifiedSessions() {
     [findSession, claude, gemini, codex],
   );
 
+  const deleteSession = useCallback(
+    (sessionId: string) => {
+      const session = findSession(sessionId);
+      if (!session) return;
+      if (session.agentId === "gemini") gemini.deleteSessionFromDB(sessionId);
+      else if (session.agentId === "codex") codex.deleteSessionFromDB(sessionId);
+      else claude.deleteSessionFromDB(sessionId);
+      setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
+    },
+    [findSession, claude, gemini, codex],
+  );
+
   const injectClaudeMessage = useCallback(
     (sessionId: string, message: Omit<ChatMessage, "id" | "createdAt">) => {
       claude.injectMessage(sessionId, message);
@@ -151,6 +163,7 @@ export function useUnifiedSessions() {
     sendMessage,
     terminateSession,
     renameSession,
+    deleteSession,
     injectClaudeMessage,
   };
 }

@@ -30,6 +30,12 @@ export class CodexController {
     return this.authManager.getAuthStatus();
   }
 
+  /** GET /agents/codex/status */
+  @Get('status')
+  getStatus() {
+    return this.authManager.getStatus(this.sessionManager.listSessions().length);
+  }
+
   /** POST /agents/codex/auth/configure */
   @Post('auth/configure')
   @HttpCode(HttpStatus.NO_CONTENT)

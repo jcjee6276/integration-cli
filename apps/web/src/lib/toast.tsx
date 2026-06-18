@@ -117,7 +117,7 @@ function ToastEntry({ toast, onRemove }: ToastItemProps) {
       <button
         type="button"
         onClick={handleRemove}
-        className="mt-0.5 shrink-0 opacity-35 transition-opacity hover:opacity-70"
+        className="mt-0.5 shrink-0 cursor-pointer opacity-35 transition-opacity hover:opacity-70"
         aria-label="닫기"
       >
         <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">

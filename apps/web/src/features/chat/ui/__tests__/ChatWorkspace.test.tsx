@@ -1,6 +1,5 @@
-import { createRef } from "react";
-
 import { render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { UnifiedSessionState } from "../../hooks/useUnifiedSessions";
@@ -23,7 +22,9 @@ function renderWorkspace(session: UnifiedSessionState) {
       inputDisabled={false}
       bottomRef={createRef<HTMLDivElement>()}
       modelSettingsByAgent={{}}
+      statusPanelOpen={false}
       onTerminateSession={vi.fn()}
+      onCloseStatusPanel={vi.fn()}
       onSend={vi.fn()}
       onSendMessage={vi.fn()}
       onDirChange={vi.fn()}

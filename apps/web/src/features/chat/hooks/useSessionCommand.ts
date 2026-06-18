@@ -2,7 +2,6 @@
 
 import { useCallback } from "react";
 
-import { getClaudeStatus } from "@/features/auth/api/auth.api";
 import type { AgentModelSettingsByAgent } from "../lib/agentModelOptions";
 import type { ChatMessage, SessionState } from "./useClaudeSessions";
 
@@ -12,6 +11,7 @@ interface UseSessionCommandParams {
   sendMessage: (sessionId: string, text: string, modelSettingsByAgent?: AgentModelSettingsByAgent) => void;
   modelSettingsByAgent?: AgentModelSettingsByAgent;
   injectClaudeMessage: (sessionId: string, message: Omit<ChatMessage, "id" | "createdAt">) => void;
+  onShowStatus?: () => void;
 }
 
 export function useSessionCommand({
@@ -20,47 +20,20 @@ export function useSessionCommand({
   sendMessage,
   modelSettingsByAgent,
   injectClaudeMessage,
+  onShowStatus,
 }: UseSessionCommandParams) {
   return useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!selectedSessionId || !trimmed) return;
 
-      if (trimmed === "/status" && selectedSession?.agentId === "claude") {
-        injectClaudeMessage(selectedSessionId, { role: "user", content: "/status" });
-        try {
-          const data = await getClaudeStatus();
-          const auth = data.auth;
-          const authLines: string[] = [];
-
-          if (auth.loggedIn) {
-            authLines.push(`인증         ✅ 로그인됨 (${auth.authMethod})`);
-            if (auth.email) authLines.push(`계정         ${auth.email}`);
-            if (auth.orgName) authLines.push(`조직         ${auth.orgName}`);
-            if (auth.subscriptionType) authLines.push(`구독         ${auth.subscriptionType}`);
-          } else {
-            authLines.push("인증         ❌ 로그아웃 상태");
-          }
-
-          const lines = [
-            `Claude Code  ${data.version}`,
-            `플랫폼       ${data.platform}`,
-            ...authLines,
-            `활성 세션    ${data.activeSessions}개`,
-          ].join("\n");
-
-          injectClaudeMessage(selectedSessionId, { role: "system", content: lines });
-        } catch {
-          injectClaudeMessage(selectedSessionId, {
-            role: "system",
-            content: "❌ 상태 조회 실패 — 서버 연결을 확인하세요.",
-          });
-        }
+      if (trimmed === "/status") {
+        onShowStatus?.();
         return;
       }
 
       sendMessage(selectedSessionId, trimmed, modelSettingsByAgent);
     },
-    [injectClaudeMessage, modelSettingsByAgent, selectedSession, selectedSessionId, sendMessage],
+    [modelSettingsByAgent, onShowStatus, selectedSessionId, sendMessage],
   );
 }

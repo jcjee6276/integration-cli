@@ -130,6 +130,11 @@ export function saveCodexConversation(
 
 // ─── Session Title ───────────────────────────────────────────────────────────
 
+export async function deleteDBSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/sessions/${sessionId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
   const res = await fetch(`${SERVER_URL}/sessions/${sessionId}/title`, {
     method: 'PATCH',

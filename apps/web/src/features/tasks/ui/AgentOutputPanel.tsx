@@ -97,7 +97,7 @@ function AgentLogPanel({ agentId, log, role, customRole, canRerun, rerunDisabled
                 type="button"
                 onClick={() => onWriteTests?.(agentId)}
                 disabled={rerunDisabled}
-                className="flex items-center gap-1 rounded-md border border-emerald-500/25 px-2 py-1 text-[10px] font-medium text-emerald-600 transition-colors hover:border-emerald-400/50 hover:bg-emerald-500/[0.08] disabled:opacity-40 dark:text-emerald-400"
+                className="flex cursor-pointer items-center gap-1 rounded-md border border-emerald-500/25 px-2 py-1 text-[10px] font-medium text-emerald-600 transition-colors hover:border-emerald-400/50 hover:bg-emerald-500/[0.08] disabled:cursor-default disabled:opacity-40 dark:text-emerald-400"
                 title="이 에이전트가 테스트 코드만 보완하도록 재실행"
               >
                 <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
@@ -109,7 +109,7 @@ function AgentLogPanel({ agentId, log, role, customRole, canRerun, rerunDisabled
                 type="button"
                 onClick={() => onRerun?.(agentId)}
                 disabled={rerunDisabled}
-                className="flex items-center gap-1 rounded-md border border-blue-500/25 px-2 py-1 text-[10px] font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] disabled:opacity-40 dark:text-blue-400"
+                className="flex cursor-pointer items-center gap-1 rounded-md border border-blue-500/25 px-2 py-1 text-[10px] font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] disabled:cursor-default disabled:opacity-40 dark:text-blue-400"
                 title="이 에이전트만 재실행"
               >
                 <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">

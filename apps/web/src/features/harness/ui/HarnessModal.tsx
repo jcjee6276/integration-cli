@@ -62,7 +62,7 @@ function HarnessEditor({ role }: EditorProps) {
               type="button"
               onClick={() => setExt(e)}
               className={[
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                "cursor-pointer rounded-md px-3 py-1 text-xs font-medium transition-colors",
                 ext === e
                   ? "bg-gray-900/[0.07] text-gray-900/75 dark:bg-white/[0.07] dark:text-white/75"
                   : "text-gray-900/30 hover:text-gray-900/55 dark:text-white/30 dark:hover:text-white/55",
@@ -77,7 +77,7 @@ function HarnessEditor({ role }: EditorProps) {
           type="button"
           onClick={() => void save()}
           disabled={saving || !dirty}
-          className="flex items-center gap-1.5 rounded-lg bg-orange-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-40"
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-orange-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-default disabled:opacity-40"
         >
           {saving && (
             <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
@@ -140,7 +140,7 @@ export function HarnessModal({ open, onClose }: Props) {
               type="button"
               onClick={() => setSelectedRole(role)}
               className={[
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors",
+                "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors",
                 selectedRole === role
                   ? "bg-orange-500/[0.10] text-orange-600 dark:text-orange-400"
                   : "text-gray-900/40 hover:bg-gray-900/[0.04] hover:text-gray-900/70 dark:text-white/40 dark:hover:bg-white/[0.04] dark:hover:text-white/70",
