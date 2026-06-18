@@ -77,7 +77,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
         {/* ── 워크 디렉토리 ─────────────────────────────────────────── */}
         <section className="flex flex-col gap-2">
           <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
-            워크 디렉토리 <span className="text-gray-900/20 normal-case tracking-normal dark:text-white/20">(선택)</span>
+            워크 디렉토리 <span className="text-orange-500">*</span>
           </label>
           <WorkingDirPicker value={form.workingDir} onChange={setWorkingDir} />
         </section>
@@ -135,7 +135,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
-              서브 에이전트
+              서브 에이전트 <span className="text-orange-500">*</span>
             </label>
             <button
               type="button"
@@ -188,7 +188,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || !form.title.trim()}
+            disabled={submitting || !form.title.trim() || !form.workingDir.trim() || form.agents.length === 0}
             className="flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {submitting && (
