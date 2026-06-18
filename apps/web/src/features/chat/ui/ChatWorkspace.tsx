@@ -73,7 +73,7 @@ export function ChatWorkspace({
             </svg>
           </div>
           <div className="relative text-center">
-            <p className="font-semibold text-gray-900/75 dark:text-white/75">JI CLI</p>
+            <p className="font-semibold text-gray-900/75 dark:text-white/75">JC CLI</p>
             <p className="mt-1 text-sm text-gray-900/30 dark:text-white/30">
               {overallConnectionStatus !== "connected"
                 ? "서버에 연결 중…"

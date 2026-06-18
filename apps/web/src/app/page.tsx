@@ -247,7 +247,7 @@ function ClaudeEntryButton({ canEnter, isLoading }: { canEnter: boolean; isLoadi
             </svg>
           </span>
           <div>
-            <p className="text-[15px] font-bold tracking-tight text-white">JI CLI 시작하기</p>
+            <p className="text-[15px] font-bold tracking-tight text-white">JC CLI 시작하기</p>
             <p className="text-[11px] text-white/60">멀티 에이전트 채팅 시작</p>
           </div>
         </div>
@@ -278,7 +278,7 @@ function ClaudeEntryButton({ canEnter, isLoading }: { canEnter: boolean; isLoadi
             </svg>
           </span>
           <div>
-            <p className="text-[15px] font-bold tracking-tight text-gray-900/60 dark:text-white/60">JI Claude 시작하기</p>
+            <p className="text-[15px] font-bold tracking-tight text-gray-900/60 dark:text-white/60">JC CLI 시작하기</p>
             <p className="text-[11px] text-gray-900/30 dark:text-white/30">멀티 에이전트 채팅 시작</p>
           </div>
         </div>

@@ -69,7 +69,7 @@ export function SessionSidebar({
         <Link href="/" className="text-gray-900/30 transition-colors hover:text-gray-900/60 dark:text-white/30 dark:hover:text-white/60">
           ←
         </Link>
-        <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">JI CLI</span>
+        <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">JC CLI</span>
         <div className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
