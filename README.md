@@ -139,14 +139,6 @@ jccli init
 jccli start
 ```
 
-옵션:
-
-```bash
-jccli init --skip-agents       # 에이전트 CLI 설치 확인 건너뜀
-jccli start --port 4000        # 포트 지정 (기본 3020)
-jccli check                    # Claude Code, Gemini CLI, Codex 설치 상태 확인
-```
-
 ## Main Features / 주요 기능
 
 ### Agent Authentication / 에이전트 인증
