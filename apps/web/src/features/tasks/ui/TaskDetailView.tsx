@@ -134,7 +134,7 @@ function FilterBar({
             type="button"
             onClick={() => onStatusChange(filter.value)}
             className={[
-              "rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+              "cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
               statusFilter === filter.value
                 ? "bg-white text-gray-900/70 shadow-sm dark:bg-white/[0.08] dark:text-white/70"
                 : "text-gray-900/35 hover:text-gray-900/60 dark:text-white/35 dark:hover:text-white/60",
@@ -197,7 +197,7 @@ function FileChangeRow({ file }: { file: ChangelogFile }) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left"
       >
         <svg viewBox="0 0 16 16" fill="currentColor" className={`h-3 w-3 shrink-0 text-gray-900/20 transition-transform dark:text-white/20 ${open ? "rotate-90" : ""}`}>
           <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06l-3.25 3.25a.75.75 0 01-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
@@ -277,7 +277,7 @@ function VersionCard({ version, agents, latest }: { version: DetailVersion; agen
         ? "border-blue-500/20 bg-blue-500/[0.04]"
         : "border-gray-900/[0.07] bg-white/50 dark:border-white/[0.07] dark:bg-white/[0.02]",
     ].join(" ")}>
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left">
         <div className="flex min-w-0 items-center gap-2">
           <svg viewBox="0 0 16 16" fill="currentColor" className={`h-3 w-3 shrink-0 text-gray-900/20 transition-transform dark:text-white/20 ${open ? "rotate-90" : ""}`}>
             <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06l-3.25 3.25a.75.75 0 01-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />

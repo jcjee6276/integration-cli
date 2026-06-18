@@ -193,7 +193,7 @@ function AgentAuthCard({ agentKey, badge, onAuth, index }: AgentAuthCardProps) {
               className={[
                 "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
                 canAuth
-                  ? "border-gray-900/[0.10] bg-gray-900/[0.04] text-gray-900/60 hover:border-gray-900/[0.18] hover:bg-gray-900/[0.08] hover:text-gray-900/90 dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/[0.18] dark:hover:bg-white/[0.08] dark:hover:text-white/90"
+                  ? "cursor-pointer border-gray-900/[0.10] bg-gray-900/[0.04] text-gray-900/60 hover:border-gray-900/[0.18] hover:bg-gray-900/[0.08] hover:text-gray-900/90 dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/[0.18] dark:hover:bg-white/[0.08] dark:hover:text-white/90"
                   : "cursor-not-allowed border-gray-900/[0.06] bg-gray-900/[0.02] text-gray-900/25 dark:border-white/[0.06] dark:bg-white/[0.02] dark:text-white/25",
               ].join(" ")}
             >

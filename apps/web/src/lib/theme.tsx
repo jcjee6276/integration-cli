@@ -56,7 +56,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       onClick={toggle}
       aria-label={theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
       className={[
-        "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-colors",
         "text-gray-900/35 hover:bg-gray-900/[0.05] hover:text-gray-900/70",
         "dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white/70",
         className,

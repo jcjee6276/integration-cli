@@ -91,7 +91,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
             <button
               type="button"
               onClick={addRequirement}
-              className="flex items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+              className="flex cursor-pointer items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                 <path d="M8.75 3.75a.75.75 0 00-1.5 0v3.5h-3.5a.75.75 0 000 1.5h3.5v3.5a.75.75 0 001.5 0v-3.5h3.5a.75.75 0 000-1.5h-3.5v-3.5z" />
@@ -119,7 +119,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
                   <button
                     type="button"
                     onClick={() => removeRequirement(req.id)}
-                    className="shrink-0 text-gray-900/20 transition-colors hover:text-red-500 dark:text-white/20 dark:hover:text-red-400"
+                    className="shrink-0 cursor-pointer text-gray-900/20 transition-colors hover:text-red-500 dark:text-white/20 dark:hover:text-red-400"
                   >
                     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
                       <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
@@ -140,7 +140,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
             <button
               type="button"
               onClick={() => setAgentSelectOpen(true)}
-              className="flex items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+              className="flex cursor-pointer items-center gap-1 rounded-lg border border-gray-900/[0.07] bg-gray-900/[0.03] px-2.5 py-1 text-xs text-gray-900/40 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/40 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.06] dark:hover:text-white/70"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                 <path d="M8.75 3.75a.75.75 0 00-1.5 0v3.5h-3.5a.75.75 0 000 1.5h3.5v3.5a.75.75 0 001.5 0v-3.5h3.5a.75.75 0 000-1.5h-3.5v-3.5z" />
@@ -181,7 +181,7 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
             type="button"
             onClick={handleClose}
             disabled={submitting}
-            className="rounded-xl px-4 py-2 text-sm text-gray-900/35 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:opacity-40 dark:text-white/35 dark:hover:bg-white/[0.05] dark:hover:text-white/70"
+            className="cursor-pointer rounded-xl px-4 py-2 text-sm text-gray-900/35 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-40 dark:text-white/35 dark:hover:bg-white/[0.05] dark:hover:text-white/70"
           >
             취소
           </button>

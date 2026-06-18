@@ -20,13 +20,13 @@ export function PermissionCard({ tool, command, warning, onAllow, onDeny }: Prop
         <div className="flex gap-2">
           <button
             onClick={onAllow}
-            className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.10] px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-500/[0.18] hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+            className="cursor-pointer rounded-lg border border-emerald-500/25 bg-emerald-500/[0.10] px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-500/[0.18] hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
           >
             허용
           </button>
           <button
             onClick={onDeny}
-            className="rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-1.5 text-xs font-medium text-gray-900/45 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+            className="cursor-pointer rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-1.5 text-xs font-medium text-gray-900/45 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
           >
             거부
           </button>

@@ -114,7 +114,7 @@ function RunRow({ run, agents, isLatest, canRerunAgent, rerunDisabled, onRerunAg
                     type="button"
                     onClick={() => onRerunAgent?.(ar.agentId)}
                     disabled={rerunDisabled}
-                    className="ml-1 rounded-md border border-blue-500/25 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] disabled:opacity-40 dark:text-blue-400"
+                    className="ml-1 cursor-pointer rounded-md border border-blue-500/25 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:border-blue-400/50 hover:bg-blue-500/[0.08] disabled:cursor-default disabled:opacity-40 dark:text-blue-400"
                     title="이 에이전트만 재실행"
                   >
                     재실행

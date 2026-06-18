@@ -25,7 +25,7 @@ function MethodTab({ method, selected, onSelect, label }: TabProps) {
       type="button"
       onClick={() => onSelect(method)}
       className={[
-        "flex-1 rounded-lg px-4 py-2 text-xs font-medium transition-colors",
+        "flex-1 cursor-pointer rounded-lg px-4 py-2 text-xs font-medium transition-colors",
         selected === method
           ? "bg-gray-900/[0.07] text-gray-900/75 dark:bg-white/[0.07] dark:text-white/75"
           : "text-gray-900/35 hover:text-gray-900/60 dark:text-white/35 dark:hover:text-white/60",
@@ -52,7 +52,7 @@ function DeviceAuthView({ loginState, loginOutput, loginUrls, deviceCode, onStar
     return (
       <button
         onClick={onStart}
-        className="rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+        className="cursor-pointer rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
       >
         ChatGPT로 로그인
       </button>
@@ -108,7 +108,7 @@ function DeviceAuthView({ loginState, loginOutput, loginUrls, deviceCode, onStar
 
         <button
           onClick={onCancel}
-          className="text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50"
+          className="cursor-pointer text-xs text-gray-900/25 transition-colors hover:text-gray-900/50 dark:text-white/25 dark:hover:text-white/50"
         >
           취소
         </button>
@@ -146,7 +146,7 @@ function DeviceAuthView({ loginState, loginOutput, loginUrls, deviceCode, onStar
       )}
       <button
         onClick={onStart}
-        className="rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+        className="cursor-pointer rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
       >
         다시 시도
       </button>
@@ -217,7 +217,7 @@ function ApiKeyView({ loginState, configError, onSave }: ApiKeyProps) {
       <button
         type="submit"
         disabled={loginState === "pending"}
-        className="flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+        className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-default disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
       >
         {loginState === "pending" && (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-gray-900/30 dark:border-t-gray-900" />

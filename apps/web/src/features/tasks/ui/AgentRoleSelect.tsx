@@ -34,7 +34,7 @@ export function AgentRow({ agent, onChange, onRemove }: AgentRowProps) {
         <button
           type="button"
           onClick={onRemove}
-          className="shrink-0 text-gray-900/20 transition-colors hover:text-red-500 dark:text-white/20 dark:hover:text-red-400"
+          className="shrink-0 cursor-pointer text-gray-900/20 transition-colors hover:text-red-500 dark:text-white/20 dark:hover:text-red-400"
           aria-label="에이전트 삭제"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
@@ -51,7 +51,7 @@ export function AgentRow({ agent, onChange, onRemove }: AgentRowProps) {
             type="button"
             onClick={() => onChange({ role: r.value })}
             className={[
-              "rounded-full border px-3 py-0.5 text-xs font-medium transition-all",
+              "cursor-pointer rounded-full border px-3 py-0.5 text-xs font-medium transition-all",
               agent.role === r.value
                 ? r.active
                 : "border-gray-900/[0.07] text-gray-900/25 hover:border-gray-900/[0.13] hover:text-gray-900/50 dark:border-white/[0.07] dark:text-white/25 dark:hover:border-white/[0.13] dark:hover:text-white/50",

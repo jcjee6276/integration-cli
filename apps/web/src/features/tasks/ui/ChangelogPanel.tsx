@@ -112,7 +112,7 @@ function FileRow({ file, taskId, agentId }: FileRowProps) {
         <button
           type="button"
           onClick={() => setOpen((p) => !p)}
-          className="flex flex-1 min-w-0 items-center gap-2 text-left hover:opacity-80"
+          className="flex flex-1 min-w-0 cursor-pointer items-center gap-2 text-left hover:opacity-80"
         >
           <svg
             viewBox="0 0 16 16"
@@ -143,7 +143,7 @@ function FileRow({ file, taskId, agentId }: FileRowProps) {
             type="button"
             onClick={(e) => void handleMergeFile(e)}
             disabled={merging}
-            className="flex items-center gap-1 rounded-md border border-gray-900/[0.08] px-2 py-1 text-[10px] font-medium text-gray-900/35 transition-colors hover:border-blue-500/30 hover:text-blue-600 disabled:opacity-40 dark:border-white/[0.08] dark:text-white/35 dark:hover:text-blue-400"
+            className="flex cursor-pointer items-center gap-1 rounded-md border border-gray-900/[0.08] px-2 py-1 text-[10px] font-medium text-gray-900/35 transition-colors hover:border-blue-500/30 hover:text-blue-600 disabled:cursor-default disabled:opacity-40 dark:border-white/[0.08] dark:text-white/35 dark:hover:text-blue-400"
           >
             {merging
               ? <span className="h-2.5 w-2.5 animate-spin rounded-full border border-gray-900/20 border-t-blue-500 dark:border-white/20" />
@@ -170,7 +170,7 @@ function FileRow({ file, taskId, agentId }: FileRowProps) {
                   ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                   : copyStatus === "error"
                     ? "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
-                    : "border-gray-900/[0.08] text-gray-900/35 hover:border-blue-500/30 hover:text-blue-600 dark:border-white/[0.08] dark:text-white/35 dark:hover:text-blue-400",
+                    : "cursor-pointer border-gray-900/[0.08] text-gray-900/35 hover:border-blue-500/30 hover:text-blue-600 dark:border-white/[0.08] dark:text-white/35 dark:hover:text-blue-400",
               ].join(" ")}
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5" aria-hidden="true">
@@ -240,7 +240,7 @@ function AgentSection({ changelog, agent, taskId }: AgentSectionProps) {
             type="button"
             onClick={() => void handleMergeAll()}
             disabled={merging}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-900/[0.08] px-2.5 py-1 text-[11px] font-medium text-gray-900/40 transition-colors hover:border-blue-500/30 hover:bg-blue-500/[0.05] hover:text-blue-600 disabled:opacity-40 dark:border-white/[0.08] dark:text-white/40 dark:hover:text-blue-400"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-900/[0.08] px-2.5 py-1 text-[11px] font-medium text-gray-900/40 transition-colors hover:border-blue-500/30 hover:bg-blue-500/[0.05] hover:text-blue-600 disabled:cursor-default disabled:opacity-40 dark:border-white/[0.08] dark:text-white/40 dark:hover:text-blue-400"
           >
             {merging
               ? <span className="h-3 w-3 animate-spin rounded-full border border-gray-900/20 border-t-blue-500 dark:border-white/20" />

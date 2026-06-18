@@ -50,7 +50,7 @@ function SubmitButton({ label, loading }: SubmitButtonProps) {
     <button
       type="submit"
       disabled={loading}
-      className="relative w-full overflow-hidden rounded-xl bg-orange-600 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-orange-500 active:scale-[0.99] disabled:opacity-60"
+      className="relative w-full cursor-pointer overflow-hidden rounded-xl bg-orange-600 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-orange-500 active:scale-[0.99] disabled:cursor-default disabled:opacity-60"
     >
       {loading ? (
         <span className="flex items-center justify-center gap-2">
@@ -172,7 +172,7 @@ export function LoginForm({
           <button
             type="button"
             onClick={onGuestLogin}
-            className="w-full rounded-xl border border-gray-900/[0.09] bg-transparent py-3 text-sm font-medium text-gray-900/60 transition-all duration-200 hover:border-gray-900/[0.14] hover:bg-gray-900/[0.03] hover:text-gray-900/80 dark:border-white/[0.09] dark:text-white/60 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.03] dark:hover:text-white/80"
+            className="w-full cursor-pointer rounded-xl border border-gray-900/[0.09] bg-transparent py-3 text-sm font-medium text-gray-900/60 transition-all duration-200 hover:border-gray-900/[0.14] hover:bg-gray-900/[0.03] hover:text-gray-900/80 dark:border-white/[0.09] dark:text-white/60 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.03] dark:hover:text-white/80"
           >
             게스트로 계속하기
           </button>
@@ -181,7 +181,7 @@ export function LoginForm({
 
       <p className="text-xs text-gray-900/25 dark:text-white/25">
         계정이 없으신가요?{" "}
-        <button type="button" className="text-orange-600 transition-colors hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300">
+        <button type="button" className="cursor-pointer text-orange-600 transition-colors hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300">
           회원가입
         </button>
       </p>

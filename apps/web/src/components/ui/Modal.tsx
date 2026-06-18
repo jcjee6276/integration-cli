@@ -51,7 +51,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", h
           {!hideClose && (
             <button
               onClick={onClose}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-gray-900/25 transition-colors hover:bg-gray-900/[0.07] hover:text-gray-900/70 dark:text-white/25 dark:hover:bg-white/[0.07] dark:hover:text-white/70"
+              className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-gray-900/25 transition-colors hover:bg-gray-900/[0.07] hover:text-gray-900/70 dark:text-white/25 dark:hover:bg-white/[0.07] dark:hover:text-white/70"
               aria-label="닫기"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">

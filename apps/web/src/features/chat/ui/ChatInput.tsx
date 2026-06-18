@@ -45,7 +45,7 @@ function SlashMenu({ query, activeIndex, onSelect }: SlashMenuProps) {
             type="button"
             onMouseDown={(e) => { e.preventDefault(); onSelect(item.command); }}
             className={[
-              "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+              "flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
               i === activeIndex
                 ? "bg-gray-900/[0.06] text-gray-900/90 dark:bg-white/[0.06] dark:text-white/90"
                 : "text-gray-900/55 hover:bg-gray-900/[0.03] hover:text-gray-900/80 dark:text-white/55 dark:hover:bg-white/[0.03] dark:hover:text-white/80",
@@ -149,7 +149,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "메시지 �
         <button
           onClick={submit}
           disabled={disabled || !value.trim()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-600 transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-25"
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-orange-600 transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-25"
           aria-label="전송"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 rotate-90 text-white">
