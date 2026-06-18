@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ji-cli",
+  title: "jc-cli",
   description: "하나의 플랫폼에서 모든 AI CLI를 제어합니다",
 };
 

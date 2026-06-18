@@ -397,7 +397,7 @@ export default function Home() {
               backgroundClip: "text",
             }}
           >
-            JI-CLI
+            JC-CLI
           </h1>
           <p className="mt-2.5 text-[13px] font-medium uppercase tracking-[0.06em] text-gray-900/28 dark:text-white/28">
             하나의 플랫폼에서 모든 AI CLI를 제어합니다
