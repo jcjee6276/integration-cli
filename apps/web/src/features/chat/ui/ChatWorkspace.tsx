@@ -12,6 +12,7 @@ import { AgentModelPicker } from "./AgentModelPicker";
 import { ChatInput } from "./ChatInput";
 import { ChatMessage, StreamingMessage, SystemMessage } from "./ChatMessage";
 import { PermissionCard } from "./PermissionCard";
+import { StatusPanel } from "./StatusPanel";
 
 interface ChatWorkspaceProps {
   selectedSession: UnifiedSessionState | null;
@@ -22,7 +23,9 @@ interface ChatWorkspaceProps {
   inputDisabled: boolean;
   bottomRef: RefObject<HTMLDivElement | null>;
   modelSettingsByAgent: AgentModelSettingsByAgent;
+  statusPanelOpen: boolean;
   onTerminateSession: (sessionId: string) => void;
+  onCloseStatusPanel: () => void;
   onSend: (text: string) => void;
   onSendMessage: (sessionId: string, text: string) => void;
   onDirChange: (path: string) => void;
@@ -54,7 +57,9 @@ export function ChatWorkspace({
   inputDisabled,
   bottomRef,
   modelSettingsByAgent,
+  statusPanelOpen,
   onTerminateSession,
+  onCloseStatusPanel,
   onSend,
   onSendMessage,
   onDirChange,
@@ -189,6 +194,12 @@ export function ChatWorkspace({
                   onChange={onModelSettingsChange}
                 />
               </div>
+              {statusPanelOpen && selectedSession && (
+                <StatusPanel
+                  agentId={selectedSession.agentId}
+                  onClose={onCloseStatusPanel}
+                />
+              )}
               <ChatInput
                 onSend={onSend}
                 disabled={inputDisabled}
