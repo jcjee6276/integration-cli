@@ -40,6 +40,13 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
+  @ApiOperation({ summary: '보관된 작업 목록 조회' })
+  @ApiOkResponse({ description: '보관 작업 목록' })
+  @Get('archived')
+  findAllArchived() {
+    return this.tasksService.findAllArchived();
+  }
+
   @ApiOperation({ summary: '특정 작업 조회' })
   @ApiOkResponse({ description: '작업 상세 정보' })
   @Get(':id')
@@ -98,13 +105,6 @@ export class TasksController {
   @Get(':id/runs')
   getRuns(@Param('id') id: string) {
     return this.tasksService.getRuns(id);
-  }
-
-  @ApiOperation({ summary: '보관된 작업 목록 조회' })
-  @ApiOkResponse({ description: '보관 작업 목록' })
-  @Get('archived')
-  findAllArchived() {
-    return this.tasksService.findAllArchived();
   }
 
   @ApiOperation({ summary: '작업 보관' })
