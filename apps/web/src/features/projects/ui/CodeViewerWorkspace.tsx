@@ -1,14 +1,17 @@
 "use client";
 
 import hljs from "highlight.js";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 
 import type { FsFileResult } from "@/features/fs/api/fs.api";
 import { useToast } from "@/lib/toast";
 
 import { useCodeSplitResize } from "../hooks/useCodeSplitResize";
-import type { CodeViewerPane, DropSide } from "../hooks/useCodeViewer";
+import type { CodeFocus, CodeViewerPane, DropSide } from "../hooks/useCodeViewer";
+
+const LINE_HEIGHT_PX = 20;
+const CODE_PADDING_TOP_PX = 16;
 
 interface CodeViewerWorkspaceProps {
   filesByPath: Record<string, FsFileResult>;
@@ -16,6 +19,7 @@ interface CodeViewerWorkspaceProps {
   activePaneId: string | null;
   loadingPath: string | null;
   error: string | null;
+  focus: CodeFocus | null;
   onActivateFile: (paneId: string, path: string) => void;
   onCloseFile: (paneId: string, path: string) => void;
   onSplitWithFile: (
@@ -72,8 +76,34 @@ function highlightCode(file: FsFileResult | undefined) {
   }
 }
 
-function CodeBody({ file, loading }: { file: FsFileResult | undefined; loading: boolean }) {
+function CodeBody({
+  file,
+  loading,
+  focusStartLine,
+  focusEndLine,
+  focusNonce,
+}: {
+  file: FsFileResult | undefined;
+  loading: boolean;
+  focusStartLine: number | null;
+  focusEndLine: number | null;
+  focusNonce: number;
+}) {
   const highlighted = useMemo(() => highlightCode(file), [file]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      if (!file || !focusStartLine || focusStartLine < 1) return;
+      const container = scrollRef.current;
+      if (!container) return;
+      const bandTop = CODE_PADDING_TOP_PX + (focusStartLine - 1) * LINE_HEIGHT_PX;
+      // 시작 줄을 화면 위쪽 1/3 지점에 두어 요소 본문이 아래로 보이도록
+      const target = bandTop - container.clientHeight / 3;
+      container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+    } catch {}
+    // focusNonce: 같은 라인 재클릭 시에도 다시 스크롤
+  }, [file, focusStartLine, focusNonce]);
 
   if (loading) {
     return (
@@ -93,23 +123,45 @@ function CodeBody({ file, loading }: { file: FsFileResult | undefined; loading: 
   }
 
   const lines = file.content.split("\n");
+  const startLine = focusStartLine && focusStartLine >= 1 ? focusStartLine : null;
+  const endLine = startLine
+    ? Math.min(Math.max(focusEndLine ?? startLine, startLine), lines.length)
+    : null;
+  const showBand = Boolean(startLine && startLine <= lines.length);
+  const isFocused = (lineNo: number) =>
+    Boolean(startLine && endLine && lineNo >= startLine && lineNo <= endLine);
 
   return (
-    <div className="h-full overflow-auto bg-white dark:bg-[#0d1117]">
+    <div ref={scrollRef} className="h-full overflow-auto bg-white dark:bg-[#0d1117]">
       {file.truncated && (
         <div className="border-b border-amber-500/[0.18] bg-amber-500/[0.08] px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
           파일이 커서 일부만 표시됩니다
         </div>
       )}
-      <div className="grid min-w-max grid-cols-[auto_minmax(0,1fr)] text-xs leading-5">
-        <pre className="border-r border-gray-900/[0.06] bg-gray-900/[0.025] px-3 py-4 text-right font-mono text-gray-900/25 select-none dark:border-white/[0.06] dark:bg-white/[0.025] dark:text-white/25">
+      <div className="relative grid min-w-max grid-cols-[auto_minmax(0,1fr)] text-xs leading-5">
+        {showBand && (
+          <div
+            className="pointer-events-none absolute right-0 left-0 z-0 border-y border-emerald-500/30 bg-emerald-400/[0.12]"
+            style={{
+              top: CODE_PADDING_TOP_PX + (startLine! - 1) * LINE_HEIGHT_PX,
+              height: (endLine! - startLine! + 1) * LINE_HEIGHT_PX,
+            }}
+          />
+        )}
+        <pre className="relative z-10 border-r border-gray-900/[0.06] bg-gray-900/[0.025] px-3 py-4 text-right font-mono text-gray-900/25 select-none dark:border-white/[0.06] dark:bg-white/[0.025] dark:text-white/25">
           {lines.map((_, index) => (
-            <span key={index} className="block h-5">
+            <span
+              key={index}
+              className={[
+                "block h-5",
+                isFocused(index + 1) ? "font-semibold text-emerald-600 dark:text-emerald-300" : "",
+              ].join(" ")}
+            >
               {index + 1}
             </span>
           ))}
         </pre>
-        <pre className="hljs min-h-full bg-transparent px-4 py-4 font-mono text-xs leading-5">
+        <pre className="hljs relative z-10 min-h-full bg-transparent px-4 py-4 font-mono text-xs leading-5">
           <code dangerouslySetInnerHTML={{ __html: highlighted }} />
         </pre>
       </div>
@@ -173,11 +225,13 @@ function CodePane({
   onSplitWithFile,
   onActivatePane,
   loadingPath,
+  focus,
 }: {
   pane: CodeViewerPane;
   filesByPath: Record<string, FsFileResult>;
   active: boolean;
   loadingPath: string | null;
+  focus: CodeFocus | null;
   onActivateFile: (paneId: string, path: string) => void;
   onCloseFile: (paneId: string, path: string) => void;
   onSplitWithFile: (
@@ -193,6 +247,7 @@ function CodePane({
   const activePath = pane.activePath ?? pane.filePaths[0] ?? null;
   const activeFile = activePath ? filesByPath[activePath] : undefined;
   const activeFileLoading = Boolean(activePath && activePath === loadingPath && !activeFile);
+  const applyFocus = Boolean(focus && activePath && focus.path === activePath);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     try {
@@ -303,7 +358,13 @@ function CodePane({
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        <CodeBody file={activeFile} loading={activeFileLoading} />
+        <CodeBody
+          file={activeFile}
+          loading={activeFileLoading}
+          focusStartLine={applyFocus ? focus!.line : null}
+          focusEndLine={applyFocus ? (focus!.endLine ?? null) : null}
+          focusNonce={focus?.nonce ?? 0}
+        />
       </div>
     </div>
   );
@@ -315,6 +376,7 @@ export function CodeViewerWorkspace({
   activePaneId,
   loadingPath,
   error,
+  focus,
   onActivateFile,
   onCloseFile,
   onSplitWithFile,
@@ -366,6 +428,7 @@ export function CodeViewerWorkspace({
               filesByPath={filesByPath}
               active={pane.id === activePaneId}
               loadingPath={loadingPath}
+              focus={focus}
               onActivateFile={onActivateFile}
               onCloseFile={onCloseFile}
               onSplitWithFile={onSplitWithFile}

@@ -10,11 +10,13 @@ import { ThemeToggle } from "@/lib/theme";
 import { useToast } from "@/lib/toast";
 
 import type { useCodeViewer } from "../hooks/useCodeViewer";
+import type { useInspector } from "../hooks/useInspector";
 import { EXTENSION_FILTER_OPTIONS } from "../hooks/useProjectTree";
 import { useResizablePanels } from "../hooks/useResizablePanels";
 
 import { CodeViewerWorkspace } from "./CodeViewerWorkspace";
 import { DirectoryTree } from "./DirectoryTree";
+import { InspectorPanel } from "./InspectorPanel";
 
 interface ProjectTreeViewProps {
   projectPath: string;
@@ -25,6 +27,7 @@ interface ProjectTreeViewProps {
   loading: boolean;
   error: string | null;
   codeViewer: ReturnType<typeof useCodeViewer>;
+  inspector: ReturnType<typeof useInspector>;
   onProjectPathChange: (path: string) => void;
   onLoadTree: () => void;
   onSelectNode: (node: FsTreeNode) => void;
@@ -85,6 +88,27 @@ function CopyIcon() {
     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
       <path d="M0 6.75C0 5.784.784 5 1.75 5h6.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 018.25 16h-6.5A1.75 1.75 0 010 14.25v-7.5zM1.75 6.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h6.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-6.5z" />
       <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11H12.5a.75.75 0 010-1.5h1.75a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5a.25.25 0 00-.25.25V3.5a.75.75 0 01-1.5 0V1.75z" />
+    </svg>
+  );
+}
+
+function InspectIcon() {
+  // 개발자도구 element-select 아이콘 (커서 + 사각형)
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+      <path
+        d="M5 12V6a1 1 0 011-1h6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M19 12v6a1 1 0 01-1 1h-6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path d="M12 11l8 3.2-3.3 1.2 2.3 3.4-1.7 1.1-2.2-3.4-2.4 2.6z" fill="currentColor" />
     </svg>
   );
 }
@@ -229,6 +253,7 @@ export function ProjectTreeView({
   loading,
   error,
   codeViewer,
+  inspector,
   onProjectPathChange,
   onLoadTree,
   onSelectNode,
@@ -297,20 +322,6 @@ export function ProjectTreeView({
     }
   };
 
-  const handleCopyProjectPath = async () => {
-    try {
-      if (!projectRootPath) return;
-      const copied = await copyToClipboard(projectRootPath);
-      addToast(
-        copied
-          ? { type: "success", title: "프로젝트 경로 복사됨", message: projectRootPath }
-          : { type: "error", title: "복사 실패", message: "클립보드 권한을 확인해 주세요" },
-      );
-    } catch {
-      addToast({ type: "error", title: "복사 실패", message: "다시 시도해 주세요" });
-    }
-  };
-
   useEffect(() => {
     return () => {
       try {
@@ -340,16 +351,33 @@ export function ProjectTreeView({
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            title="프로젝트 경로 복사"
-            disabled={!projectRootPath}
-            onClick={() => void handleCopyProjectPath()}
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-900/30 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-30 dark:text-white/30 dark:hover:bg-white/[0.07] dark:hover:text-white/70"
+            title="Inspect Mode"
+            onClick={inspector.togglePanel}
+            className={[
+              "flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors",
+              inspector.panelOpen || inspector.state === "active"
+                ? "bg-emerald-500/[0.12] text-emerald-600 dark:text-emerald-300"
+                : "text-gray-900/30 hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:text-white/30 dark:hover:bg-white/[0.07] dark:hover:text-white/70",
+            ].join(" ")}
           >
-            <CopyIcon />
+            <InspectIcon />
           </button>
           <ThemeToggle />
         </div>
       </header>
+
+      {inspector.panelOpen && (
+        <InspectorPanel
+          appUrl={inspector.appUrl}
+          state={inspector.state}
+          error={inspector.error}
+          lastElement={inspector.lastElement}
+          onAppUrlChange={inspector.setAppUrl}
+          onStart={inspector.start}
+          onStop={inspector.stop}
+          onClose={() => inspector.setPanelOpen(false)}
+        />
+      )}
 
       <form
         onSubmit={handleSubmit}
@@ -460,7 +488,7 @@ export function ProjectTreeView({
                 {activeFilePath ?? "파일을 선택하세요"}
               </p>
               {/* <p className="mt-0.5 truncate text-xs font-semibold text-gray-900/60 dark:text-white/60"> */}
-                {/* {activeFileName} */}
+              {/* {activeFileName} */}
               {/* </p> */}
             </div>
             <button
@@ -480,6 +508,7 @@ export function ProjectTreeView({
               activePaneId={codeViewer.activePaneId}
               loadingPath={codeViewer.loadingPath}
               error={codeViewer.error}
+              focus={codeViewer.focus}
               onActivateFile={codeViewer.activateFile}
               onCloseFile={codeViewer.closeFile}
               onSplitWithFile={codeViewer.splitWithFile}

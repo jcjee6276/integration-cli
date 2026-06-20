@@ -41,6 +41,7 @@ async function bootstrap() {
     .addTag('tasks', '비동기 작업 생성·실행·조회')
     .addTag('sessions', 'DB 저장 세션 조회')
     .addTag('conversations', '대화 메시지 저장·조회')
+    .addTag('inspector', '로컬 dev 서버 element inspect (CDP)')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

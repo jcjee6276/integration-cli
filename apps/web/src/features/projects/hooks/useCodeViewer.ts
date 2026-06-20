@@ -13,6 +13,15 @@ export interface CodeViewerPane {
 
 export type DropSide = "left" | "right";
 
+export interface CodeFocus {
+  path: string;
+  line: number;
+  /** 요소가 끝나는 줄 (범위 하이라이트). 없으면 시작 줄만 */
+  endLine?: number;
+  /** 같은 라인을 다시 클릭해도 재스크롤되도록 하는 증가 카운터 */
+  nonce: number;
+}
+
 function createPane(filePath?: string): CodeViewerPane {
   try {
     return {
@@ -49,6 +58,11 @@ export function useCodeViewer() {
   const [activePaneId, setActivePaneId] = useState<string | null>(null);
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [focus, setFocus] = useState<CodeFocus | null>(null);
+
+  const focusLine = useCallback((path: string, line: number, endLine?: number) => {
+    setFocus((prev) => ({ path, line, endLine, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
 
   const focusFile = useCallback(
     (path: string) => {
@@ -206,6 +220,8 @@ export function useCodeViewer() {
     activePaneId,
     loadingPath,
     error,
+    focus,
+    focusLine,
     openFile,
     activateFile,
     closeFile,
