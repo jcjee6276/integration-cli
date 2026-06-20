@@ -503,6 +503,7 @@ export function ProjectTreeView({
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             <CodeViewerWorkspace
+              projectPath={projectRootPath}
               filesByPath={codeViewer.filesByPath}
               panes={codeViewer.panes}
               activePaneId={codeViewer.activePaneId}
@@ -511,6 +512,7 @@ export function ProjectTreeView({
               focus={codeViewer.focus}
               onActivateFile={codeViewer.activateFile}
               onCloseFile={codeViewer.closeFile}
+              onFocusLine={codeViewer.focusLine}
               onSplitWithFile={codeViewer.splitWithFile}
               onActivatePane={codeViewer.setActivePaneId}
             />

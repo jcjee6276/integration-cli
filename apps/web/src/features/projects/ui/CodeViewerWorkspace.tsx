@@ -4,7 +4,7 @@ import hljs from "highlight.js";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 
-import type { FsFileResult } from "@/features/fs/api/fs.api";
+import { openFileInIde, type FsFileResult } from "@/features/fs/api/fs.api";
 import { useToast } from "@/lib/toast";
 
 import { useCodeSplitResize } from "../hooks/useCodeSplitResize";
@@ -14,6 +14,7 @@ const LINE_HEIGHT_PX = 20;
 const CODE_PADDING_TOP_PX = 16;
 
 interface CodeViewerWorkspaceProps {
+  projectPath: string | null;
   filesByPath: Record<string, FsFileResult>;
   panes: CodeViewerPane[];
   activePaneId: string | null;
@@ -22,6 +23,7 @@ interface CodeViewerWorkspaceProps {
   focus: CodeFocus | null;
   onActivateFile: (paneId: string, path: string) => void;
   onCloseFile: (paneId: string, path: string) => void;
+  onFocusLine: (path: string, line: number, endLine?: number, manual?: boolean) => void;
   onSplitWithFile: (
     sourcePaneId: string,
     targetPaneId: string,
@@ -82,12 +84,14 @@ function CodeBody({
   focusStartLine,
   focusEndLine,
   focusNonce,
+  onSelectLine,
 }: {
   file: FsFileResult | undefined;
   loading: boolean;
   focusStartLine: number | null;
   focusEndLine: number | null;
   focusNonce: number;
+  onSelectLine: (line: number) => void;
 }) {
   const highlighted = useMemo(() => highlightCode(file), [file]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -148,17 +152,22 @@ function CodeBody({
             }}
           />
         )}
-        <pre className="relative z-10 border-r border-gray-900/[0.06] bg-gray-900/[0.025] px-3 py-4 text-right font-mono text-gray-900/25 select-none dark:border-white/[0.06] dark:bg-white/[0.025] dark:text-white/25">
+        <pre className="relative z-10 border-r border-gray-900/[0.06] bg-gray-900/[0.025] px-2 py-4 text-right font-mono text-gray-900/25 select-none dark:border-white/[0.06] dark:bg-white/[0.025] dark:text-white/25">
           {lines.map((_, index) => (
-            <span
+            <button
               key={index}
+              type="button"
+              title={`${index + 1}라인 선택`}
+              onClick={() => onSelectLine(index + 1)}
               className={[
-                "block h-5",
-                isFocused(index + 1) ? "font-semibold text-emerald-600 dark:text-emerald-300" : "",
+                "block h-5 min-w-8 cursor-pointer rounded px-1 text-right transition-colors hover:bg-emerald-500/[0.10] hover:text-emerald-600 dark:hover:text-emerald-300",
+                isFocused(index + 1)
+                  ? "bg-emerald-500/[0.12] font-semibold text-emerald-600 dark:text-emerald-300"
+                  : "",
               ].join(" ")}
             >
               {index + 1}
-            </span>
+            </button>
           ))}
         </pre>
         <pre className="hljs relative z-10 min-h-full bg-transparent px-4 py-4 font-mono text-xs leading-5">
@@ -182,6 +191,15 @@ function CopyIcon() {
     <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
       <path d="M0 6.75C0 5.784.784 5 1.75 5h6.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 018.25 16h-6.5A1.75 1.75 0 010 14.25v-7.5zM1.75 6.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h6.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-6.5z" />
       <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11H12.5a.75.75 0 010-1.5h1.75a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5a.25.25 0 00-.25.25V3.5a.75.75 0 01-1.5 0V1.75z" />
+    </svg>
+  );
+}
+
+function OpenInIdeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+      <path d="M2.25 2A2.25 2.25 0 000 4.25v7.5A2.25 2.25 0 002.25 14h11.5A2.25 2.25 0 0016 11.75v-7.5A2.25 2.25 0 0013.75 2H2.25zM1.5 4.25a.75.75 0 01.75-.75h11.5a.75.75 0 01.75.75v7.5a.75.75 0 01-.75.75H2.25a.75.75 0 01-.75-.75v-7.5z" />
+      <path d="M5.22 5.22a.75.75 0 011.06 0L8 6.94l1.72-1.72a.75.75 0 111.06 1.06L9.06 8l1.72 1.72a.75.75 0 11-1.06 1.06L8 9.06l-1.72 1.72a.75.75 0 01-1.06-1.06L6.94 8 5.22 6.28a.75.75 0 010-1.06z" />
     </svg>
   );
 }
@@ -218,22 +236,26 @@ function DropOverlay({ side }: { side: DropSide | null }) {
 
 function CodePane({
   pane,
+  projectPath,
   filesByPath,
   active,
   onActivateFile,
   onCloseFile,
+  onFocusLine,
   onSplitWithFile,
   onActivatePane,
   loadingPath,
   focus,
 }: {
   pane: CodeViewerPane;
+  projectPath: string | null;
   filesByPath: Record<string, FsFileResult>;
   active: boolean;
   loadingPath: string | null;
   focus: CodeFocus | null;
   onActivateFile: (paneId: string, path: string) => void;
   onCloseFile: (paneId: string, path: string) => void;
+  onFocusLine: (path: string, line: number, endLine?: number, manual?: boolean) => void;
   onSplitWithFile: (
     sourcePaneId: string,
     targetPaneId: string,
@@ -283,6 +305,34 @@ function CodePane({
       );
     } catch {
       addToast({ type: "error", title: "복사 실패", message: "다시 시도해 주세요" });
+    }
+  };
+
+  const handleOpenInIde = async () => {
+    try {
+      if (!activePath) return;
+      const selectedLine = applyFocus ? focus?.line : null;
+      const result = await openFileInIde({
+        path: activePath,
+        projectPath,
+        line: selectedLine,
+      });
+
+      addToast(
+        result.ok
+          ? {
+              type: "success",
+              title: "IDE에서 열림",
+              message: `${activeFile?.name ?? getFileName(activePath)}${selectedLine ? `:${selectedLine}` : ""} · ${result.opener ?? "IDE"}`,
+            }
+          : {
+              type: "error",
+              title: "IDE 열기 실패",
+              message: result.error ?? "VS Code, Cursor, IntelliJ 실행 상태를 확인해 주세요",
+            },
+      );
+    } catch {
+      addToast({ type: "error", title: "IDE 열기 실패", message: "다시 시도해 주세요" });
     }
   };
 
@@ -356,6 +406,18 @@ function CodePane({
         >
           <CopyIcon />
         </button>
+        <button
+          type="button"
+          title="IDE에서 열기"
+          disabled={!activePath}
+          onClick={(event) => {
+            event.stopPropagation();
+            void handleOpenInIde();
+          }}
+          className="mr-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-900/30 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-30 dark:text-white/30 dark:hover:bg-white/[0.08] dark:hover:text-white/70"
+        >
+          <OpenInIdeIcon />
+        </button>
       </div>
       <div className="min-h-0 flex-1">
         <CodeBody
@@ -364,6 +426,9 @@ function CodePane({
           focusStartLine={applyFocus ? focus!.line : null}
           focusEndLine={applyFocus ? (focus!.endLine ?? null) : null}
           focusNonce={focus?.nonce ?? 0}
+          onSelectLine={(line) => {
+            if (activePath) onFocusLine(activePath, line, undefined, true);
+          }}
         />
       </div>
     </div>
@@ -371,6 +436,7 @@ function CodePane({
 }
 
 export function CodeViewerWorkspace({
+  projectPath,
   filesByPath,
   panes,
   activePaneId,
@@ -379,6 +445,7 @@ export function CodeViewerWorkspace({
   focus,
   onActivateFile,
   onCloseFile,
+  onFocusLine,
   onSplitWithFile,
   onActivatePane,
 }: CodeViewerWorkspaceProps) {
@@ -425,12 +492,14 @@ export function CodeViewerWorkspace({
             )}
             <CodePane
               pane={pane}
+              projectPath={projectPath}
               filesByPath={filesByPath}
               active={pane.id === activePaneId}
               loadingPath={loadingPath}
               focus={focus}
               onActivateFile={onActivateFile}
               onCloseFile={onCloseFile}
+              onFocusLine={onFocusLine}
               onSplitWithFile={onSplitWithFile}
               onActivatePane={onActivatePane}
             />

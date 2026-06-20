@@ -31,6 +31,13 @@ export interface FsFileResult {
   truncated: boolean;
 }
 
+export interface FsOpenFileResult {
+  ok: boolean;
+  path: string;
+  opener?: string;
+  error?: string;
+}
+
 export async function fetchDirs(path?: string): Promise<DirListResult> {
   const url = new URL(`${SERVER_URL}/fs/dirs`);
   if (path) url.searchParams.set("path", path);
@@ -52,6 +59,21 @@ export async function fetchFileContent(path: string): Promise<FsFileResult> {
   const url = new URL(`${SERVER_URL}/fs/file`);
   url.searchParams.set("path", path);
   const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function openFileInIde(input: {
+  path: string;
+  projectPath?: string | null;
+  line?: number | null;
+  column?: number | null;
+}): Promise<FsOpenFileResult> {
+  const res = await fetch(`${SERVER_URL}/fs/file/open`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

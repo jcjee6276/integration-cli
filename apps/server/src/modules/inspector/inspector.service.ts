@@ -184,6 +184,24 @@ const OVERLAY_SCRIPT = `
       }
     }
 
+    function buildPayload(target) {
+      try {
+        const fiber = getFiber(target);
+        const source = fiber ? readDebugSource(fiber) : null;
+        const frame = source ? null : fiber ? readFrame(fiber) : null;
+        const componentName = fiber ? readComponentName(fiber) : undefined;
+        if (source || frame) return { source, frame, componentName };
+        return {
+          notFound: true,
+          componentName,
+          tagName: target && target.tagName ? target.tagName.toLowerCase() : undefined,
+          text: target && target.textContent ? target.textContent.trim().slice(0, 80) : undefined,
+        };
+      } catch (e) {
+        return { notFound: true };
+      }
+    }
+
     // ── 캡처 토글 (modifier 대신) ─────────────────────────────────────────
     // Mac에서 Ctrl/Cmd/Option/Shift+클릭은 새 탭·창·컨텍스트메뉴 등 브라우저 고유
     // 동작이라 modifier로 "일반 동작 통과"가 불가능. 대신 캡처 자체를 토글한다.
@@ -244,7 +262,8 @@ const OVERLAY_SCRIPT = `
     }
 
     function onMove(e) {
-      if (!captureEnabled || isOwnUi(e.target)) {
+      if (isOwnUi(e.target)) return;
+      if (!captureEnabled) {
         moveHighlight(null);
         return;
       }
@@ -259,23 +278,7 @@ const OVERLAY_SCRIPT = `
         if (!captureEnabled) return;
         e.preventDefault();
         e.stopPropagation();
-        const target = e.target;
-        const fiber = getFiber(target);
-        const source = fiber ? readDebugSource(fiber) : null;
-        const frame = source ? null : fiber ? readFrame(fiber) : null;
-        const componentName = fiber ? readComponentName(fiber) : undefined;
-        if (source || frame) {
-          window.${BINDING_NAME}(JSON.stringify({ source, frame, componentName }));
-        } else {
-          window.${BINDING_NAME}(
-            JSON.stringify({
-              notFound: true,
-              componentName,
-              tagName: target && target.tagName ? target.tagName.toLowerCase() : undefined,
-              text: target && target.textContent ? target.textContent.trim().slice(0, 80) : undefined,
-            }),
-          );
-        }
+        window.${BINDING_NAME}(JSON.stringify(buildPayload(e.target)));
       } catch (err) {}
     }
 
@@ -407,11 +410,13 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
           data.source.lineNumber,
           data.source.columnNumber,
         );
+        const line = range?.startLine ?? data.source.lineNumber;
+        const column = data.source.columnNumber;
 
         this.emit('inspector:element', {
           fileName: sourceFile,
-          line: range?.startLine ?? data.source.lineNumber,
-          column: data.source.columnNumber,
+          line,
+          column,
           endLine: range?.endLine,
           componentName: data.componentName,
         } satisfies InspectorElementEvent);
@@ -442,10 +447,11 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
         resolved.line,
         resolved.column,
       );
+      const line = range?.startLine ?? resolved.line;
 
       this.emit('inspector:element', {
         fileName: resolved.fileName,
-        line: range?.startLine ?? resolved.line,
+        line,
         column: resolved.column,
         endLine: range?.endLine,
         componentName: data.componentName,

@@ -18,6 +18,8 @@ export interface CodeFocus {
   line: number;
   /** 요소가 끝나는 줄 (범위 하이라이트). 없으면 시작 줄만 */
   endLine?: number;
+  /** 사용자가 Code Viewer에서 직접 선택한 줄인지 여부 */
+  manual?: boolean;
   /** 같은 라인을 다시 클릭해도 재스크롤되도록 하는 증가 카운터 */
   nonce: number;
 }
@@ -69,8 +71,8 @@ export function useCodeViewer() {
   const [error, setError] = useState<string | null>(null);
   const [focus, setFocus] = useState<CodeFocus | null>(null);
 
-  const focusLine = useCallback((path: string, line: number, endLine?: number) => {
-    setFocus((prev) => ({ path, line, endLine, nonce: (prev?.nonce ?? 0) + 1 }));
+  const focusLine = useCallback((path: string, line: number, endLine?: number, manual = false) => {
+    setFocus((prev) => ({ path, line, endLine, manual, nonce: (prev?.nonce ?? 0) + 1 }));
   }, []);
 
   const focusFile = useCallback(
