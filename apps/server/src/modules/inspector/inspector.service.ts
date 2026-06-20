@@ -4,11 +4,42 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import type { Browser, Page } from 'puppeteer-core';
+import type { Browser, CDPSession, Page } from 'puppeteer-core';
 import { SourceMapConsumer } from 'source-map';
 import type { RawIndexMap, RawSourceMap } from 'source-map';
 
 export type InspectorState = 'idle' | 'connecting' | 'active';
+
+/** CDP Network 도메인에서 누적하는 요청 레코드 */
+interface NetRecord {
+  id: string;
+  method?: string;
+  url?: string;
+  name?: string;
+  type?: string;
+  status?: number;
+  statusText?: string;
+  mime?: string;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+  postData?: string;
+  startTime?: number;
+  durationMs?: number;
+  size?: number;
+  failed?: boolean;
+  errorText?: string;
+  done?: boolean;
+  timing?: {
+    dns: number;
+    connect: number;
+    ssl: number;
+    send: number;
+    wait: number;
+    total: number;
+  } | null;
+}
+
+const MAX_NET_RECORDS = 500;
 
 /** in-page 헬퍼가 보내는 원시 payload */
 interface InspectorRawPayload {
@@ -254,8 +285,13 @@ const OVERLAY_SCRIPT = `
 
     function isOwnUi(node) {
       try {
-        const pill = document.getElementById(PILL_ID);
-        return Boolean(pill && (node === pill || pill.contains(node)));
+        const el = node && node.nodeType === 3 ? node.parentElement : node;
+        if (!el || !el.closest) return false;
+        return Boolean(
+          el.closest(
+            '#__jc-inspect-toggle, #__jc-net-toggle, #__jc-net-panel, #__jc-perf-toggle, #__jc-perf-panel',
+          ),
+        );
       } catch (e) {
         return false;
       }
@@ -298,6 +334,376 @@ const OVERLAY_SCRIPT = `
 `;
 
 /**
+ * 인스펙트된 창에 주입하는 Network 패널. 서버 CDP가 모은 데이터를 노출 바인딩으로
+ * 폴링(__jcNetSync)·조회(__jcNetBody)·초기화(__jcNetClear)한다.
+ * pill 위쪽의 🌐 Network 토글 버튼으로 열고, 목록/필터/상세(헤더·페이로드·응답·타이밍)·cURL 복사 제공.
+ */
+const NETWORK_SCRIPT = `
+(() => {
+  try {
+    if (window.__jcNetInstalled) return;
+    window.__jcNetInstalled = true;
+
+    var BS = String.fromCharCode(92);
+    var BTN_ID = '__jc-net-toggle';
+    var PANEL_ID = '__jc-net-panel';
+    var state = { open:false, mode:'all', errorsOnly:false, query:'', expandedId:null, tab:'headers', records:[], bodies:{} };
+
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function fmtBytes(n){ if(n==null) return '-'; if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
+    function fmtMs(n){ if(n==null) return '-'; return Math.round(n)+' ms'; }
+    function statusColor(r){ if(r.failed) return '#ef4444'; var s=r.status||0; if(s===0) return '#9ca3af'; if(s>=500) return '#ef4444'; if(s>=400) return '#f59e0b'; if(s>=300) return '#3b82f6'; return '#10b981'; }
+    function shq(s){ return "'" + String(s==null?'':s).split("'").join("'"+BS+"''") + "'"; }
+    function prettyMaybe(text, mime){ try { if(mime && mime.indexOf('json')!==-1) return JSON.stringify(JSON.parse(text), null, 2); return text; } catch(e){ return text; } }
+
+    function matches(r){
+      if(state.mode==='fetchxhr'){ var t=(r.type||'').toLowerCase(); if(t!=='fetch'&&t!=='xhr') return false; }
+      if(state.errorsOnly){ if(!r.failed && (r.status||0)<400) return false; }
+      if(state.query){ var q=state.query.toLowerCase(); if((r.url||'').toLowerCase().indexOf(q)===-1) return false; }
+      return true;
+    }
+
+    function filterBtn(id, label, active){
+      return '<button data-act="' + id + '" style="cursor:pointer;border:1px solid ' + (active?'rgba(16,185,129,0.5)':'rgba(255,255,255,0.12)') + ';background:' + (active?'rgba(16,185,129,0.15)':'transparent') + ';color:' + (active?'#34d399':'#9ca3af') + ';border-radius:6px;padding:3px 8px;font:600 11px/1 inherit">' + label + '</button>';
+    }
+
+    function ensureUi(){
+      try {
+        var btn = document.getElementById(BTN_ID);
+        if(!btn){
+          btn = document.createElement('button');
+          btn.id = BTN_ID; btn.type='button';
+          btn.style.cssText = 'position:fixed;bottom:60px;right:16px;z-index:2147483647;padding:8px 12px;border-radius:9999px;border:none;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;color:#fff;background:#1f2937;cursor:pointer;box-shadow:0 6px 20px -6px rgba(0,0,0,0.5)';
+          btn.textContent = '🌐 Network';
+          btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); state.open=!state.open; if(state.open){ try{ window.dispatchEvent(new CustomEvent('__jcPanelOpen',{detail:'net'})); }catch(e){} } renderPanel(); if(state.open) refresh(); });
+          (document.body||document.documentElement).appendChild(btn);
+        }
+        var panel = document.getElementById(PANEL_ID);
+        if(!panel){
+          panel = document.createElement('div');
+          panel.id = PANEL_ID;
+          panel.style.cssText = 'position:fixed;bottom:148px;right:16px;width:560px;max-width:92vw;max-height:66vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
+          panel.innerHTML =
+            '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+              '<span style="font-weight:700;color:#fff">Network</span>' +
+              '<span id="__jc-net-filters" style="display:flex;gap:4px"></span>' +
+              '<input id="__jc-net-search" placeholder="URL 검색" style="margin-left:auto;width:120px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#e5e7eb;padding:3px 6px;font:11px/1 inherit;outline:none" />' +
+              '<button data-act="clear" style="cursor:pointer;border:none;background:transparent;color:#9ca3af;font:600 11px/1 inherit">Clear</button>' +
+              '<button data-act="close" style="cursor:pointer;border:none;background:transparent;color:#9ca3af;font:700 13px/1 inherit">✕</button>' +
+            '</div>' +
+            '<div id="__jc-net-list" style="overflow:auto;flex:1;min-height:80px"></div>' +
+            '<div id="__jc-net-detail" style="border-top:1px solid rgba(255,255,255,0.08);max-height:40vh;overflow:auto;display:none"></div>';
+          (document.body||document.documentElement).appendChild(panel);
+
+          panel.addEventListener('click', onPanelClick, false);
+          var search = panel.querySelector('#__jc-net-search');
+          if(search) search.addEventListener('input', function(ev){ state.query = ev.target.value || ''; renderList(); });
+        }
+        return panel;
+      } catch(e){ return null; }
+    }
+
+    function onPanelClick(ev){
+      try {
+        var act = ev.target && ev.target.closest ? ev.target.closest('[data-act]') : null;
+        if(act){
+          ev.preventDefault(); ev.stopPropagation();
+          var a = act.getAttribute('data-act');
+          if(a==='close'){ state.open=false; renderPanel(); return; }
+          if(a==='clear'){ if(window.__jcNetClear) window.__jcNetClear(); state.records=[]; state.expandedId=null; renderList(); renderDetail(); return; }
+          if(a==='all'){ state.mode='all'; renderFilters(); renderList(); return; }
+          if(a==='fetchxhr'){ state.mode = state.mode==='fetchxhr'?'all':'fetchxhr'; renderFilters(); renderList(); return; }
+          if(a==='errors'){ state.errorsOnly=!state.errorsOnly; renderFilters(); renderList(); return; }
+          if(a==='curl'){ copyCurl(state.expandedId); return; }
+          if(a && a.indexOf('tab:')===0){ state.tab=a.slice(4); renderDetail(); return; }
+          return;
+        }
+        var row = ev.target && ev.target.closest ? ev.target.closest('[data-id]') : null;
+        if(row){
+          ev.preventDefault(); ev.stopPropagation();
+          var id = row.getAttribute('data-id');
+          state.expandedId = state.expandedId===id ? null : id;
+          renderList(); renderDetail();
+        }
+      } catch(e){}
+    }
+
+    function renderFilters(){
+      try {
+        var el = document.getElementById('__jc-net-filters');
+        if(!el) return;
+        el.innerHTML = filterBtn('all','All', state.mode==='all') + filterBtn('fetchxhr','Fetch/XHR', state.mode==='fetchxhr') + filterBtn('errors','⚠ Errors', state.errorsOnly);
+      } catch(e){}
+    }
+
+    function renderPanel(){
+      try {
+        var panel = ensureUi();
+        if(!panel) return;
+        panel.style.display = state.open ? 'flex' : 'none';
+        var btn = document.getElementById(BTN_ID);
+        if(btn) btn.style.background = state.open ? '#059669' : '#1f2937';
+        if(state.open){ renderFilters(); renderList(); renderDetail(); }
+      } catch(e){}
+    }
+
+    function renderList(){
+      try {
+        var list = document.getElementById('__jc-net-list');
+        if(!list) return;
+        var rows = state.records.filter(matches);
+        if(rows.length===0){ list.innerHTML = '<div style="padding:16px;text-align:center;color:#6b7280">요청 없음</div>'; return; }
+        var html = '';
+        for(var i=0;i<rows.length;i++){
+          var r = rows[i];
+          var sel = r.id===state.expandedId;
+          html +=
+            '<div data-id="' + esc(r.id) + '" style="display:grid;grid-template-columns:46px 44px 1fr 56px 60px 56px;gap:6px;align-items:center;padding:5px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);' + (sel?'background:rgba(16,185,129,0.10)':'') + '">' +
+              '<span style="color:#9ca3af;font-weight:600">' + esc(r.method||'') + '</span>' +
+              '<span style="color:' + statusColor(r) + ';font-weight:700">' + esc(r.failed?'ERR':(r.status||'...')) + '</span>' +
+              '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(r.url||'') + '">' + esc(r.name||r.url||'') + '</span>' +
+              '<span style="color:#6b7280">' + esc((r.type||'').toLowerCase()) + '</span>' +
+              '<span style="color:#9ca3af;text-align:right">' + fmtMs(r.durationMs) + '</span>' +
+              '<span style="color:#9ca3af;text-align:right">' + fmtBytes(r.size) + '</span>' +
+            '</div>';
+        }
+        list.innerHTML = html;
+      } catch(e){}
+    }
+
+    function headerLines(obj){
+      try { if(!obj) return '<div style="color:#6b7280">(없음)</div>'; var k, out=''; for(k in obj){ out += '<div style="display:flex;gap:6px;padding:1px 0"><span style="color:#60a5fa;min-width:120px;flex-shrink:0">' + esc(k) + '</span><span style="word-break:break-all">' + esc(obj[k]) + '</span></div>'; } return out||'<div style="color:#6b7280">(없음)</div>'; } catch(e){ return ''; }
+    }
+
+    function timingBars(t){
+      try {
+        if(!t) return '<div style="color:#6b7280">타이밍 정보 없음</div>';
+        var parts = [['DNS',t.dns,'#a78bfa'],['Connect',t.connect,'#60a5fa'],['SSL',t.ssl,'#f472b6'],['Send',t.send,'#34d399'],['Wait(TTFB)',t.wait,'#fbbf24']];
+        var max = 1; for(var i=0;i<parts.length;i++){ if(parts[i][1]>max) max=parts[i][1]; }
+        var out = '';
+        for(var j=0;j<parts.length;j++){ var w = Math.max(2, Math.round(parts[j][1]/max*200)); out += '<div style="display:flex;align-items:center;gap:8px;padding:2px 0"><span style="width:90px;color:#9ca3af">' + parts[j][0] + '</span><span style="height:10px;width:' + w + 'px;background:' + parts[j][2] + ';border-radius:2px"></span><span style="color:#9ca3af">' + fmtMs(parts[j][1]) + '</span></div>'; }
+        out += '<div style="margin-top:6px;color:#e5e7eb;font-weight:600">Total ' + fmtMs(t.total) + '</div>';
+        return out;
+      } catch(e){ return ''; }
+    }
+
+    function renderDetail(){
+      try {
+        var detail = document.getElementById('__jc-net-detail');
+        if(!detail) return;
+        if(!state.expandedId){ detail.style.display='none'; detail.innerHTML=''; return; }
+        var r = null; for(var i=0;i<state.records.length;i++){ if(state.records[i].id===state.expandedId){ r=state.records[i]; break; } }
+        if(!r){ detail.style.display='none'; detail.innerHTML=''; return; }
+        detail.style.display='block';
+        function tabBtn(id,label){ var on = state.tab===id; return '<button data-act="tab:' + id + '" style="cursor:pointer;border:none;background:transparent;border-bottom:2px solid ' + (on?'#10b981':'transparent') + ';color:' + (on?'#fff':'#9ca3af') + ';padding:6px 8px;font:600 11px/1 inherit">' + label + '</button>'; }
+        var body = '';
+        if(state.tab==='headers'){
+          body =
+            '<div style="margin-bottom:6px"><span style="color:#6b7280">URL </span>' + esc(r.url||'') + '</div>' +
+            '<div style="margin-bottom:6px"><span style="color:#6b7280">Method </span>' + esc(r.method||'') + '<span style="color:#6b7280"> · Status </span><span style="color:' + statusColor(r) + '">' + esc((r.status||'') + ' ' + (r.statusText||'')) + '</span>' + (r.errorText?'<span style="color:#ef4444"> · ' + esc(r.errorText) + '</span>':'') + '</div>' +
+            '<div style="color:#fff;font-weight:600;margin:8px 0 2px">Response Headers</div>' + headerLines(r.responseHeaders) +
+            '<div style="color:#fff;font-weight:600;margin:8px 0 2px">Request Headers</div>' + headerLines(r.requestHeaders);
+        } else if(state.tab==='payload'){
+          body = r.postData ? '<pre style="white-space:pre-wrap;word-break:break-all;margin:0">' + esc(prettyMaybe(r.postData, 'application/json')) + '</pre>' : '<div style="color:#6b7280">요청 본문 없음</div>';
+        } else if(state.tab==='response'){
+          var cached = state.bodies[r.id];
+          if(cached===undefined){ fetchBody(r.id); body = '<div style="color:#6b7280">불러오는 중...</div>'; }
+          else if(cached && cached.base64Encoded && (r.mime||'').indexOf('image/')===0){ body = '<img src="data:' + esc(r.mime) + ';base64,' + esc(cached.body) + '" style="max-width:100%" />'; }
+          else if(cached){ body = '<pre style="white-space:pre-wrap;word-break:break-all;margin:0">' + esc(prettyMaybe(cached.body, r.mime)) + '</pre>'; }
+          else { body = '<div style="color:#6b7280">본문을 가져올 수 없음</div>'; }
+        } else if(state.tab==='timing'){
+          body = timingBars(r.timing);
+        }
+        detail.innerHTML =
+          '<div style="display:flex;align-items:center;gap:2px;border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;background:#0e1117">' +
+            tabBtn('headers','Headers') + tabBtn('payload','Payload') + tabBtn('response','Response') + tabBtn('timing','Timing') +
+            '<button data-act="curl" style="margin-left:auto;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#9ca3af;border-radius:6px;padding:3px 8px;font:600 11px/1 inherit">Copy as cURL</button>' +
+          '</div>' +
+          '<div style="padding:8px 10px">' + body + '</div>';
+      } catch(e){}
+    }
+
+    function fetchBody(id){
+      try {
+        if(state.bodies[id]!==undefined) return;
+        state.bodies[id] = null;
+        if(!window.__jcNetBody){ return; }
+        Promise.resolve(window.__jcNetBody(id)).then(function(res){ state.bodies[id] = res || { body:'', base64Encoded:false }; if(state.expandedId===id && state.tab==='response') renderDetail(); }).catch(function(){});
+      } catch(e){}
+    }
+
+    function copyCurl(id){
+      try {
+        if(!id) return; var r=null; for(var i=0;i<state.records.length;i++){ if(state.records[i].id===id){ r=state.records[i]; break; } }
+        if(!r) return;
+        var parts = ['curl ' + shq(r.url||'')];
+        if(r.method && r.method!=='GET') parts.push('-X ' + r.method);
+        var h = r.requestHeaders||{}; var k;
+        for(k in h){ parts.push('-H ' + shq(k + ': ' + h[k])); }
+        if(r.postData) parts.push('--data-raw ' + shq(r.postData));
+        var cmd = parts.join(' ' + BS + String.fromCharCode(10) + '  ');
+        if(navigator.clipboard) navigator.clipboard.writeText(cmd);
+      } catch(e){}
+    }
+
+    async function refresh(){
+      try {
+        if(!window.__jcNetSync) return;
+        var recs = await window.__jcNetSync();
+        state.records = Array.isArray(recs) ? recs : [];
+        renderList();
+        if(state.expandedId){ var still=false; for(var i=0;i<state.records.length;i++){ if(state.records[i].id===state.expandedId){ still=true; break; } } if(still) renderDetail(); }
+      } catch(e){}
+    }
+
+    window.addEventListener('__jcPanelOpen', function(e){ try { if(e.detail!=='net' && state.open){ state.open=false; renderPanel(); } } catch(err){} });
+
+    ensureUi();
+    setInterval(function(){ ensureUi(); if(state.open) refresh(); }, 1000);
+  } catch (e) {}
+})();
+`;
+
+/**
+ * 인스펙트된 창에 주입하는 Performance 패널. Core Web Vitals(LCP·INP·CLS·FCP·TTFB)는
+ * in-page PerformanceObserver로 측정(실제 top-level 페이지 기준이 정확)하고, 로드 타이밍·
+ * 메모리·리소스 요약을 함께 표시. 서버 라운드트립 없이 패널이 직접 수집한다.
+ */
+const PERF_SCRIPT = `
+(() => {
+  try {
+    if (window.__jcPerfInstalled) return;
+    window.__jcPerfInstalled = true;
+
+    var BTN_ID = '__jc-perf-toggle';
+    var PANEL_ID = '__jc-perf-panel';
+    var vitals = { lcp:null, cls:0, inp:null, fcp:null };
+    var state = { open:false };
+
+    function obs(type, cb, extra){
+      try {
+        var o = new PerformanceObserver(function(list){ list.getEntries().forEach(cb); });
+        var opt = { type:type, buffered:true };
+        if(extra){ for(var k in extra) opt[k]=extra[k]; }
+        o.observe(opt);
+      } catch(e){}
+    }
+    obs('largest-contentful-paint', function(e){ vitals.lcp = e.renderTime || e.loadTime || e.startTime; });
+    obs('layout-shift', function(e){ if(!e.hadRecentInput) vitals.cls += e.value; });
+    obs('paint', function(e){ if(e.name==='first-contentful-paint') vitals.fcp = e.startTime; });
+    obs('event', function(e){ var d=e.duration; if(vitals.inp==null || d>vitals.inp) vitals.inp = d; }, { durationThreshold:40 });
+
+    function nav(){ try { return performance.getEntriesByType('navigation')[0] || null; } catch(e){ return null; } }
+    function ttfb(){ var n=nav(); return n ? n.responseStart : null; }
+    function rate(metric, v){
+      if(v==null) return 'na';
+      var th = { lcp:[2500,4000], fcp:[1800,3000], inp:[200,500], ttfb:[800,1800], cls:[0.1,0.25] }[metric];
+      if(!th) return 'na';
+      if(v<=th[0]) return 'good'; if(v<=th[1]) return 'ni'; return 'poor';
+    }
+    function rateColor(r){ return r==='good'?'#10b981':r==='ni'?'#f59e0b':r==='poor'?'#ef4444':'#6b7280'; }
+    function fmt(metric, v){ if(v==null) return '-'; if(metric==='cls') return v.toFixed(3); return Math.round(v)+' ms'; }
+    function memInfo(){ try { var m=performance.memory; return m ? (m.usedJSHeapSize/1048576).toFixed(1)+' / '+(m.jsHeapSizeLimit/1048576).toFixed(0)+' MB' : '-'; } catch(e){ return '-'; } }
+    function domNodes(){ try { return String(document.getElementsByTagName('*').length); } catch(e){ return '-'; } }
+    function resSummary(){ try { var rs=performance.getEntriesByType('resource'); var sum=0; for(var i=0;i<rs.length;i++) sum+=(rs[i].transferSize||0); return rs.length+' / '+(sum/1024).toFixed(0)+' KB'; } catch(e){ return '-'; } }
+
+    function card(label, metric, v){
+      var r = rate(metric, v); var c = rateColor(r);
+      var badge = r==='na' ? '' : '<span style="font-size:9px;color:'+c+';border:1px solid '+c+';border-radius:4px;padding:1px 4px;margin-left:6px">'+(r==='good'?'GOOD':r==='ni'?'OK':'POOR')+'</span>';
+      return '<div style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 10px;flex:1;min-width:92px"><div style="color:#9ca3af;font-size:11px">'+label+badge+'</div><div style="font-weight:700;font-size:16px;color:'+c+'">'+fmt(metric, v)+'</div></div>';
+    }
+    function infoRow(label, val){
+      return '<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:#9ca3af">'+label+'</span><span>'+val+'</span></div>';
+    }
+
+    function ensureUi(){
+      try {
+        var btn = document.getElementById(BTN_ID);
+        if(!btn){
+          btn = document.createElement('button');
+          btn.id = BTN_ID; btn.type='button';
+          btn.style.cssText = 'position:fixed;bottom:104px;right:16px;z-index:2147483647;padding:8px 12px;border-radius:9999px;border:none;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;color:#fff;background:#1f2937;cursor:pointer;box-shadow:0 6px 20px -6px rgba(0,0,0,0.5)';
+          btn.textContent = '📊 Perf';
+          btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); state.open=!state.open; if(state.open){ try{ window.dispatchEvent(new CustomEvent('__jcPanelOpen',{detail:'perf'})); }catch(e){} } renderPanel(); });
+          (document.body||document.documentElement).appendChild(btn);
+        }
+        var panel = document.getElementById(PANEL_ID);
+        if(!panel){
+          panel = document.createElement('div');
+          panel.id = PANEL_ID;
+          panel.style.cssText = 'position:fixed;bottom:148px;right:16px;width:440px;max-width:92vw;max-height:66vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
+          panel.innerHTML =
+            '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+              '<span style="font-weight:700;color:#fff">Performance</span>' +
+              '<button data-act="refresh" style="margin-left:auto;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#9ca3af;border-radius:6px;padding:3px 8px;font:600 11px/1 inherit">새로고침</button>' +
+              '<button data-act="close" style="cursor:pointer;border:none;background:transparent;color:#9ca3af;font:700 13px/1 inherit">✕</button>' +
+            '</div>' +
+            '<div id="__jc-perf-body" style="overflow:auto;padding:10px"></div>';
+          (document.body||document.documentElement).appendChild(panel);
+          panel.addEventListener('click', function(ev){
+            try {
+              var act = ev.target && ev.target.closest ? ev.target.closest('[data-act]') : null;
+              if(!act) return;
+              ev.preventDefault(); ev.stopPropagation();
+              var a = act.getAttribute('data-act');
+              if(a==='close'){ state.open=false; renderPanel(); }
+              else if(a==='refresh'){ renderBody(); }
+            } catch(e){}
+          }, false);
+        }
+        return panel;
+      } catch(e){ return null; }
+    }
+
+    function renderBody(){
+      try {
+        var body = document.getElementById('__jc-perf-body');
+        if(!body) return;
+        var n = nav();
+        var d = function(a,b){ return (n && n[b]>=0 && n[a]>=0 && n[b]>=n[a]) ? Math.round(n[b]-n[a]) : null; };
+        var timing = n ? (
+          infoRow('DNS', (d('domainLookupStart','domainLookupEnd')!=null? d('domainLookupStart','domainLookupEnd')+' ms':'-')) +
+          infoRow('TCP', (d('connectStart','connectEnd')!=null? d('connectStart','connectEnd')+' ms':'-')) +
+          infoRow('Request', (d('requestStart','responseStart')!=null? d('requestStart','responseStart')+' ms':'-')) +
+          infoRow('Response', (d('responseStart','responseEnd')!=null? d('responseStart','responseEnd')+' ms':'-')) +
+          infoRow('DOMContentLoaded', (n.domContentLoadedEventEnd? Math.round(n.domContentLoadedEventEnd)+' ms':'-')) +
+          infoRow('Load', (n.loadEventEnd? Math.round(n.loadEventEnd)+' ms':'-'))
+        ) : '<div style="color:#6b7280">네비게이션 타이밍 없음</div>';
+
+        body.innerHTML =
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            card('LCP','lcp',vitals.lcp) + card('INP','inp',vitals.inp) + card('CLS','cls',vitals.cls) +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' +
+            card('FCP','fcp',vitals.fcp) + card('TTFB','ttfb',ttfb()) +
+          '</div>' +
+          '<div style="color:#fff;font-weight:600;margin:12px 0 4px">로드 타이밍</div>' + timing +
+          '<div style="color:#fff;font-weight:600;margin:12px 0 4px">리소스 / 메모리</div>' +
+          infoRow('JS Heap', memInfo()) + infoRow('DOM 노드', domNodes()) + infoRow('리소스 수 / 전송량', resSummary()) +
+          '<div style="color:#6b7280;margin-top:10px;font-size:11px">* 값은 페이지 로드 이후 누적됩니다. 상호작용/스크롤 후 INP·CLS가 갱신됩니다.</div>';
+      } catch(e){}
+    }
+
+    function renderPanel(){
+      try {
+        var panel = ensureUi();
+        if(!panel) return;
+        panel.style.display = state.open ? 'flex' : 'none';
+        var btn = document.getElementById(BTN_ID);
+        if(btn) btn.style.background = state.open ? '#059669' : '#1f2937';
+        if(state.open) renderBody();
+      } catch(e){}
+    }
+
+    window.addEventListener('__jcPanelOpen', function(e){ try { if(e.detail!=='perf' && state.open){ state.open=false; renderPanel(); } } catch(err){} });
+
+    ensureUi();
+    setInterval(function(){ ensureUi(); if(state.open) renderBody(); }, 1000);
+  } catch (e) {}
+})();
+`;
+
+/**
  * macOS / Windows / Linux 기본 Chrome 실행 경로 후보.
  * JC_CHROME_PATH env로 override 가능.
  */
@@ -320,6 +726,9 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
   private state: InspectorState = 'idle';
   /** 번들 URL → SourceMapConsumer 캐시 (세션 종료 시 destroy) */
   private readonly sourceMaps = new Map<string, Promise<SourceMapConsumer | null>>();
+  /** CDP Network 세션 + 누적 레코드 (requestId → record, 삽입 순서 유지) */
+  private cdp: CDPSession | null = null;
+  private readonly networkRecords = new Map<string, NetRecord>();
 
   getState(): InspectorState {
     return this.state;
@@ -353,11 +762,25 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
       await this.page.exposeFunction(BINDING_NAME, (payload: string) => {
         void this.handleElementPayload(payload);
       });
+      // Network 패널용 바인딩 (인스펙트된 창의 패널이 폴링/조회)
+      await this.page.exposeFunction('__jcNetSync', () => this.buildNetSnapshot());
+      await this.page.exposeFunction('__jcNetBody', (id: string) => this.getResponseBody(id));
+      await this.page.exposeFunction('__jcNetClear', () => {
+        this.networkRecords.clear();
+        return true;
+      });
+
+      await this.setupNetworkCapture(this.page);
+
       await this.page.evaluateOnNewDocument(OVERLAY_SCRIPT);
+      await this.page.evaluateOnNewDocument(NETWORK_SCRIPT);
+      await this.page.evaluateOnNewDocument(PERF_SCRIPT);
 
       await this.page.goto(appUrl, { waitUntil: 'domcontentloaded' });
       // 이미 로드된 현재 페이지에도 즉시 주입 (goto 이전 상태 대비)
       await this.page.evaluate(OVERLAY_SCRIPT);
+      await this.page.evaluate(NETWORK_SCRIPT);
+      await this.page.evaluate(PERF_SCRIPT);
 
       // 사용자가 Chrome 창을 직접 닫은 경우 정리
       this.browser.on('disconnected', () => {
@@ -390,6 +813,8 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
     } finally {
       this.browser = null;
       this.page = null;
+      this.cdp = null;
+      this.networkRecords.clear();
       await this.clearSourceMaps();
       if (this.state !== 'idle') this.setState({ state: 'idle' });
     }
@@ -397,6 +822,139 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     await this.stop();
+  }
+
+  // ── Network (CDP) ──────────────────────────────────────────────────────
+  private async setupNetworkCapture(page: Page): Promise<void> {
+    try {
+      const client = await page.target().createCDPSession();
+      this.cdp = client;
+      await client.send('Network.enable');
+
+      client.on('Network.requestWillBeSent', (e) => {
+        try {
+          const rec: NetRecord = this.networkRecords.get(e.requestId) ?? { id: e.requestId };
+          rec.method = e.request.method;
+          rec.url = e.request.url;
+          rec.name = this.urlName(e.request.url);
+          rec.requestHeaders = e.request.headers as Record<string, string>;
+          if (e.request.postData) rec.postData = e.request.postData;
+          if (e.type) rec.type = e.type;
+          if (rec.startTime == null) rec.startTime = e.timestamp;
+          if (rec.status == null) rec.status = 0;
+          this.networkRecords.set(e.requestId, rec);
+          this.capNetworkRecords();
+        } catch {}
+      });
+
+      client.on('Network.responseReceived', (e) => {
+        try {
+          const rec: NetRecord = this.networkRecords.get(e.requestId) ?? { id: e.requestId };
+          rec.status = e.response.status;
+          rec.statusText = e.response.statusText;
+          rec.mime = e.response.mimeType;
+          rec.responseHeaders = e.response.headers as Record<string, string>;
+          if (e.type) rec.type = e.type;
+          rec.timing = this.timingPhases(e.response.timing);
+          this.networkRecords.set(e.requestId, rec);
+        } catch {}
+      });
+
+      client.on('Network.loadingFinished', (e) => {
+        try {
+          const rec = this.networkRecords.get(e.requestId);
+          if (!rec) return;
+          rec.size = e.encodedDataLength;
+          rec.durationMs =
+            rec.startTime != null ? (e.timestamp - rec.startTime) * 1000 : undefined;
+          rec.done = true;
+          if (rec.timing) rec.timing.total = rec.durationMs ?? rec.timing.total;
+        } catch {}
+      });
+
+      client.on('Network.loadingFailed', (e) => {
+        try {
+          const rec = this.networkRecords.get(e.requestId);
+          if (!rec) return;
+          rec.failed = true;
+          rec.errorText = e.errorText;
+          rec.durationMs =
+            rec.startTime != null ? (e.timestamp - rec.startTime) * 1000 : undefined;
+          rec.done = true;
+        } catch {}
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Network capture setup failed: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
+  /** 패널이 폴링하는 스냅샷 (응답 바디는 제외 — 펼칠 때 별도 조회) */
+  private buildNetSnapshot(): Omit<NetRecord, never>[] {
+    try {
+      return Array.from(this.networkRecords.values()).map((r) => ({ ...r }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async getResponseBody(id: string): Promise<{ body: string; base64Encoded: boolean } | null> {
+    try {
+      if (!this.cdp) return null;
+      const res = await this.cdp.send('Network.getResponseBody', { requestId: id });
+      return { body: res.body, base64Encoded: res.base64Encoded };
+    } catch {
+      return null;
+    }
+  }
+
+  private timingPhases(t?: {
+    dnsStart: number;
+    dnsEnd: number;
+    connectStart: number;
+    connectEnd: number;
+    sslStart: number;
+    sslEnd: number;
+    sendStart: number;
+    sendEnd: number;
+    receiveHeadersEnd: number;
+  }): NetRecord['timing'] {
+    try {
+      if (!t) return null;
+      const d = (a: number, b: number) => (a >= 0 && b >= 0 && b >= a ? b - a : 0);
+      return {
+        dns: d(t.dnsStart, t.dnsEnd),
+        connect: d(t.connectStart, t.connectEnd),
+        ssl: d(t.sslStart, t.sslEnd),
+        send: d(t.sendStart, t.sendEnd),
+        wait: d(t.sendEnd, t.receiveHeadersEnd),
+        total: 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private urlName(url?: string): string {
+    try {
+      if (!url) return '';
+      const u = new URL(url);
+      const seg = u.pathname.split('/').filter(Boolean).at(-1);
+      return seg || u.hostname;
+    } catch {
+      return url ?? '';
+    }
+  }
+
+  private capNetworkRecords(): void {
+    try {
+      while (this.networkRecords.size > MAX_NET_RECORDS) {
+        const first = this.networkRecords.keys().next().value;
+        if (first === undefined) break;
+        this.networkRecords.delete(first);
+      }
+    } catch {}
   }
 
   private async handleElementPayload(payload: string): Promise<void> {
