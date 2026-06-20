@@ -7,24 +7,27 @@ import type { FormEvent } from "react";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import type { FsTreeNode, FsTreeResult } from "@/features/fs/api/fs.api";
 import { ThemeToggle } from "@/lib/theme";
+import { useToast } from "@/lib/toast";
 
+import type { useCodeViewer } from "../hooks/useCodeViewer";
 import { EXTENSION_FILTER_OPTIONS } from "../hooks/useProjectTree";
 import { useResizablePanels } from "../hooks/useResizablePanels";
 
+import { CodeViewerWorkspace } from "./CodeViewerWorkspace";
 import { DirectoryTree } from "./DirectoryTree";
 
 interface ProjectTreeViewProps {
   projectPath: string;
   tree: FsTreeResult | null;
   filteredTree: FsTreeResult | null;
-  selectedNode: FsTreeNode | null;
   selectedPath: string | null;
   extensionWhitelist: string[];
   loading: boolean;
   error: string | null;
+  codeViewer: ReturnType<typeof useCodeViewer>;
   onProjectPathChange: (path: string) => void;
   onLoadTree: () => void;
-  onSelectNode: (path: string) => void;
+  onSelectNode: (node: FsTreeNode) => void;
   onToggleExtension: (extension: string) => void;
   onClearExtensions: () => void;
 }
@@ -32,15 +35,6 @@ interface ProjectTreeViewProps {
 function Spinner() {
   return (
     <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/30 border-t-white" />
-  );
-}
-
-function NodeTypeBadge({ type }: { type: FsTreeNode["type"] }) {
-  const label = type === "directory" ? "directory" : "file";
-  return (
-    <span className="rounded-full border border-gray-900/[0.08] bg-white px-2 py-0.5 text-[11px] font-medium text-gray-900/45 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white/45">
-      {label}
-    </span>
   );
 }
 
@@ -84,6 +78,36 @@ function FilterIcon() {
       <path d="M1.5 2.75A.75.75 0 012.25 2h11.5a.75.75 0 01.58 1.226L10 8.516v3.734a.75.75 0 01-.323.616l-2 1.384A.75.75 0 016.5 13.634V8.516L1.67 3.226A.75.75 0 011.5 2.75z" />
     </svg>
   );
+}
+
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+      <path d="M0 6.75C0 5.784.784 5 1.75 5h6.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 018.25 16h-6.5A1.75 1.75 0 010 14.25v-7.5zM1.75 6.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h6.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-6.5z" />
+      <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11H12.5a.75.75 0 010-1.5h1.75a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5a.25.25 0 00-.25.25V3.5a.75.75 0 01-1.5 0V1.75z" />
+    </svg>
+  );
+}
+
+function PanelIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+      {direction === "left" ? (
+        <path d="M9.78 3.22a.75.75 0 010 1.06L6.06 8l3.72 3.72a.75.75 0 11-1.06 1.06L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0z" />
+      ) : (
+        <path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 11-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z" />
+      )}
+    </svg>
+  );
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function ExtensionFilterMenu({
@@ -200,11 +224,11 @@ export function ProjectTreeView({
   projectPath,
   tree,
   filteredTree,
-  selectedNode,
   selectedPath,
   extensionWhitelist,
   loading,
   error,
+  codeViewer,
   onProjectPathChange,
   onLoadTree,
   onSelectNode,
@@ -212,6 +236,18 @@ export function ProjectTreeView({
   onClearExtensions,
 }: ProjectTreeViewProps) {
   const { containerRef, treeWidth, resizing, startResize } = useResizablePanels();
+  const { addToast } = useToast();
+  const [treeVisible, setTreeVisible] = useState(true);
+  const [treeRendered, setTreeRendered] = useState(true);
+  const treeAnimationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activePane =
+    codeViewer.panes.find((pane) => pane.id === codeViewer.activePaneId) ??
+    codeViewer.panes.find((pane) => pane.filePaths.length > 0);
+  const activeFilePath = activePane?.activePath ?? activePane?.filePaths[0] ?? null;
+  const activeFileName = activeFilePath
+    ? (codeViewer.filesByPath[activeFilePath]?.name ?? activeFilePath.split(/[/\\]/).at(-1))
+    : "Code Viewer";
+  const projectRootPath = tree?.root.path ?? null;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     try {
@@ -219,6 +255,69 @@ export function ProjectTreeView({
       onLoadTree();
     } catch {}
   };
+
+  const clearTreeAnimationTimer = () => {
+    try {
+      if (!treeAnimationTimerRef.current) return;
+      clearTimeout(treeAnimationTimerRef.current);
+      treeAnimationTimerRef.current = null;
+    } catch {}
+  };
+
+  const handleHideTree = () => {
+    try {
+      clearTreeAnimationTimer();
+      setTreeVisible(false);
+      treeAnimationTimerRef.current = setTimeout(() => {
+        setTreeRendered(false);
+        treeAnimationTimerRef.current = null;
+      }, 180);
+    } catch {}
+  };
+
+  const handleShowTree = () => {
+    try {
+      clearTreeAnimationTimer();
+      setTreeRendered(true);
+      requestAnimationFrame(() => setTreeVisible(true));
+    } catch {}
+  };
+
+  const handleCopyActivePath = async () => {
+    try {
+      if (!activeFilePath) return;
+      const copied = await copyToClipboard(activeFilePath);
+      addToast(
+        copied
+          ? { type: "success", title: "경로 복사됨", message: activeFileName ?? activeFilePath }
+          : { type: "error", title: "복사 실패", message: "클립보드 권한을 확인해 주세요" },
+      );
+    } catch {
+      addToast({ type: "error", title: "복사 실패", message: "다시 시도해 주세요" });
+    }
+  };
+
+  const handleCopyProjectPath = async () => {
+    try {
+      if (!projectRootPath) return;
+      const copied = await copyToClipboard(projectRootPath);
+      addToast(
+        copied
+          ? { type: "success", title: "프로젝트 경로 복사됨", message: projectRootPath }
+          : { type: "error", title: "복사 실패", message: "클립보드 권한을 확인해 주세요" },
+      );
+    } catch {
+      addToast({ type: "error", title: "복사 실패", message: "다시 시도해 주세요" });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      try {
+        if (treeAnimationTimerRef.current) clearTimeout(treeAnimationTimerRef.current);
+      } catch {}
+    };
+  }, []);
 
   return (
     <div className="flex h-screen flex-col bg-[#faf8f5] text-gray-900 dark:bg-[#07090e] dark:text-white">
@@ -235,10 +334,19 @@ export function ProjectTreeView({
         <div className="min-w-0">
           <h1 className="text-sm font-semibold text-gray-900/82 dark:text-white/82">Projects</h1>
           <p className="truncate font-mono text-[11px] text-gray-900/28 dark:text-white/28">
-            {tree?.root.path ?? "no project loaded"}
+            {projectRootPath ?? "no project loaded"}
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            title="프로젝트 경로 복사"
+            disabled={!projectRootPath}
+            onClick={() => void handleCopyProjectPath()}
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-900/30 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-30 dark:text-white/30 dark:hover:bg-white/[0.07] dark:hover:text-white/70"
+          >
+            <CopyIcon />
+          </button>
           <ThemeToggle />
         </div>
       </header>
@@ -266,100 +374,117 @@ export function ProjectTreeView({
 
       <main
         ref={containerRef}
-        className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateColumns: `${treeWidth}% 8px minmax(0, 1fr)` }}
+        className="grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-200 ease-out"
+        style={{
+          gridTemplateColumns: treeRendered
+            ? treeVisible
+              ? `${treeWidth}% 8px minmax(0, 1fr)`
+              : "40px 8px minmax(0, 1fr)"
+            : "40px minmax(0, 1fr)",
+        }}
       >
-        <section className="flex min-h-0 min-w-0 flex-col">
-          <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
-            <span className="text-xs font-semibold text-gray-900/55 dark:text-white/55">
-              Dir Tree
-            </span>
-            {filteredTree && (
-              <TreeHeaderTools
-                tree={filteredTree}
-                extensionWhitelist={extensionWhitelist}
-                onToggleExtension={onToggleExtension}
-                onClearExtensions={onClearExtensions}
-              />
-            )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-            {filteredTree ? (
-              <DirectoryTree
-                root={filteredTree.root}
-                selectedPath={selectedPath}
-                onSelect={onSelectNode}
-              />
-            ) : (
-              <EmptyTree />
-            )}
-          </div>
-        </section>
-
-        <button
-          type="button"
-          aria-label="패널 비율 조정"
-          onMouseDown={startResize}
-          className={[
-            "group flex cursor-col-resize items-center justify-center border-x border-gray-900/[0.06] bg-gray-900/[0.02] transition-colors hover:bg-emerald-500/[0.08] dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:bg-emerald-400/[0.10]",
-            resizing ? "bg-emerald-500/[0.10] dark:bg-emerald-400/[0.12]" : "",
-          ].join(" ")}
-        >
-          <span className="h-10 w-0.5 rounded-full bg-gray-900/15 transition-colors group-hover:bg-emerald-500/60 dark:bg-white/15 dark:group-hover:bg-emerald-300/60" />
-        </button>
-
-        <aside className="flex min-w-0 flex-col">
-          <div className="flex h-11 shrink-0 items-center border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
-            <span className="text-xs font-semibold text-gray-900/55 dark:text-white/55">
-              Selection
-            </span>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-            {selectedNode ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <NodeTypeBadge type={selectedNode.type} />
-                  {selectedNode.truncated && (
-                    <span className="rounded-full bg-amber-500/[0.12] px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-                      truncated
-                    </span>
-                  )}
+        {treeRendered ? (
+          <>
+            <section
+              className={[
+                "flex min-h-0 min-w-0 flex-col overflow-hidden transition-all duration-200 ease-out",
+                treeVisible ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0",
+              ].join(" ")}
+            >
+              <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    title="Dir Tree 숨기기"
+                    onClick={handleHideTree}
+                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-gray-900/30 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:text-white/30 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+                  >
+                    <PanelIcon direction="left" />
+                  </button>
+                  <span className="truncate text-xs font-semibold text-gray-900/55 dark:text-white/55">
+                    Dir Tree
+                  </span>
                 </div>
-                <div>
-                  <p className="text-base font-semibold text-gray-900/80 dark:text-white/80">
-                    {selectedNode.name}
-                  </p>
-                  <p className="mt-2 font-mono text-xs leading-5 break-all text-gray-900/45 dark:text-white/45">
-                    {selectedNode.path}
-                  </p>
-                </div>
-                {selectedNode.type === "directory" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-gray-900/[0.07] px-3 py-2 dark:border-white/[0.07]">
-                      <p className="text-[11px] text-gray-900/35 dark:text-white/35">children</p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900/75 dark:text-white/75">
-                        {(selectedNode.children?.length ?? 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-gray-900/[0.07] px-3 py-2 dark:border-white/[0.07]">
-                      <p className="text-[11px] text-gray-900/35 dark:text-white/35">status</p>
-                      <p className="mt-1 text-sm font-semibold text-gray-900/65 dark:text-white/65">
-                        {selectedNode.error ? "error" : "ready"}
-                      </p>
-                    </div>
-                  </div>
+                {filteredTree && (
+                  <TreeHeaderTools
+                    tree={filteredTree}
+                    extensionWhitelist={extensionWhitelist}
+                    onToggleExtension={onToggleExtension}
+                    onClearExtensions={onClearExtensions}
+                  />
                 )}
-                {selectedNode.error && (
-                  <div className="rounded-lg border border-red-500/[0.18] bg-red-500/[0.06] px-3 py-2 text-xs leading-5 text-red-600 dark:text-red-300">
-                    {selectedNode.error}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-center text-xs text-gray-900/30 dark:text-white/30">
-                선택한 항목이 없습니다
               </div>
-            )}
+              <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+                {filteredTree ? (
+                  <DirectoryTree
+                    root={filteredTree.root}
+                    selectedPath={selectedPath}
+                    onSelect={onSelectNode}
+                  />
+                ) : (
+                  <EmptyTree />
+                )}
+              </div>
+            </section>
+
+            <button
+              type="button"
+              aria-label="패널 비율 조정"
+              onMouseDown={startResize}
+              className={[
+                "group flex cursor-col-resize items-center justify-center border-x border-gray-900/[0.06] bg-gray-900/[0.02] transition-all hover:bg-emerald-500/[0.08] dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:bg-emerald-400/[0.10]",
+                resizing ? "bg-emerald-500/[0.10] dark:bg-emerald-400/[0.12]" : "",
+                treeVisible ? "opacity-100" : "pointer-events-none opacity-0",
+              ].join(" ")}
+            >
+              <span className="h-10 w-0.5 rounded-full bg-gray-900/15 transition-colors group-hover:bg-emerald-500/60 dark:bg-white/15 dark:group-hover:bg-emerald-300/60" />
+            </button>
+          </>
+        ) : (
+          <div className="flex min-h-0 items-start justify-center border-r border-gray-900/[0.07] bg-gray-900/[0.02] py-2 dark:border-white/[0.07] dark:bg-white/[0.02]">
+            <button
+              type="button"
+              title="Dir Tree 열기"
+              onClick={handleShowTree}
+              className="animate-fade-in-up flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-900/35 transition-colors hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:text-white/35 dark:hover:bg-white/[0.08] dark:hover:text-white/70"
+            >
+              <PanelIcon direction="right" />
+            </button>
+          </div>
+        )}
+
+        <aside className="flex min-h-0 min-w-0 flex-col">
+          <div className="flex h-11 shrink-0 items-center gap-3 border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
+            <div className="min-w-0 flex-1">
+              <p className="mt-0.5 truncate text-xs font-semibold text-gray-900/60 dark:text-white/60">
+                {activeFilePath ?? "파일을 선택하세요"}
+              </p>
+              {/* <p className="mt-0.5 truncate text-xs font-semibold text-gray-900/60 dark:text-white/60"> */}
+                {/* {activeFileName} */}
+              {/* </p> */}
+            </div>
+            <button
+              type="button"
+              title="절대 경로 복사"
+              disabled={!activeFilePath}
+              onClick={() => void handleCopyActivePath()}
+              className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-gray-900/30 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 disabled:cursor-default disabled:opacity-30 dark:text-white/30 dark:hover:bg-white/[0.07] dark:hover:text-white/70"
+            >
+              <CopyIcon />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <CodeViewerWorkspace
+              filesByPath={codeViewer.filesByPath}
+              panes={codeViewer.panes}
+              activePaneId={codeViewer.activePaneId}
+              loadingPath={codeViewer.loadingPath}
+              error={codeViewer.error}
+              onActivateFile={codeViewer.activateFile}
+              onCloseFile={codeViewer.closeFile}
+              onSplitWithFile={codeViewer.splitWithFile}
+              onActivatePane={codeViewer.setActivePaneId}
+            />
           </div>
         </aside>
       </main>

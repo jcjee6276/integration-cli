@@ -7,14 +7,14 @@ import type { FsTreeNode } from "@/features/fs/api/fs.api";
 interface DirectoryTreeProps {
   root: FsTreeNode;
   selectedPath: string | null;
-  onSelect: (path: string) => void;
+  onSelect: (node: FsTreeNode) => void;
 }
 
 interface TreeNodeRowProps {
   node: FsTreeNode;
   depth: number;
   selectedPath: string | null;
-  onSelect: (path: string) => void;
+  onSelect: (node: FsTreeNode) => void;
 }
 
 function FolderIcon({ open }: { open: boolean }) {
@@ -96,7 +96,7 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect }: TreeNodeRowProps) 
 
   const handleClick = () => {
     try {
-      onSelect(node.path);
+      onSelect(node);
       if (isDirectory && hasChildren) setOpen((value) => !value);
     } catch {}
   };

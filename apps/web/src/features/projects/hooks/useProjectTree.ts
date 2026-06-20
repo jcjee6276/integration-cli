@@ -73,14 +73,12 @@ function filterTreeNode(
       .map((child) => filterTreeNode(child, whitelist))
       .filter((child): child is FsTreeNode => Boolean(child));
 
-    if (!isRoot && children.length === 0) return null;
-
     return {
       ...node,
       children,
     };
   } catch {
-    return isRoot ? { ...node, children: [] } : null;
+    return node.type === "directory" || isRoot ? { ...node, children: [] } : null;
   }
 }
 

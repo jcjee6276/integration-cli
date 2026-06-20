@@ -1,5 +1,8 @@
 "use client";
 
+import type { FsTreeNode } from "@/features/fs/api/fs.api";
+
+import { useCodeViewer } from "../hooks/useCodeViewer";
 import { useProjectTree } from "../hooks/useProjectTree";
 import { ProjectTreeView } from "../ui/ProjectTreeView";
 
@@ -9,7 +12,6 @@ export function ProjectsPageContainer() {
     setProjectPath,
     tree,
     filteredTree,
-    selectedNode,
     selectedPath,
     setSelectedPath,
     extensionWhitelist,
@@ -19,20 +21,26 @@ export function ProjectsPageContainer() {
     error,
     loadTree,
   } = useProjectTree();
+  const codeViewer = useCodeViewer();
+
+  const handleSelectNode = (node: FsTreeNode) => {
+    setSelectedPath(node.path);
+    if (node.type === "file") void codeViewer.openFile(node);
+  };
 
   return (
     <ProjectTreeView
       projectPath={projectPath}
       tree={tree}
       filteredTree={filteredTree}
-      selectedNode={selectedNode}
       selectedPath={selectedPath}
       extensionWhitelist={extensionWhitelist}
       loading={loading}
       error={error}
+      codeViewer={codeViewer}
       onProjectPathChange={setProjectPath}
       onLoadTree={() => void loadTree()}
-      onSelectNode={setSelectedPath}
+      onSelectNode={handleSelectNode}
       onToggleExtension={toggleExtensionFilter}
       onClearExtensions={clearExtensionFilters}
     />

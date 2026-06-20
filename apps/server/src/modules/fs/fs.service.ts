@@ -21,19 +21,18 @@ export interface FsTreeResult {
   truncated: boolean;
 }
 
-const DEFAULT_MAX_DEPTH = 6;
+export interface FsFileResult {
+  name: string;
+  path: string;
+  content: string;
+  size: number;
+  truncated: boolean;
+}
+
+const DEFAULT_MAX_DEPTH = 10;
 const DEFAULT_MAX_NODES = 1200;
-const EXCLUDED_DIRS = new Set([
-  '.git',
-  '.next',
-  '.turbo',
-  '.vercel',
-  'coverage',
-  'dist',
-  'build',
-  'node_modules',
-  'out',
-]);
+const DEFAULT_MAX_FILE_BYTES = 512 * 1024;
+const EXCLUDED_DIRS = new Set(['.git', '.next', '.turbo', '.vercel', 'node_modules']);
 
 @Injectable()
 export class FsService {
@@ -86,6 +85,47 @@ export class FsService {
         maxDepth: safeMaxDepth,
         totalNodes: counter.total,
         truncated: counter.truncated,
+      };
+    }
+  }
+
+  async readFileContent(inputPath?: string): Promise<FsFileResult> {
+    const filePath = this.resolveInputPath(inputPath);
+
+    try {
+      const stat = await fs.stat(filePath);
+      if (!stat.isFile()) {
+        return {
+          name: path.basename(filePath),
+          path: filePath,
+          content: '',
+          size: stat.size,
+          truncated: false,
+        };
+      }
+
+      const handle = await fs.open(filePath, 'r');
+      try {
+        const length = Math.min(stat.size, DEFAULT_MAX_FILE_BYTES);
+        const buffer = Buffer.alloc(length);
+        await handle.read(buffer, 0, length, 0);
+        return {
+          name: path.basename(filePath),
+          path: filePath,
+          content: buffer.toString('utf8'),
+          size: stat.size,
+          truncated: stat.size > DEFAULT_MAX_FILE_BYTES,
+        };
+      } finally {
+        await handle.close();
+      }
+    } catch {
+      return {
+        name: path.basename(filePath) || filePath,
+        path: filePath,
+        content: '',
+        size: 0,
+        truncated: false,
       };
     }
   }
@@ -162,7 +202,7 @@ export class FsService {
   private toSafeDepth(depth: number): number {
     try {
       if (!Number.isFinite(depth)) return DEFAULT_MAX_DEPTH;
-      return Math.min(Math.max(Math.floor(depth), 1), 10);
+      return Math.min(Math.max(Math.floor(depth), 1), 20);
     } catch {
       return DEFAULT_MAX_DEPTH;
     }

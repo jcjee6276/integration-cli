@@ -36,4 +36,14 @@ export class FsController {
       return this.fsService.readDirectoryTree(inputPath);
     }
   }
+
+  @ApiOperation({ summary: '파일 내용 조회' })
+  @Get('file')
+  async getFile(@Query('path') inputPath?: string) {
+    try {
+      return await this.fsService.readFileContent(inputPath);
+    } catch {
+      return this.fsService.readFileContent(inputPath);
+    }
+  }
 }
