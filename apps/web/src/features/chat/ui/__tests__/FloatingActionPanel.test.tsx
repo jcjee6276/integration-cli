@@ -25,11 +25,16 @@ async function setupModule() {
   const fetchArchivedTasks = vi.fn();
   const unarchiveTask = vi.fn();
   const deleteTask = vi.fn();
+  const push = vi.fn();
 
   vi.doMock("@/features/tasks/api/tasks.api", () => ({
     fetchArchivedTasks,
     unarchiveTask,
     deleteTask,
+  }));
+
+  vi.doMock("next/navigation", () => ({
+    useRouter: () => ({ push }),
   }));
 
   const { FloatingActionPanel } = await import("../FloatingActionPanel");
@@ -39,12 +44,14 @@ async function setupModule() {
     fetchArchivedTasks,
     unarchiveTask,
     deleteTask,
+    push,
   };
 }
 
 afterEach(() => {
   vi.clearAllMocks();
   vi.doUnmock("@/features/tasks/api/tasks.api");
+  vi.doUnmock("next/navigation");
 });
 
 describe("FloatingActionPanel", () => {
@@ -125,5 +132,18 @@ describe("FloatingActionPanel", () => {
     await waitFor(() => {
       expect(screen.queryByText("Archived task")).not.toBeInTheDocument();
     });
+  });
+
+  it("navigates to projects from the project tab", async () => {
+    const user = userEvent.setup();
+    const { FloatingActionPanel, fetchArchivedTasks, push } = await setupModule();
+    fetchArchivedTasks.mockResolvedValue([]);
+
+    render(<FloatingActionPanel />);
+
+    await user.click(screen.getByRole("button", { name: "작업 보관함 / 프로젝트" }));
+    await user.click(screen.getByRole("button", { name: "프로젝트" }));
+
+    expect(push).toHaveBeenCalledWith("/projects");
   });
 });

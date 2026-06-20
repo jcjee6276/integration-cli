@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { useArchivedTasks } from "@/features/tasks/hooks/useArchivedTasks";
@@ -129,26 +130,10 @@ function ArchiveTab() {
   );
 }
 
-// ─── Project Tab ──────────────────────────────────────────────────────────────
-
-function ProjectTab() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-      <svg
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        className="h-6 w-6 text-gray-900/15 dark:text-white/15"
-      >
-        <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z" />
-      </svg>
-      <p className="text-xs text-gray-900/25 dark:text-white/25">프로젝트 기능은 준비 중입니다</p>
-    </div>
-  );
-}
-
 // ─── FloatingActionPanel ──────────────────────────────────────────────────────
 
 export function FloatingActionPanel() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<PanelTab>("archive");
   const panelRef = useRef<HTMLDivElement>(null);
@@ -178,7 +163,13 @@ export function FloatingActionPanel() {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    if (tab.id === "project") {
+                      router.push("/projects");
+                      return;
+                    }
+                    setActiveTab(tab.id);
+                  }}
                   className={[
                     "h-7 cursor-pointer rounded-md px-3 text-xs font-medium transition-colors",
                     activeTab === tab.id
@@ -194,7 +185,7 @@ export function FloatingActionPanel() {
 
           {/* 탭 콘텐츠 */}
           <div className="max-h-80 overflow-y-auto">
-            {activeTab === "archive" ? <ArchiveTab /> : <ProjectTab />}
+            <ArchiveTab />
           </div>
         </div>
       )}

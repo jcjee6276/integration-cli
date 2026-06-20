@@ -1,0 +1,368 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+
+import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import type { FsTreeNode, FsTreeResult } from "@/features/fs/api/fs.api";
+import { ThemeToggle } from "@/lib/theme";
+
+import { EXTENSION_FILTER_OPTIONS } from "../hooks/useProjectTree";
+import { useResizablePanels } from "../hooks/useResizablePanels";
+
+import { DirectoryTree } from "./DirectoryTree";
+
+interface ProjectTreeViewProps {
+  projectPath: string;
+  tree: FsTreeResult | null;
+  filteredTree: FsTreeResult | null;
+  selectedNode: FsTreeNode | null;
+  selectedPath: string | null;
+  extensionWhitelist: string[];
+  loading: boolean;
+  error: string | null;
+  onProjectPathChange: (path: string) => void;
+  onLoadTree: () => void;
+  onSelectNode: (path: string) => void;
+  onToggleExtension: (extension: string) => void;
+  onClearExtensions: () => void;
+}
+
+function Spinner() {
+  return (
+    <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/30 border-t-white" />
+  );
+}
+
+function NodeTypeBadge({ type }: { type: FsTreeNode["type"] }) {
+  const label = type === "directory" ? "directory" : "file";
+  return (
+    <span className="rounded-full border border-gray-900/[0.08] bg-white px-2 py-0.5 text-[11px] font-medium text-gray-900/45 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white/45">
+      {label}
+    </span>
+  );
+}
+
+function EmptyTree() {
+  return (
+    <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-3 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-900/[0.08] bg-emerald-500/[0.08] text-emerald-600 dark:border-white/[0.08] dark:text-emerald-300">
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-6 w-6">
+          <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z" />
+        </svg>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-900/70 dark:text-white/70">프로젝트 디렉토리</p>
+        <p className="mt-1 text-xs text-gray-900/35 dark:text-white/35">
+          선택한 경로의 트리가 여기에 표시됩니다
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TreeStats({ tree }: { tree: FsTreeResult }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 text-[11px] text-gray-900/35 dark:text-white/35">
+      <span>{tree.totalNodes.toLocaleString()} nodes</span>
+      <span className="h-1 w-1 rounded-full bg-gray-900/20 dark:bg-white/20" />
+      <span>depth {tree.maxDepth}</span>
+      {tree.truncated && (
+        <>
+          <span className="h-1 w-1 rounded-full bg-gray-900/20 dark:bg-white/20" />
+          <span className="text-amber-600 dark:text-amber-300">truncated</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+      <path d="M1.5 2.75A.75.75 0 012.25 2h11.5a.75.75 0 01.58 1.226L10 8.516v3.734a.75.75 0 01-.323.616l-2 1.384A.75.75 0 016.5 13.634V8.516L1.67 3.226A.75.75 0 011.5 2.75z" />
+    </svg>
+  );
+}
+
+function ExtensionFilterMenu({
+  extensionWhitelist,
+  onToggleExtension,
+  onClearExtensions,
+}: {
+  extensionWhitelist: string[];
+  onToggleExtension: (extension: string) => void;
+  onClearExtensions: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const checkedCount = extensionWhitelist.length;
+  const allChecked = checkedCount === EXTENSION_FILTER_OPTIONS.length;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        title="확장자 필터"
+        className={[
+          "flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition-colors",
+          open || !allChecked
+            ? "border-emerald-500/35 bg-emerald-500/[0.10] text-emerald-700 dark:text-emerald-300"
+            : "border-gray-900/[0.07] bg-white/45 text-gray-900/35 hover:bg-gray-900/[0.04] hover:text-gray-900/60 dark:border-white/[0.07] dark:bg-white/[0.03] dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white/60",
+        ].join(" ")}
+      >
+        <FilterIcon />
+        <span className="font-mono">
+          {checkedCount}/{EXTENSION_FILTER_OPTIONS.length}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 z-30 mt-2 w-48 overflow-hidden rounded-lg border border-gray-900/[0.09] bg-white shadow-[0_16px_40px_-16px_rgba(0,0,0,0.32)] dark:border-white/[0.09] dark:bg-[#0e1117]">
+          <div className="flex items-center justify-between border-b border-gray-900/[0.06] px-2.5 py-2 dark:border-white/[0.06]">
+            <span className="text-[11px] font-semibold text-gray-900/45 dark:text-white/45">
+              Whitelist
+            </span>
+            <button
+              type="button"
+              onClick={onClearExtensions}
+              disabled={allChecked}
+              className="cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] font-medium text-gray-900/35 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/65 disabled:cursor-default disabled:opacity-30 dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white/65"
+            >
+              전체
+            </button>
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {EXTENSION_FILTER_OPTIONS.map((option) => {
+              const checked = extensionWhitelist.includes(option.extension);
+              return (
+                <label
+                  key={option.extension}
+                  className="flex h-8 cursor-pointer items-center gap-2 px-2.5 text-xs text-gray-900/62 transition-colors hover:bg-gray-900/[0.04] dark:text-white/62 dark:hover:bg-white/[0.05]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggleExtension(option.extension)}
+                    className="h-3.5 w-3.5 accent-emerald-600"
+                  />
+                  <span className="w-10 font-mono font-semibold">{option.extension}</span>
+                  <span className="min-w-0 truncate text-[11px] text-gray-900/35 dark:text-white/35">
+                    {option.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TreeHeaderTools({
+  tree,
+  extensionWhitelist,
+  onToggleExtension,
+  onClearExtensions,
+}: {
+  tree: FsTreeResult;
+  extensionWhitelist: string[];
+  onToggleExtension: (extension: string) => void;
+  onClearExtensions: () => void;
+}) {
+  return (
+    <div className="flex min-w-0 shrink-0 items-center gap-3">
+      <TreeStats tree={tree} />
+      <ExtensionFilterMenu
+        extensionWhitelist={extensionWhitelist}
+        onToggleExtension={onToggleExtension}
+        onClearExtensions={onClearExtensions}
+      />
+    </div>
+  );
+}
+
+export function ProjectTreeView({
+  projectPath,
+  tree,
+  filteredTree,
+  selectedNode,
+  selectedPath,
+  extensionWhitelist,
+  loading,
+  error,
+  onProjectPathChange,
+  onLoadTree,
+  onSelectNode,
+  onToggleExtension,
+  onClearExtensions,
+}: ProjectTreeViewProps) {
+  const { containerRef, treeWidth, resizing, startResize } = useResizablePanels();
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    try {
+      event.preventDefault();
+      onLoadTree();
+    } catch {}
+  };
+
+  return (
+    <div className="flex h-screen flex-col bg-[#faf8f5] text-gray-900 dark:bg-[#07090e] dark:text-white">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
+        <Link
+          href="/claude"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-900/35 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+          title="Claude로 이동"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
+            <path d="M9.78 3.22a.75.75 0 010 1.06L6.06 8l3.72 3.72a.75.75 0 11-1.06 1.06L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0z" />
+          </svg>
+        </Link>
+        <div className="min-w-0">
+          <h1 className="text-sm font-semibold text-gray-900/82 dark:text-white/82">Projects</h1>
+          <p className="truncate font-mono text-[11px] text-gray-900/28 dark:text-white/28">
+            {tree?.root.path ?? "no project loaded"}
+          </p>
+        </div>
+        <div className="ml-auto">
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <form
+        onSubmit={handleSubmit}
+        className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-900/[0.07] px-4 py-3 dark:border-white/[0.07]"
+      >
+        <WorkingDirPicker value={projectPath} onChange={onProjectPathChange} variant="field" />
+        <button
+          type="submit"
+          disabled={loading || !projectPath.trim()}
+          className="flex h-10 min-w-24 cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:hover:text-gray-950"
+        >
+          {loading && <Spinner />}
+          스캔
+        </button>
+      </form>
+
+      {error && (
+        <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
+      <main
+        ref={containerRef}
+        className="grid min-h-0 flex-1 overflow-hidden"
+        style={{ gridTemplateColumns: `${treeWidth}% 8px minmax(0, 1fr)` }}
+      >
+        <section className="flex min-h-0 min-w-0 flex-col">
+          <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
+            <span className="text-xs font-semibold text-gray-900/55 dark:text-white/55">
+              Dir Tree
+            </span>
+            {filteredTree && (
+              <TreeHeaderTools
+                tree={filteredTree}
+                extensionWhitelist={extensionWhitelist}
+                onToggleExtension={onToggleExtension}
+                onClearExtensions={onClearExtensions}
+              />
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+            {filteredTree ? (
+              <DirectoryTree
+                root={filteredTree.root}
+                selectedPath={selectedPath}
+                onSelect={onSelectNode}
+              />
+            ) : (
+              <EmptyTree />
+            )}
+          </div>
+        </section>
+
+        <button
+          type="button"
+          aria-label="패널 비율 조정"
+          onMouseDown={startResize}
+          className={[
+            "group flex cursor-col-resize items-center justify-center border-x border-gray-900/[0.06] bg-gray-900/[0.02] transition-colors hover:bg-emerald-500/[0.08] dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:bg-emerald-400/[0.10]",
+            resizing ? "bg-emerald-500/[0.10] dark:bg-emerald-400/[0.12]" : "",
+          ].join(" ")}
+        >
+          <span className="h-10 w-0.5 rounded-full bg-gray-900/15 transition-colors group-hover:bg-emerald-500/60 dark:bg-white/15 dark:group-hover:bg-emerald-300/60" />
+        </button>
+
+        <aside className="flex min-w-0 flex-col">
+          <div className="flex h-11 shrink-0 items-center border-b border-gray-900/[0.07] px-4 dark:border-white/[0.07]">
+            <span className="text-xs font-semibold text-gray-900/55 dark:text-white/55">
+              Selection
+            </span>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
+            {selectedNode ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <NodeTypeBadge type={selectedNode.type} />
+                  {selectedNode.truncated && (
+                    <span className="rounded-full bg-amber-500/[0.12] px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                      truncated
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-gray-900/80 dark:text-white/80">
+                    {selectedNode.name}
+                  </p>
+                  <p className="mt-2 font-mono text-xs leading-5 break-all text-gray-900/45 dark:text-white/45">
+                    {selectedNode.path}
+                  </p>
+                </div>
+                {selectedNode.type === "directory" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-gray-900/[0.07] px-3 py-2 dark:border-white/[0.07]">
+                      <p className="text-[11px] text-gray-900/35 dark:text-white/35">children</p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900/75 dark:text-white/75">
+                        {(selectedNode.children?.length ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-900/[0.07] px-3 py-2 dark:border-white/[0.07]">
+                      <p className="text-[11px] text-gray-900/35 dark:text-white/35">status</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900/65 dark:text-white/65">
+                        {selectedNode.error ? "error" : "ready"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {selectedNode.error && (
+                  <div className="rounded-lg border border-red-500/[0.18] bg-red-500/[0.06] px-3 py-2 text-xs leading-5 text-red-600 dark:text-red-300">
+                    {selectedNode.error}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-center text-xs text-gray-900/30 dark:text-white/30">
+                선택한 항목이 없습니다
+              </div>
+            )}
+          </div>
+        </aside>
+      </main>
+    </div>
+  );
+}
