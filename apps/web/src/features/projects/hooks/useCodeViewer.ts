@@ -52,6 +52,15 @@ function removeEmptyPanes(panes: CodeViewerPane[]) {
   }
 }
 
+function findValidPaneId(panes: CodeViewerPane[], paneId: string | null) {
+  try {
+    if (paneId && panes.some((pane) => pane.id === paneId)) return paneId;
+    return panes[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function useCodeViewer() {
   const [filesByPath, setFilesByPath] = useState<Record<string, FsFileResult>>({});
   const [panes, setPanes] = useState<CodeViewerPane[]>(() => [createPane()]);
@@ -92,12 +101,17 @@ export function useCodeViewer() {
         return;
       }
 
-      const targetPaneId = activePaneId ?? panes[0]?.id ?? null;
       setError(null);
+      let nextActivePaneId: string | null = null;
       setPanes((prev) => {
-        const paneId = targetPaneId ?? prev[0]?.id;
-        if (!paneId) return [createPane(node.path)];
+        const paneId = findValidPaneId(prev, activePaneId);
+        if (!paneId) {
+          const nextPane = createPane(node.path);
+          nextActivePaneId = nextPane.id;
+          return [nextPane];
+        }
 
+        nextActivePaneId = paneId;
         return prev.map((pane) =>
           pane.id === paneId
             ? {
@@ -110,7 +124,7 @@ export function useCodeViewer() {
             : pane,
         );
       });
-      setActivePaneId(targetPaneId);
+      setActivePaneId(nextActivePaneId);
 
       if (filesByPath[node.path]) return;
 
@@ -149,20 +163,27 @@ export function useCodeViewer() {
     setActivePaneId(paneId);
   }, []);
 
-  const closeFile = useCallback((paneId: string, path: string) => {
-    setPanes((prev) => {
-      const nextPanes = prev.map((pane) => {
-        if (pane.id !== paneId) return pane;
-        const filePaths = pane.filePaths.filter((filePath) => filePath !== path);
-        return {
-          ...pane,
-          filePaths,
-          activePath: pane.activePath === path ? (filePaths.at(-1) ?? null) : pane.activePath,
-        };
+  const closeFile = useCallback(
+    (paneId: string, path: string) => {
+      let nextActivePaneId: string | null = null;
+      setPanes((prev) => {
+        const nextPanes = prev.map((pane) => {
+          if (pane.id !== paneId) return pane;
+          const filePaths = pane.filePaths.filter((filePath) => filePath !== path);
+          return {
+            ...pane,
+            filePaths,
+            activePath: pane.activePath === path ? (filePaths.at(-1) ?? null) : pane.activePath,
+          };
+        });
+        const compactPanes = removeEmptyPanes(nextPanes);
+        nextActivePaneId = findValidPaneId(compactPanes, activePaneId);
+        return compactPanes;
       });
-      return removeEmptyPanes(nextPanes);
-    });
-  }, []);
+      setActivePaneId(nextActivePaneId);
+    },
+    [activePaneId],
+  );
 
   const splitWithFile = useCallback(
     (sourcePaneId: string, targetPaneId: string, path: string, side: DropSide) => {

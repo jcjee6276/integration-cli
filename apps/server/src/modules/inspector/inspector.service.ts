@@ -12,6 +12,7 @@ export type InspectorState = 'idle' | 'connecting' | 'active';
 
 /** in-page 헬퍼가 보내는 원시 payload */
 interface InspectorRawPayload {
+  source?: { fileName: string; lineNumber?: number; columnNumber?: number };
   frame?: { url: string; line: number; column: number };
   componentName?: string;
   notFound?: boolean;
@@ -104,6 +105,28 @@ const OVERLAY_SCRIPT = `
       }
     }
 
+    // React 18 + Vite/Babel dev transform은 jsxDEV의 fileName/lineNumber를
+    // fiber._debugSource에 직접 보관한다. 이 값이 있으면 source map보다 정확하다.
+    function readDebugSource(fiber) {
+      try {
+        let c = fiber;
+        while (c) {
+          const source = c._debugSource;
+          if (source && source.fileName) {
+            return {
+              fileName: source.fileName,
+              lineNumber: source.lineNumber,
+              columnNumber: source.columnNumber,
+            };
+          }
+          c = c.return;
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
+
     // React 19(Turbopack)는 _debugSource를 제거 → _debugStack(번들 위치) + _debugOwner(컴포넌트)
     function readComponentName(fiber) {
       try {
@@ -130,16 +153,25 @@ const OVERLAY_SCRIPT = `
             for (let i = 0; i < lines.length; i++) {
               if (lines[i].indexOf('jsxDEV') !== -1 || lines[i].indexOf('jsx-dev-runtime') !== -1) {
                 const next = lines[i + 1] || '';
-                const m = next.match(/\\((https?:\\/\\/[^)]+):(\\d+):(\\d+)\\)/);
+                const m =
+                  next.match(/\\((https?:\\/\\/[^)]+):(\\d+):(\\d+)\\)/) ||
+                  next.match(/(https?:\\/\\/\\S+):(\\d+):(\\d+)/);
                 if (m) return { url: m[1], line: Number(m[2]), column: Number(m[3]) };
               }
             }
             // jsxDEV 라벨이 없으면 첫 앱 청크 프레임 사용
             for (let i = 0; i < lines.length; i++) {
-              if (lines[i].indexOf('/_next/static/chunks/') !== -1 &&
-                  lines[i].indexOf('react-dom') === -1 &&
-                  lines[i].indexOf('react-server-dom') === -1) {
-                const m = lines[i].match(/\\((https?:\\/\\/[^)]+):(\\d+):(\\d+)\\)/);
+              if (
+                (lines[i].indexOf('/_next/static/chunks/') !== -1 ||
+                  lines[i].indexOf('/src/') !== -1 ||
+                  lines[i].indexOf('/@fs/') !== -1) &&
+                lines[i].indexOf('react-dom') === -1 &&
+                lines[i].indexOf('react-server-dom') === -1 &&
+                lines[i].indexOf('/node_modules/') === -1
+              ) {
+                const m =
+                  lines[i].match(/\\((https?:\\/\\/[^)]+):(\\d+):(\\d+)\\)/) ||
+                  lines[i].match(/(https?:\\/\\/\\S+):(\\d+):(\\d+)/);
                 if (m) return { url: m[1], line: Number(m[2]), column: Number(m[3]) };
               }
             }
@@ -229,10 +261,11 @@ const OVERLAY_SCRIPT = `
         e.stopPropagation();
         const target = e.target;
         const fiber = getFiber(target);
-        const frame = fiber ? readFrame(fiber) : null;
+        const source = fiber ? readDebugSource(fiber) : null;
+        const frame = source ? null : fiber ? readFrame(fiber) : null;
         const componentName = fiber ? readComponentName(fiber) : undefined;
-        if (frame) {
-          window.${BINDING_NAME}(JSON.stringify({ frame, componentName }));
+        if (source || frame) {
+          window.${BINDING_NAME}(JSON.stringify({ source, frame, componentName }));
         } else {
           window.${BINDING_NAME}(
             JSON.stringify({
@@ -367,6 +400,24 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
     try {
       const data = JSON.parse(payload) as InspectorRawPayload;
 
+      if (data.source?.fileName) {
+        const sourceFile = this.toAbsolutePath(data.source.fileName);
+        const range = await this.resolveElementRange(
+          sourceFile,
+          data.source.lineNumber,
+          data.source.columnNumber,
+        );
+
+        this.emit('inspector:element', {
+          fileName: sourceFile,
+          line: range?.startLine ?? data.source.lineNumber,
+          column: data.source.columnNumber,
+          endLine: range?.endLine,
+          componentName: data.componentName,
+        } satisfies InspectorElementEvent);
+        return;
+      }
+
       if (data.notFound || !data.frame) {
         this.emit('inspector:element', {
           notFound: true,
@@ -482,11 +533,7 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
       // 감싸는 JSX 요소까지 상향
       let jsx: import('typescript').Node | undefined = deepest;
       while (jsx) {
-        if (
-          ts.isJsxElement(jsx) ||
-          ts.isJsxSelfClosingElement(jsx) ||
-          ts.isJsxFragment(jsx)
-        ) {
+        if (ts.isJsxElement(jsx) || ts.isJsxSelfClosingElement(jsx) || ts.isJsxFragment(jsx)) {
           break;
         }
         jsx = jsx.parent;
@@ -584,7 +631,11 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
   }
 
   /** source map의 source 항목을 절대 디스크 경로로 변환 */
-  private resolveSourcePath(baseDir: string, sourceRoot: string | undefined, source: string): string {
+  private resolveSourcePath(
+    baseDir: string,
+    sourceRoot: string | undefined,
+    source: string,
+  ): string {
     try {
       if (source.startsWith('file://')) return fileURLToPath(source);
 
