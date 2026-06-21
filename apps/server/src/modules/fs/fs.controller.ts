@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import * as fs from 'fs';
 
+import { FsCouplingService } from './fs-coupling.service';
 import { FsService } from './fs.service';
 
 interface OpenFileBody {
@@ -14,7 +15,10 @@ interface OpenFileBody {
 @ApiTags('fs')
 @Controller('fs')
 export class FsController {
-  constructor(private readonly fsService: FsService) {}
+  constructor(
+    private readonly fsService: FsService,
+    private readonly fsCouplingService: FsCouplingService,
+  ) {}
 
   @ApiOperation({ summary: '하위 디렉토리 목록 조회' })
   @Get('dirs')
@@ -51,6 +55,16 @@ export class FsController {
       return await this.fsService.readFileContent(inputPath);
     } catch {
       return this.fsService.readFileContent(inputPath);
+    }
+  }
+
+  @ApiOperation({ summary: '현재 파일을 import 중인 파일 목록 조회' })
+  @Get('file/importers')
+  async getImporters(@Query('root') rootPath?: string, @Query('path') inputPath?: string) {
+    try {
+      return await this.fsCouplingService.findImporters(rootPath, inputPath);
+    } catch {
+      return this.fsCouplingService.findImporters(rootPath, inputPath);
     }
   }
 

@@ -38,6 +38,22 @@ export interface FsOpenFileResult {
   error?: string;
 }
 
+export interface FsImporterItem {
+  path: string;
+  name: string;
+  relativePath: string;
+  line: number;
+  column: number;
+  importText: string;
+}
+
+export interface FsImportersResult {
+  rootPath: string;
+  targetPath: string;
+  importers: FsImporterItem[];
+  count: number;
+}
+
 export async function fetchDirs(path?: string): Promise<DirListResult> {
   const url = new URL(`${SERVER_URL}/fs/dirs`);
   if (path) url.searchParams.set("path", path);
@@ -58,6 +74,18 @@ export async function fetchDirectoryTree(path: string, maxDepth = 10): Promise<F
 export async function fetchFileContent(path: string): Promise<FsFileResult> {
   const url = new URL(`${SERVER_URL}/fs/file`);
   url.searchParams.set("path", path);
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchFileImporters(input: {
+  root: string;
+  path: string;
+}): Promise<FsImportersResult> {
+  const url = new URL(`${SERVER_URL}/fs/file/importers`);
+  url.searchParams.set("root", input.root);
+  url.searchParams.set("path", input.path);
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

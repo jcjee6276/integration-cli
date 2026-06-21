@@ -512,6 +512,7 @@ export function ProjectTreeView({
               focus={codeViewer.focus}
               onActivateFile={codeViewer.activateFile}
               onCloseFile={codeViewer.closeFile}
+              onOpenFile={codeViewer.openFile}
               onFocusLine={codeViewer.focusLine}
               onSplitWithFile={codeViewer.splitWithFile}
               onActivatePane={codeViewer.setActivePaneId}

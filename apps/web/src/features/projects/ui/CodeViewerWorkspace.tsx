@@ -4,13 +4,20 @@ import hljs from "highlight.js";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 
-import { openFileInIde, type FsFileResult } from "@/features/fs/api/fs.api";
+import {
+  openFileInIde,
+  type FsFileResult,
+  type FsImporterItem,
+  type FsImportersResult,
+  type FsTreeNode,
+} from "@/features/fs/api/fs.api";
 import { useToast } from "@/lib/toast";
 
 import type { HandoffAgentId } from "../api/agentHandoff.api";
 import { useAgentHandoff } from "../hooks/useAgentHandoff";
 import { useCodeSplitResize } from "../hooks/useCodeSplitResize";
 import type { CodeFocus, CodeViewerPane, DropSide } from "../hooks/useCodeViewer";
+import { useImpactCoupling } from "../hooks/useImpactCoupling";
 
 import { AgentHandoffComposer } from "./AgentHandoffComposer";
 
@@ -27,6 +34,7 @@ interface CodeViewerWorkspaceProps {
   focus: CodeFocus | null;
   onActivateFile: (paneId: string, path: string) => void;
   onCloseFile: (paneId: string, path: string) => void;
+  onOpenFile: (node: FsTreeNode) => void | Promise<void>;
   onFocusLine: (path: string, line: number, endLine?: number, manual?: boolean) => void;
   onSplitWithFile: (
     sourcePaneId: string,
@@ -229,6 +237,32 @@ function OpenInIdeIcon() {
   );
 }
 
+function ImpactIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
+      <path
+        d="M3.5 3.75h2.75M3.5 8h3M3.5 12.25h2.75"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7.25 3.75h1.6c1.25 0 1.85.6 1.85 1.85v.7M7.25 12.25h1.6c1.25 0 1.85-.6 1.85-1.85v-.7M10.7 8h2"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12.1 6.6 13.5 8l-1.4 1.4"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 async function copyToClipboard(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -236,6 +270,76 @@ async function copyToClipboard(text: string) {
   } catch {
     return false;
   }
+}
+
+function ImpactPopover({
+  result,
+  loading,
+  error,
+  onOpenImporter,
+}: {
+  result: FsImportersResult | undefined;
+  loading: boolean;
+  error: string | null;
+  onOpenImporter: (item: FsImporterItem) => void;
+}) {
+  const importers = result?.importers ?? [];
+
+  return (
+    <div className="absolute top-10 right-2 z-40 w-96 max-w-[calc(100vw-32px)] overflow-hidden rounded-lg border border-gray-900/[0.09] bg-white shadow-[0_18px_50px_-18px_rgba(0,0,0,0.35)] dark:border-white/[0.10] dark:bg-[#111722]">
+      <div className="flex items-center gap-2 border-b border-gray-900/[0.06] px-3 py-2 dark:border-white/[0.07]">
+        <span className="text-xs font-semibold text-gray-900/68 dark:text-white/68">
+          Impact / Coupling
+        </span>
+        <span className="ml-auto font-mono text-[11px] text-gray-900/35 dark:text-white/35">
+          {loading ? "scanning" : `${result?.count ?? 0} imports`}
+        </span>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 px-3 py-4 text-xs text-gray-900/40 dark:text-white/40">
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border border-gray-900/15 border-t-emerald-500 dark:border-white/15 dark:border-t-emerald-300" />
+          import graph 분석 중...
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="px-3 py-4 text-xs text-red-600 dark:text-red-300">{error}</div>
+      )}
+
+      {!loading && !error && importers.length === 0 && (
+        <div className="px-3 py-4 text-xs text-gray-900/35 dark:text-white/35">
+          이 파일을 import 중인 파일이 없습니다
+        </div>
+      )}
+
+      {!loading && !error && importers.length > 0 && (
+        <div className="max-h-80 overflow-y-auto py-1">
+          {importers.map((item) => (
+            <button
+              key={`${item.path}:${item.line}:${item.importText}`}
+              type="button"
+              onClick={() => onOpenImporter(item)}
+              className="block w-full cursor-pointer px-3 py-2 text-left transition-colors hover:bg-emerald-500/[0.08]"
+              title={item.path}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-semibold text-gray-900/70 dark:text-white/70">
+                  {item.name}
+                </span>
+                <span className="shrink-0 font-mono text-[10px] text-emerald-700 dark:text-emerald-300">
+                  :{item.line}
+                </span>
+              </div>
+              <p className="mt-1 truncate font-mono text-[10px] text-gray-900/35 dark:text-white/35">
+                {item.importText}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DropOverlay({ side }: { side: DropSide | null }) {
@@ -266,6 +370,7 @@ function CodePane({
   active,
   onActivateFile,
   onCloseFile,
+  onOpenFile,
   onFocusLine,
   onSplitWithFile,
   onActivatePane,
@@ -280,6 +385,7 @@ function CodePane({
   focus: CodeFocus | null;
   onActivateFile: (paneId: string, path: string) => void;
   onCloseFile: (paneId: string, path: string) => void;
+  onOpenFile: (node: FsTreeNode) => void | Promise<void>;
   onFocusLine: (path: string, line: number, endLine?: number, manual?: boolean) => void;
   onSplitWithFile: (
     sourcePaneId: string,
@@ -291,7 +397,9 @@ function CodePane({
 }) {
   const { addToast } = useToast();
   const { submittingAgent, handoff } = useAgentHandoff();
+  const impact = useImpactCoupling();
   const [dropSide, setDropSide] = useState<DropSide | null>(null);
+  const [impactOpen, setImpactOpen] = useState(false);
   const activePath = pane.activePath ?? pane.filePaths[0] ?? null;
   const activeFile = activePath ? filesByPath[activePath] : undefined;
   const activeFileLoading = Boolean(activePath && activePath === loadingPath && !activeFile);
@@ -393,6 +501,26 @@ function CodePane({
     }
   };
 
+  const handleToggleImpact = async () => {
+    try {
+      if (!activePath || !projectPath) return;
+      setImpactOpen((value) => !value);
+      if (!impact.getResult(activePath)) {
+        await impact.loadImporters(projectPath, activePath);
+      }
+    } catch {
+      addToast({ type: "error", title: "Impact 분석 실패", message: "다시 시도해 주세요" });
+    }
+  };
+
+  const handleOpenImporter = (item: FsImporterItem) => {
+    try {
+      void onOpenFile({ name: item.name, path: item.path, type: "file" });
+      onFocusLine(item.path, item.line, undefined, true);
+      setImpactOpen(false);
+    } catch {}
+  };
+
   return (
     <div
       onClick={() => onActivatePane(pane.id)}
@@ -450,6 +578,33 @@ function CodePane({
               </div>
             );
           })}
+        </div>
+        <div className="relative">
+          <button
+            type="button"
+            title="Impact / Coupling"
+            disabled={!activePath || !projectPath}
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleToggleImpact();
+            }}
+            className={[
+              "mr-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors disabled:cursor-default disabled:opacity-30",
+              impactOpen
+                ? "bg-emerald-500/[0.12] text-emerald-700 dark:text-emerald-300"
+                : "text-gray-900/30 hover:bg-gray-900/[0.06] hover:text-gray-900/70 dark:text-white/30 dark:hover:bg-white/[0.08] dark:hover:text-white/70",
+            ].join(" ")}
+          >
+            <ImpactIcon />
+          </button>
+          {impactOpen && (
+            <ImpactPopover
+              result={impact.getResult(activePath)}
+              loading={impact.loadingPath === activePath}
+              error={impact.error}
+              onOpenImporter={handleOpenImporter}
+            />
+          )}
         </div>
         <button
           type="button"
@@ -511,6 +666,7 @@ export function CodeViewerWorkspace({
   focus,
   onActivateFile,
   onCloseFile,
+  onOpenFile,
   onFocusLine,
   onSplitWithFile,
   onActivatePane,
@@ -565,6 +721,7 @@ export function CodeViewerWorkspace({
               focus={focus}
               onActivateFile={onActivateFile}
               onCloseFile={onCloseFile}
+              onOpenFile={onOpenFile}
               onFocusLine={onFocusLine}
               onSplitWithFile={onSplitWithFile}
               onActivatePane={onActivatePane}
