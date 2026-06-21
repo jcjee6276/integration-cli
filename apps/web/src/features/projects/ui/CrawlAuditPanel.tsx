@@ -20,12 +20,14 @@ const AGENTS: HandoffAgentId[] = ["codex", "claude", "gemini"];
 
 function kindColor(kind: CrawlIssue["kind"]) {
   if (kind === "network") return "text-amber-600 dark:text-amber-300";
+  if (kind === "rerender") return "text-violet-600 dark:text-violet-300";
   return "text-red-600 dark:text-red-300";
 }
 
 function kindLabel(kind: CrawlIssue["kind"]) {
   if (kind === "network") return "NET";
   if (kind === "exception") return "EXC";
+  if (kind === "rerender") return "RDR";
   return "ERR";
 }
 

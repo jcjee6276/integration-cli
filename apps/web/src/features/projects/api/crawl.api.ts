@@ -1,6 +1,6 @@
 import { SERVER_URL } from "@/lib/constants";
 
-export type CrawlIssueKind = "console-error" | "exception" | "network";
+export type CrawlIssueKind = "console-error" | "exception" | "network" | "rerender";
 
 export interface CrawlIssue {
   route: string;

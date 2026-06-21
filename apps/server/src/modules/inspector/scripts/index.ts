@@ -4,3 +4,4 @@ export { NETWORK_SCRIPT } from './network.script';
 export { PERF_SCRIPT } from './perf.script';
 export { REACT_SCRIPT } from './react.script';
 export { CONSOLE_SCRIPT } from './console.script';
+export { REACT_COUNT_SCRIPT } from './react-count.script';

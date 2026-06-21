@@ -8,9 +8,33 @@ import type { Browser } from 'puppeteer-core';
 import { resolveChromePath } from './chrome.util';
 import { ConsoleCollectorService } from './console-collector.service';
 import { NetworkCollectorService } from './network-collector.service';
+import { REACT_COUNT_SCRIPT } from './scripts';
 import { SourceResolverService } from './source-resolver.service';
 
-export type CrawlIssueKind = 'console-error' | 'exception' | 'network';
+export type CrawlIssueKind = 'console-error' | 'exception' | 'network' | 'rerender';
+
+/** 페이지에서 읽어오는 컴포넌트별 idle 렌더 횟수 */
+export interface RenderCount {
+  count: number;
+  frame?: { url: string; line: number; column: number };
+}
+
+/** 임계치 이상 idle 재렌더 컴포넌트를 골라 정렬 (순수 함수 — 테스트 용이) */
+export function topRerenders(
+  counts: Record<string, RenderCount>,
+  threshold: number,
+  max = 10,
+): { name: string; count: number; frame?: RenderCount['frame'] }[] {
+  try {
+    return Object.entries(counts)
+      .filter(([, v]) => v && v.count >= threshold)
+      .map(([name, v]) => ({ name, count: v.count, frame: v.frame }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, max);
+  } catch {
+    return [];
+  }
+}
 
 export interface CrawlIssue {
   route: string;
@@ -49,6 +73,10 @@ export interface CrawlProgress {
 const MAX_ROUTES = 40;
 const ROUTE_TIMEOUT_MS = 20000;
 const SETTLE_MS = 700;
+/** 마운트 churn 제거 후, 이 시간 동안 idle 재렌더를 측정 */
+const RERENDER_QUIET_MS = 1500;
+/** quiet window 동안 이 횟수 이상 재렌더하면 과다 렌더로 플래그 */
+const RERENDER_THRESHOLD = 3;
 const PAGE_FILE = /^page\.(t|j)sx?$/;
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.next', '.turbo', 'dist']);
 
@@ -163,6 +191,8 @@ export class CrawlService extends EventEmitter {
     try {
       await consoleCol.attach(page);
       await netCol.attach(page);
+      // React 렌더 카운터는 React보다 먼저 설치되어야 함
+      await page.evaluateOnNewDocument(REACT_COUNT_SCRIPT);
 
       try {
         await page.goto(url, { waitUntil: 'networkidle0', timeout: ROUTE_TIMEOUT_MS });
@@ -172,6 +202,26 @@ export class CrawlService extends EventEmitter {
       await new Promise((r) => setTimeout(r, SETTLE_MS));
 
       const issues: CrawlIssue[] = [];
+
+      // 과다 리렌더: 마운트 churn 제거 후 idle 동안의 재렌더만 측정
+      const rerenders = await this.measureIdleRerenders(page);
+      for (const r of rerenders) {
+        const issue: CrawlIssue = {
+          route,
+          kind: 'rerender',
+          title: `과다 리렌더: ${r.name} (대기 중 ${r.count}회)`,
+          detail: `상호작용이 없는데 ${r.count}회 재렌더됨 — 불안정한 deps/effect 루프 가능성`,
+        };
+        if (r.frame) {
+          const resolved = await this.sourceResolver.resolveFrame(r.frame);
+          if (resolved) {
+            issue.fileName = resolved.fileName;
+            issue.line = resolved.line;
+            issue.endLine = resolved.endLine;
+          }
+        }
+        issues.push(issue);
+      }
 
       // 콘솔 에러 / 예외
       for (const rec of consoleCol.snapshot()) {
@@ -216,6 +266,28 @@ export class CrawlService extends EventEmitter {
       try {
         await page.close();
       } catch {}
+    }
+  }
+
+  /** 마운트 후 counts를 리셋하고, idle quiet window 동안의 재렌더만 측정 */
+  private async measureIdleRerenders(
+    page: import('puppeteer-core').Page,
+  ): Promise<{ name: string; count: number; frame?: RenderCount['frame'] }[]> {
+    try {
+      // 문자열 evaluate — 브라우저 컨텍스트에서 실행되며 서버 타입(window 없음)과 무관
+      const installed = (await page.evaluate(
+        'Boolean(window.__jcRenderCountInstalled)',
+      )) as boolean;
+      if (!installed) return [];
+      await page.evaluate('window.__jcResetRenderCounts && window.__jcResetRenderCounts()');
+      await new Promise((r) => setTimeout(r, RERENDER_QUIET_MS));
+      const counts = (await page.evaluate('window.__jcRenderCounts || {}')) as Record<
+        string,
+        RenderCount
+      >;
+      return topRerenders(counts, RERENDER_THRESHOLD);
+    } catch {
+      return [];
     }
   }
 
