@@ -7,8 +7,12 @@ import type { DragEvent } from "react";
 import { openFileInIde, type FsFileResult } from "@/features/fs/api/fs.api";
 import { useToast } from "@/lib/toast";
 
+import type { HandoffAgentId } from "../api/agentHandoff.api";
+import { useAgentHandoff } from "../hooks/useAgentHandoff";
 import { useCodeSplitResize } from "../hooks/useCodeSplitResize";
 import type { CodeFocus, CodeViewerPane, DropSide } from "../hooks/useCodeViewer";
+
+import { AgentHandoffComposer } from "./AgentHandoffComposer";
 
 const LINE_HEIGHT_PX = 20;
 const CODE_PADDING_TOP_PX = 16;
@@ -75,6 +79,27 @@ function highlightCode(file: FsFileResult | undefined) {
     return hljs.highlightAuto(file.content).value;
   } catch {
     return file?.content ?? "";
+  }
+}
+
+function getFocusedSourceText(
+  file: FsFileResult | undefined,
+  startLine: number | null,
+  endLine: number | null,
+) {
+  try {
+    if (!file || !startLine || startLine < 1) return "";
+    const lines = file.content.split("\n");
+    const start = Math.max(1, startLine);
+    const end = Math.min(Math.max(endLine ?? start, start), lines.length);
+    const cappedEnd = Math.min(end, start + 159);
+    const body = lines
+      .slice(start - 1, cappedEnd)
+      .map((line, index) => `${start + index}: ${line}`)
+      .join("\n");
+    return cappedEnd < end ? `${body}\n... truncated ${end - cappedEnd} lines` : body;
+  } catch {
+    return "";
   }
 }
 
@@ -265,11 +290,15 @@ function CodePane({
   onActivatePane: (paneId: string) => void;
 }) {
   const { addToast } = useToast();
+  const { submittingAgent, handoff } = useAgentHandoff();
   const [dropSide, setDropSide] = useState<DropSide | null>(null);
   const activePath = pane.activePath ?? pane.filePaths[0] ?? null;
   const activeFile = activePath ? filesByPath[activePath] : undefined;
   const activeFileLoading = Boolean(activePath && activePath === loadingPath && !activeFile);
   const applyFocus = Boolean(focus && activePath && focus.path === activePath);
+  const focusStartLine = applyFocus ? focus!.line : null;
+  const focusEndLine = applyFocus ? (focus!.endLine ?? focus!.line) : null;
+  const showHandoff = Boolean(activePath && activeFile && focusStartLine);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     try {
@@ -333,6 +362,34 @@ function CodePane({
       );
     } catch {
       addToast({ type: "error", title: "IDE 열기 실패", message: "다시 시도해 주세요" });
+    }
+  };
+
+  const handleAgentHandoff = async (agentId: HandoffAgentId, request: string) => {
+    try {
+      if (!activePath || !activeFile || !focusStartLine) return;
+      const result = await handoff({
+        agentId,
+        request,
+        projectPath,
+        filePath: activePath,
+        fileName: activeFile.name,
+        line: focusStartLine,
+        endLine: focusEndLine ?? undefined,
+        selectedText: getFocusedSourceText(activeFile, focusStartLine, focusEndLine),
+      });
+
+      addToast({
+        type: "success",
+        title: "Agent에 전달됨",
+        message: `${result.agentId} · ${activeFile.name}:${focusStartLine}`,
+      });
+    } catch (err) {
+      addToast({
+        type: "error",
+        title: "전달 실패",
+        message: err instanceof Error ? err.message : "다시 시도해 주세요",
+      });
     }
   };
 
@@ -423,14 +480,23 @@ function CodePane({
         <CodeBody
           file={activeFile}
           loading={activeFileLoading}
-          focusStartLine={applyFocus ? focus!.line : null}
-          focusEndLine={applyFocus ? (focus!.endLine ?? null) : null}
+          focusStartLine={focusStartLine}
+          focusEndLine={focusEndLine}
           focusNonce={focus?.nonce ?? 0}
           onSelectLine={(line) => {
             if (activePath) onFocusLine(activePath, line, undefined, true);
           }}
         />
       </div>
+      {showHandoff && (
+        <AgentHandoffComposer
+          fileName={activeFile!.name}
+          line={focusStartLine!}
+          endLine={focusEndLine ?? undefined}
+          submittingAgent={submittingAgent}
+          onSubmit={handleAgentHandoff}
+        />
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ export const PERF_SCRIPT = `
 
     var BTN_ID = '__jc-perf-toggle';
     var PANEL_ID = '__jc-perf-panel';
+    var TOOLBAR_ID = '__jc-inspect-toolbox';
     var vitals = { lcp:null, cls:0, inp:null, fcp:null };
     var state = { open:false };
 
@@ -53,22 +54,44 @@ export const PERF_SCRIPT = `
       return '<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:#9ca3af">'+label+'</span><span>'+val+'</span></div>';
     }
 
+    function ensureToolbar(){
+      var bar = document.getElementById(TOOLBAR_ID);
+      if(!bar){
+        bar = document.createElement('div');
+        bar.id = TOOLBAR_ID;
+        bar.style.cssText = 'position:fixed;bottom:60px;right:16px;z-index:2147483647;display:flex;align-items:center;gap:4px;padding:4px;border-radius:9999px;background:rgba(17,24,39,0.86);border:1px solid rgba(255,255,255,0.10);box-shadow:0 8px 24px -10px rgba(0,0,0,0.65);backdrop-filter:blur(10px)';
+        (document.body||document.documentElement).appendChild(bar);
+      }
+      return bar;
+    }
+
+    function renderButton(){
+      var btn = document.getElementById(BTN_ID);
+      if(!btn) return;
+      btn.textContent = state.open ? '📊 Performance' : '📊';
+      btn.title = 'Performance';
+      btn.style.background = state.open ? '#059669' : 'transparent';
+      btn.style.color = '#fff';
+      btn.style.minWidth = state.open ? '118px' : '32px';
+      btn.style.order = '2';
+    }
+
     function ensureUi(){
       try {
         var btn = document.getElementById(BTN_ID);
         if(!btn){
           btn = document.createElement('button');
           btn.id = BTN_ID; btn.type='button';
-          btn.style.cssText = 'position:fixed;bottom:104px;right:16px;z-index:2147483647;padding:8px 12px;border-radius:9999px;border:none;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;color:#fff;background:#1f2937;cursor:pointer;box-shadow:0 6px 20px -6px rgba(0,0,0,0.5)';
-          btn.textContent = '📊 Perf';
+          btn.style.cssText = 'height:32px;min-width:32px;padding:0 9px;border-radius:9999px;border:none;font:700 12px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;transition:all 140ms ease;white-space:nowrap';
           btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); state.open=!state.open; if(state.open){ try{ window.dispatchEvent(new CustomEvent('__jcPanelOpen',{detail:'perf'})); }catch(e){} } renderPanel(); });
-          (document.body||document.documentElement).appendChild(btn);
+          ensureToolbar().appendChild(btn);
         }
+        renderButton();
         var panel = document.getElementById(PANEL_ID);
         if(!panel){
           panel = document.createElement('div');
           panel.id = PANEL_ID;
-          panel.style.cssText = 'position:fixed;bottom:236px;right:16px;width:440px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
+          panel.style.cssText = 'position:fixed;bottom:112px;right:16px;width:440px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
           panel.innerHTML =
             '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
               '<span style="font-weight:700;color:#fff">Performance</span>' +
@@ -126,8 +149,7 @@ export const PERF_SCRIPT = `
         var panel = ensureUi();
         if(!panel) return;
         panel.style.display = state.open ? 'flex' : 'none';
-        var btn = document.getElementById(BTN_ID);
-        if(btn) btn.style.background = state.open ? '#059669' : '#1f2937';
+        renderButton();
         if(state.open) renderBody();
       } catch(e){}
     }

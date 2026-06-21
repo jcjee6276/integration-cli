@@ -16,6 +16,7 @@ export const REACT_SCRIPT = `
     var BTN_ID = '__jc-react-toggle';
     var PANEL_ID = '__jc-react-panel';
     var HL_ID = '__jc-react-hl';
+    var TOOLBAR_ID = '__jc-inspect-toolbox';
     var state = { open:false, highlight:true, commits:[], counts:{}, total:0, expanded:null };
 
     function compName(fiber){
@@ -101,20 +102,42 @@ export const REACT_SCRIPT = `
     }
 
     // ── 패널 UI ──────────────────────────────────────────────────────────────
+    function ensureToolbar(){
+      var bar = document.getElementById(TOOLBAR_ID);
+      if(!bar){
+        bar = document.createElement('div');
+        bar.id = TOOLBAR_ID;
+        bar.style.cssText = 'position:fixed;bottom:60px;right:16px;z-index:2147483647;display:flex;align-items:center;gap:4px;padding:4px;border-radius:9999px;background:rgba(17,24,39,0.86);border:1px solid rgba(255,255,255,0.10);box-shadow:0 8px 24px -10px rgba(0,0,0,0.65);backdrop-filter:blur(10px)';
+        (document.body||document.documentElement).appendChild(bar);
+      }
+      return bar;
+    }
+
+    function renderButton(){
+      var btn = document.getElementById(BTN_ID);
+      if(!btn) return;
+      btn.textContent = state.open ? '⚛️ React' : '⚛️';
+      btn.title = 'React';
+      btn.style.background = state.open ? '#059669' : 'transparent';
+      btn.style.color = '#fff';
+      btn.style.minWidth = state.open ? '82px' : '32px';
+      btn.style.order = '3';
+    }
+
     function ensureUi(){
       try {
         var btn=document.getElementById(BTN_ID);
         if(!btn){
           btn=document.createElement('button'); btn.id=BTN_ID; btn.type='button';
-          btn.style.cssText='position:fixed;bottom:148px;right:16px;z-index:2147483647;padding:8px 12px;border-radius:9999px;border:none;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;color:#fff;background:#1f2937;cursor:pointer;box-shadow:0 6px 20px -6px rgba(0,0,0,0.5)';
-          btn.textContent='⚛️ React';
+          btn.style.cssText='height:32px;min-width:32px;padding:0 9px;border-radius:9999px;border:none;font:700 12px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;transition:all 140ms ease;white-space:nowrap';
           btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); state.open=!state.open; if(state.open){ try{ window.dispatchEvent(new CustomEvent('__jcPanelOpen',{detail:'react'})); }catch(e){} } renderPanel(); });
-          (document.body||document.documentElement).appendChild(btn);
+          ensureToolbar().appendChild(btn);
         }
+        renderButton();
         var panel=document.getElementById(PANEL_ID);
         if(!panel){
           panel=document.createElement('div'); panel.id=PANEL_ID;
-          panel.style.cssText='position:fixed;bottom:236px;right:16px;width:420px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
+          panel.style.cssText='position:fixed;bottom:112px;right:16px;width:420px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
           panel.innerHTML =
             '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
               '<span style="font-weight:700;color:#fff">React 렌더</span>' +
@@ -150,7 +173,7 @@ export const REACT_SCRIPT = `
       try {
         var panel=ensureUi(); if(!panel) return;
         panel.style.display = state.open ? 'flex' : 'none';
-        var btn=document.getElementById(BTN_ID); if(btn) btn.style.background = state.open ? '#059669' : '#1f2937';
+        renderButton();
         if(state.open) renderBody();
       } catch(e){}
     }
