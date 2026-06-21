@@ -16,7 +16,7 @@ export const NETWORK_SCRIPT = `
     var BTN_ID = '__jc-net-toggle';
     var PANEL_ID = '__jc-net-panel';
     var TOOLBAR_ID = '__jc-inspect-toolbox';
-    var state = { open:false, mode:'all', errorsOnly:false, query:'', expandedId:null, tab:'headers', records:[], bodies:{} };
+    var state = { open:false, mode:'all', errorsOnly:false, query:'', expandedId:null, tab:'headers', records:[], bodies:{}, detailHeight:220, resizing:false };
 
     function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
     function fmtBytes(n){ if(n==null) return '-'; if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
@@ -73,20 +73,22 @@ export const NETWORK_SCRIPT = `
         if(!panel){
           panel = document.createElement('div');
           panel.id = PANEL_ID;
-          panel.style.cssText = 'position:fixed;bottom:112px;right:16px;width:560px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
+          panel.style.cssText = 'position:fixed;bottom:112px;right:16px;width:640px;max-width:92vw;height:min(640px,70vh);z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden;box-sizing:border-box';
           panel.innerHTML =
-            '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
-              '<span style="font-weight:700;color:#fff">Network</span>' +
-              '<span id="__jc-net-filters" style="display:flex;gap:4px"></span>' +
-              '<input id="__jc-net-search" placeholder="URL 검색" style="margin-left:auto;width:120px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#e5e7eb;padding:3px 6px;font:11px/1 inherit;outline:none" />' +
+            '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08);min-width:0;flex-shrink:0">' +
+              '<span style="font-weight:700;color:#fff;flex-shrink:0">Network</span>' +
+              '<span id="__jc-net-filters" style="display:flex;gap:4px;min-width:0;overflow-x:auto"></span>' +
+              '<input id="__jc-net-search" placeholder="URL 검색" style="margin-left:auto;width:132px;min-width:96px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#e5e7eb;padding:3px 6px;font:11px/1 inherit;outline:none" />' +
               '<button data-act="clear" style="cursor:pointer;border:none;background:transparent;color:#9ca3af;font:600 11px/1 inherit">Clear</button>' +
               '<button data-act="close" style="cursor:pointer;border:none;background:transparent;color:#9ca3af;font:700 13px/1 inherit">✕</button>' +
             '</div>' +
-            '<div id="__jc-net-list" style="overflow:auto;flex:1;min-height:80px"></div>' +
-            '<div id="__jc-net-detail" style="border-top:1px solid rgba(255,255,255,0.08);max-height:40vh;overflow:auto;display:none"></div>';
+            '<div id="__jc-net-list" style="overflow:auto;flex:1 1 auto;min-height:96px"></div>' +
+            '<div id="__jc-net-resizer" title="상세 영역 높이 조절" style="display:none;height:7px;flex:0 0 7px;cursor:row-resize;border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.06);background:linear-gradient(to bottom,rgba(255,255,255,0.035),rgba(255,255,255,0.015))"></div>' +
+            '<div id="__jc-net-detail" style="display:none;flex:0 0 220px;min-height:120px;overflow:hidden"></div>';
           (document.body||document.documentElement).appendChild(panel);
 
           panel.addEventListener('click', onPanelClick, false);
+          panel.addEventListener('mousedown', onPanelMouseDown, false);
           var search = panel.querySelector('#__jc-net-search');
           if(search) search.addEventListener('input', function(ev){ state.query = ev.target.value || ''; renderList(); });
         }
@@ -116,6 +118,39 @@ export const NETWORK_SCRIPT = `
           state.expandedId = state.expandedId===id ? null : id;
           renderList(); renderDetail();
         }
+      } catch(e){}
+    }
+
+    function onPanelMouseDown(ev){
+      try {
+        var grip = ev.target && ev.target.closest ? ev.target.closest('#__jc-net-resizer') : null;
+        if(!grip) return;
+        ev.preventDefault(); ev.stopPropagation();
+        state.resizing = true;
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        var startY = ev.clientY;
+        var startHeight = state.detailHeight;
+        var panel = document.getElementById(PANEL_ID);
+        var maxHeight = panel ? Math.max(140, panel.getBoundingClientRect().height - 150) : 420;
+        function move(e){
+          try {
+            var next = startHeight - (e.clientY - startY);
+            state.detailHeight = Math.max(120, Math.min(maxHeight, next));
+            applyDetailLayout();
+          } catch(err){}
+        }
+        function up(){
+          try {
+            state.resizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('mousemove', move, true);
+            window.removeEventListener('mouseup', up, true);
+          } catch(err){}
+        }
+        window.addEventListener('mousemove', move, true);
+        window.addEventListener('mouseup', up, true);
       } catch(e){}
     }
 
@@ -181,11 +216,13 @@ export const NETWORK_SCRIPT = `
       try {
         var detail = document.getElementById('__jc-net-detail');
         if(!detail) return;
-        if(!state.expandedId){ detail.style.display='none'; detail.innerHTML=''; return; }
+        if(!state.expandedId){ detail.style.display='none'; detail.innerHTML=''; applyDetailLayout(); return; }
         var r = null; for(var i=0;i<state.records.length;i++){ if(state.records[i].id===state.expandedId){ r=state.records[i]; break; } }
-        if(!r){ detail.style.display='none'; detail.innerHTML=''; return; }
-        detail.style.display='block';
-        function tabBtn(id,label){ var on = state.tab===id; return '<button data-act="tab:' + id + '" style="cursor:pointer;border:none;background:transparent;border-bottom:2px solid ' + (on?'#10b981':'transparent') + ';color:' + (on?'#fff':'#9ca3af') + ';padding:6px 8px;font:600 11px/1 inherit">' + label + '</button>'; }
+        if(!r){ detail.style.display='none'; detail.innerHTML=''; applyDetailLayout(); return; }
+        detail.style.display='flex';
+        detail.style.flexDirection='column';
+        applyDetailLayout();
+        function tabBtn(id,label){ var on = state.tab===id; return '<button data-act="tab:' + id + '" style="cursor:pointer;flex:0 0 auto;border:none;background:transparent;border-bottom:2px solid ' + (on?'#10b981':'transparent') + ';color:' + (on?'#fff':'#9ca3af') + ';padding:8px 9px;font:600 11px/1 inherit;white-space:nowrap">' + label + '</button>'; }
         var body = '';
         if(state.tab==='headers'){
           body =
@@ -205,11 +242,23 @@ export const NETWORK_SCRIPT = `
           body = timingBars(r.timing);
         }
         detail.innerHTML =
-          '<div style="display:flex;align-items:center;gap:2px;border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;background:#0e1117">' +
-            tabBtn('headers','Headers') + tabBtn('payload','Payload') + tabBtn('response','Response') + tabBtn('timing','Timing') +
-            '<button data-act="curl" style="margin-left:auto;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#9ca3af;border-radius:6px;padding:3px 8px;font:600 11px/1 inherit">Copy as cURL</button>' +
+          '<div style="display:flex;align-items:center;gap:2px;border-bottom:1px solid rgba(255,255,255,0.08);background:#0e1117;min-width:0;flex:0 0 auto">' +
+            '<div style="display:flex;gap:2px;min-width:0;overflow-x:auto">' + tabBtn('headers','Headers') + tabBtn('payload','Payload') + tabBtn('response','Response') + tabBtn('timing','Timing') + '</div>' +
+            '<button data-act="curl" style="margin-left:auto;flex:0 0 auto;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#9ca3af;border-radius:6px;padding:4px 8px;font:600 11px/1 inherit;white-space:nowrap">Copy as cURL</button>' +
           '</div>' +
-          '<div style="padding:8px 10px">' + body + '</div>';
+          '<div style="padding:8px 10px;overflow:auto;flex:1 1 auto;min-height:0">' + body + '</div>';
+      } catch(e){}
+    }
+
+    function applyDetailLayout(){
+      try {
+        var detail = document.getElementById('__jc-net-detail');
+        var grip = document.getElementById('__jc-net-resizer');
+        if(!detail || !grip) return;
+        var visible = Boolean(state.expandedId);
+        grip.style.display = visible ? 'block' : 'none';
+        detail.style.display = visible ? 'flex' : 'none';
+        detail.style.flexBasis = Math.round(state.detailHeight) + 'px';
       } catch(e){}
     }
 
