@@ -68,7 +68,7 @@ export const PERF_SCRIPT = `
         if(!panel){
           panel = document.createElement('div');
           panel.id = PANEL_ID;
-          panel.style.cssText = 'position:fixed;bottom:192px;right:16px;width:440px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
+          panel.style.cssText = 'position:fixed;bottom:236px;right:16px;width:440px;max-width:92vw;max-height:60vh;z-index:2147483647;display:none;flex-direction:column;background:#0e1117;color:#e5e7eb;border:1px solid rgba(255,255,255,0.12);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,0.7);font:12px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden';
           panel.innerHTML =
             '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
               '<span style="font-weight:700;color:#fff">Performance</span>' +

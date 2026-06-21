@@ -215,7 +215,7 @@ export const OVERLAY_SCRIPT = `
         if (!el || !el.closest) return false;
         return Boolean(
           el.closest(
-            '#__jc-inspect-toggle, #__jc-net-toggle, #__jc-net-panel, #__jc-perf-toggle, #__jc-perf-panel, #__jc-react-toggle, #__jc-react-panel',
+            '#__jc-inspect-toggle, #__jc-net-toggle, #__jc-net-panel, #__jc-perf-toggle, #__jc-perf-panel, #__jc-react-toggle, #__jc-react-panel, #__jc-console-toggle, #__jc-console-panel',
           ),
         );
       } catch (e) {

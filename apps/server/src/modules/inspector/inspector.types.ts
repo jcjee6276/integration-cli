@@ -61,6 +61,18 @@ export interface InspectorStatusEvent {
   error?: string;
 }
 
+export type ConsoleLevel = 'log' | 'info' | 'warning' | 'error' | 'debug' | 'exception';
+
+/** CDP Runtime에서 수집하는 콘솔/예외 레코드 */
+export interface ConsoleRecord {
+  id: string;
+  level: ConsoleLevel;
+  text: string;
+  timestamp: number;
+  /** 스택 최상단 앱 프레임(번들 위치, V8 스타일 1-base) — 클릭 시 소스 점프용 */
+  frame?: { url: string; line: number; column: number };
+}
+
 /** 번들 frame → 원본 파일/라인 매핑 결과 */
 export interface ResolvedSource {
   fileName: string;

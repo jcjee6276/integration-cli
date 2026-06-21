@@ -4,6 +4,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import type { Browser, Page } from 'puppeteer-core';
 
 import { resolveChromePath } from './chrome.util';
+import { ConsoleCollectorService } from './console-collector.service';
 import type {
   InspectorRawPayload,
   InspectorState,
@@ -13,6 +14,8 @@ import type {
 import { NetworkCollectorService } from './network-collector.service';
 import {
   BINDING_NAME,
+  CONSOLE_BINDINGS,
+  CONSOLE_SCRIPT,
   NET_BINDINGS,
   NETWORK_SCRIPT,
   OVERLAY_SCRIPT,
@@ -44,6 +47,7 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
   constructor(
     private readonly sourceResolver: SourceResolverService,
     private readonly network: NetworkCollectorService,
+    private readonly consoleCollector: ConsoleCollectorService,
   ) {
     super();
   }
@@ -86,11 +90,21 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
         this.network.clear();
         return true;
       });
+      // Console 패널용 바인딩
+      await this.page.exposeFunction(CONSOLE_BINDINGS.sync, () => this.consoleCollector.snapshot());
+      await this.page.exposeFunction(CONSOLE_BINDINGS.clear, () => {
+        this.consoleCollector.clear();
+        return true;
+      });
+      await this.page.exposeFunction(CONSOLE_BINDINGS.open, (id: string) =>
+        this.openConsoleSource(id),
+      );
 
       await this.network.attach(this.page);
+      await this.consoleCollector.attach(this.page);
 
       // React 모니터는 React보다 먼저 훅을 잡아야 하므로 가장 먼저 주입
-      const scripts = [REACT_SCRIPT, OVERLAY_SCRIPT, NETWORK_SCRIPT, PERF_SCRIPT];
+      const scripts = [REACT_SCRIPT, OVERLAY_SCRIPT, NETWORK_SCRIPT, PERF_SCRIPT, CONSOLE_SCRIPT];
       for (const script of scripts) await this.page.evaluateOnNewDocument(script);
 
       await this.page.goto(appUrl, { waitUntil: 'domcontentloaded' });
@@ -102,6 +116,7 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
         this.browser = null;
         this.page = null;
         this.network.detach();
+        this.consoleCollector.detach();
         this.setState({ state: 'idle' });
       });
 
@@ -128,8 +143,23 @@ export class InspectorService extends EventEmitter implements OnModuleDestroy {
       this.browser = null;
       this.page = null;
       this.network.detach();
+      this.consoleCollector.detach();
       await this.sourceResolver.clear();
       if (this.state !== 'idle') this.setState({ state: 'idle' });
+    }
+  }
+
+  /** 콘솔 패널에서 에러 클릭 → 소스맵 매핑 후 Projects Code Viewer로 점프 */
+  private async openConsoleSource(id: string): Promise<boolean> {
+    try {
+      const rec = this.consoleCollector.getById(id);
+      if (!rec?.frame) return false;
+      const resolved = await this.sourceResolver.resolveFrame(rec.frame);
+      if (!resolved) return false;
+      this.emit('inspector:element', { ...resolved } satisfies InspectorElementEvent);
+      return true;
+    } catch {
+      return false;
     }
   }
 
