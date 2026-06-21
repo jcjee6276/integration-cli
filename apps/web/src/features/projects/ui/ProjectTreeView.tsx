@@ -369,6 +369,7 @@ export function ProjectTreeView({
       {inspector.panelOpen && (
         <InspectorPanel
           appUrl={inspector.appUrl}
+          projectPath={projectRootPath}
           state={inspector.state}
           error={inspector.error}
           lastElement={inspector.lastElement}

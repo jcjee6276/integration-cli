@@ -4,8 +4,11 @@ import type { FormEvent } from "react";
 
 import type { InspectorElement, InspectorState } from "../api/inspector.api";
 
+import { CrawlAuditPanel } from "./CrawlAuditPanel";
+
 interface InspectorPanelProps {
   appUrl: string;
+  projectPath: string | null;
   state: InspectorState;
   error: string | null;
   lastElement: InspectorElement | null;
@@ -32,6 +35,7 @@ function getFileName(path?: string) {
 
 export function InspectorPanel({
   appUrl,
+  projectPath,
   state,
   error,
   lastElement,
@@ -124,6 +128,8 @@ export function InspectorPanel({
           )}
         </div>
       )}
+
+      <CrawlAuditPanel appUrl={appUrl} projectPath={projectPath} />
     </div>
   );
 }
