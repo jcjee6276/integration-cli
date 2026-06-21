@@ -8,6 +8,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
+import type { CrawlProgress } from './crawl.service';
+import { CrawlService } from './crawl.service';
 import type { InspectorElementEvent, InspectorStatusEvent } from './inspector.service';
 import { InspectorService } from './inspector.service';
 
@@ -29,7 +31,10 @@ export class InspectorGateway
 
   private readonly logger = new Logger(InspectorGateway.name);
 
-  constructor(private readonly inspectorService: InspectorService) {}
+  constructor(
+    private readonly inspectorService: InspectorService,
+    private readonly crawlService: CrawlService,
+  ) {}
 
   afterInit(): void {
     this.inspectorService.on('inspector:element', (e: InspectorElementEvent) => {
@@ -38,6 +43,10 @@ export class InspectorGateway
 
     this.inspectorService.on('inspector:status', (e: InspectorStatusEvent) => {
       this.server.emit('inspector:status', e);
+    });
+
+    this.crawlService.on('crawl:progress', (e: CrawlProgress) => {
+      this.server.emit('inspector:crawl-progress', e);
     });
 
     this.logger.log('InspectorGateway initialised — namespace: /inspector');
