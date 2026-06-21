@@ -11,6 +11,7 @@ const INSPECTOR_WS_NAMESPACE = "/inspector";
 
 export function useCrawlAudit() {
   const [running, setRunning] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [progress, setProgress] = useState<CrawlProgress | null>(null);
   const [report, setReport] = useState<CrawlReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +50,32 @@ export function useCrawlAudit() {
     }
   }, []);
 
+  /** 영향 라우트만 재크롤 — 메인 report는 건드리지 않고 신선한 결과만 반환 (토큰 0) */
+  const verify = useCallback(
+    async (
+      appUrl: string,
+      projectPath: string | null,
+      routes: string[],
+    ): Promise<CrawlReport | null> => {
+      if (!appUrl.trim() || routes.length === 0) return null;
+      setVerifying(true);
+      try {
+        return await runCrawl({ appUrl: appUrl.trim(), projectPath, routes });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "재크롤에 실패했습니다");
+        return null;
+      } finally {
+        setVerifying(false);
+      }
+    },
+    [],
+  );
+
   const reset = useCallback(() => {
     setReport(null);
     setProgress(null);
     setError(null);
   }, []);
 
-  return { running, progress, report, error, run, reset };
+  return { running, verifying, progress, report, error, run, verify, reset };
 }

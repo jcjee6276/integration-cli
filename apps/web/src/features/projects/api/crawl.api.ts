@@ -34,6 +34,12 @@ export interface CrawlProgress {
   issueCount: number;
 }
 
+/** 크롤 간 동일 이슈를 매칭하기 위한 안정 키 (라우트+종류+식별 텍스트) */
+export function issueKey(issue: CrawlIssue): string {
+  if (issue.kind === "network") return `${issue.route}|network|${issue.url ?? issue.title}`;
+  return `${issue.route}|${issue.kind}|${issue.title}`;
+}
+
 export async function runCrawl(input: {
   appUrl: string;
   projectPath?: string | null;
