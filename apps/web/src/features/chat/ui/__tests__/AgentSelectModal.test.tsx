@@ -1,8 +1,31 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  getAuthStatus,
+  getCodexAuthStatus,
+  getGeminiAuthStatus,
+} from "@/features/auth/api/auth.api";
 
 import { AgentSelectModal } from "../AgentSelectModal";
+
+vi.mock("@/features/auth/api/auth.api", () => ({
+  getAuthStatus: vi.fn(async () => ({
+    loggedIn: false,
+    authMethod: "none",
+    apiProvider: "none",
+  })),
+  getGeminiAuthStatus: vi.fn(async () => ({
+    loggedIn: false,
+    authMethod: "none",
+    installed: false,
+  })),
+  getCodexAuthStatus: vi.fn(async () => ({
+    installed: false,
+    loggedIn: false,
+  })),
+}));
 
 const disconnectedAgents = {
   claude: "disconnected",
@@ -12,6 +35,25 @@ const disconnectedAgents = {
 } as const;
 
 describe("AgentSelectModal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does not refresh agent status when explicit statuses are provided", () => {
+    render(
+      <AgentSelectModal
+        open={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        connectionStatusByAgent={disconnectedAgents}
+      />,
+    );
+
+    expect(getAuthStatus).not.toHaveBeenCalled();
+    expect(getGeminiAuthStatus).not.toHaveBeenCalled();
+    expect(getCodexAuthStatus).not.toHaveBeenCalled();
+  });
+
   it("disables agents that are not connected", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

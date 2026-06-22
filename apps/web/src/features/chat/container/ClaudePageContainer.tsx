@@ -5,21 +5,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useClaudeAuth } from "@/features/auth/hooks/useClaudeAuth";
 import { HarnessModal } from "@/features/harness/ui/HarnessModal";
 import { AgentStatusModal } from "@/features/status/ui/AgentStatusModal";
+import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
 import { TaskCreateModal } from "@/features/tasks/ui/TaskCreateModal";
 import { TaskListModal } from "@/features/tasks/ui/TaskListModal";
-import { useTaskNotification } from "@/features/tasks/hooks/useTaskNotification";
-import { AgentSelectModal } from "../ui/AgentSelectModal";
-import { FloatingActionPanel } from "../ui/FloatingActionPanel";
-import type { AgentId } from "../ui/AgentSelectModal";
-import { ChatWorkspace } from "../ui/ChatWorkspace";
-import { CheckingSkeleton } from "../ui/CheckingSkeleton";
-import { ClaudeLoginView } from "../ui/ClaudeLoginView";
-import { SessionSidebar } from "../ui/SessionSidebar";
+
 import { useAgentModelSettings } from "../hooks/useAgentModelSettings";
 import { useSessionCommand } from "../hooks/useSessionCommand";
 import { useSessionRename } from "../hooks/useSessionRename";
 import { useSessionWorkingDirectories } from "../hooks/useSessionWorkingDirectories";
 import { useUnifiedSessions } from "../hooks/useUnifiedSessions";
+import { AgentSelectModal } from "../ui/AgentSelectModal";
+import type { AgentId } from "../ui/AgentSelectModal";
+import { ChatWorkspace } from "../ui/ChatWorkspace";
+import { CheckingSkeleton } from "../ui/CheckingSkeleton";
+import { ClaudeLoginView } from "../ui/ClaudeLoginView";
+import { FloatingActionPanel } from "../ui/FloatingActionPanel";
+import { SessionSidebar } from "../ui/SessionSidebar";
 
 export function ClaudePageContainer() {
   const { authState, loginState, loginOutput, loginUrls, startLogin, cancelLogin, checkAuth } =
@@ -49,14 +50,6 @@ export function ClaudePageContainer() {
     useSessionWorkingDirectories(selectedSessionId);
   const { settingsByAgent, updateSettings } = useAgentModelSettings();
   const rename = useSessionRename(renameSession);
-  const handleSend = useSessionCommand({
-    selectedSession,
-    selectedSessionId,
-    sendMessage,
-    modelSettingsByAgent: settingsByAgent,
-    injectClaudeMessage,
-    onShowStatus: () => setStatusPanelOpen(true),
-  });
   const { hasNew, clearNew } = useTaskNotification();
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -66,6 +59,51 @@ export function ClaudePageContainer() {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [harnessModalOpen, setHarnessModalOpen] = useState(false);
   const [statusPanelOpen, setStatusPanelOpen] = useState(false);
+
+  const handleShowStatusPanel = useCallback(() => {
+    setStatusPanelOpen(true);
+  }, []);
+
+  const handleCloseStatusPanel = useCallback(() => {
+    setStatusPanelOpen(false);
+  }, []);
+
+  const handleSend = useSessionCommand({
+    selectedSession,
+    selectedSessionId,
+    sendMessage,
+    modelSettingsByAgent: settingsByAgent,
+    injectClaudeMessage,
+    onShowStatus: handleShowStatusPanel,
+  });
+
+  const handleOpenHarnessModal = useCallback(() => {
+    setHarnessModalOpen(true);
+  }, [setHarnessModalOpen]);
+
+  const handleCloseHarnessModal = useCallback(() => {
+    setHarnessModalOpen(false);
+  }, [setHarnessModalOpen]);
+
+  const handleOpenStatusModal = useCallback(() => {
+    setStatusModalOpen(true);
+  }, [setStatusModalOpen]);
+
+  const handleCloseStatusModal = useCallback(() => {
+    setStatusModalOpen(false);
+  }, [setStatusModalOpen]);
+
+  const handleOpenTaskCreate = useCallback(() => {
+    setTaskModalOpen(true);
+  }, [setTaskModalOpen]);
+
+  const handleCloseTaskCreate = useCallback(() => {
+    setTaskModalOpen(false);
+  }, [setTaskModalOpen]);
+
+  const handleCloseTaskList = useCallback(() => {
+    setTaskListOpen(false);
+  }, [setTaskListOpen]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

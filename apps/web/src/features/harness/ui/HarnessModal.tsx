@@ -3,6 +3,7 @@
 import { memo, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
+
 import type { HarnessExt, HarnessRole } from "../api/harness.api";
 import { HARNESS_ROLES } from "../api/harness.api";
 import { useHarness } from "../hooks/useHarness";
@@ -93,7 +94,7 @@ function HarnessEditor({ role }: EditorProps) {
         </div>
       ) : (
         <div className="relative flex-1 overflow-hidden rounded-xl border border-gray-900/[0.08] dark:border-white/[0.08]">
-          <div className="absolute right-3 top-2.5 z-10 font-mono text-[10px] text-gray-900/20 dark:text-white/20">
+          <div className="absolute top-2.5 right-3 z-10 font-mono text-[10px] text-gray-900/20 dark:text-white/20">
             .{ext}
           </div>
           <textarea
@@ -146,7 +147,13 @@ export const HarnessModal = memo(function HarnessModal({ open, onClose }: Props)
                   : "text-gray-900/40 hover:bg-gray-900/[0.04] hover:text-gray-900/70 dark:text-white/40 dark:hover:bg-white/[0.04] dark:hover:text-white/70",
               ].join(" ")}
             >
-              <span className={selectedRole === role ? "text-orange-500 dark:text-orange-400" : "text-gray-900/25 dark:text-white/25"}>
+              <span
+                className={
+                  selectedRole === role
+                    ? "text-orange-500 dark:text-orange-400"
+                    : "text-gray-900/25 dark:text-white/25"
+                }
+              >
                 {ROLE_ICONS[role]}
               </span>
               {label}
