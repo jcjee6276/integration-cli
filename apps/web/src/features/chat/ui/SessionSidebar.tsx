@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { memo } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { isQuotaExceeded } from "@/lib/quota";
 import { ThemeToggle } from "@/lib/theme";
-import { AGENT_META } from "./AgentSelectModal";
+
 import type { ConnectionStatus, UnifiedSessionState } from "../hooks/useUnifiedSessions";
+
+import { AGENT_META } from "./AgentSelectModal";
 
 const STATUS_DOT: Record<ConnectionStatus, string> = {
   connected: "bg-emerald-400 shadow-[0_0_5px_#34d399]",
@@ -43,7 +46,64 @@ interface SessionSidebarProps {
   onDeleteSession: (sessionId: string) => void;
 }
 
-export function SessionSidebar({
+function sessionHasQuota(session: UnifiedSessionState): boolean {
+  const lastMsg = session.messages[session.messages.length - 1];
+  return isQuotaExceeded(session.streaming) || (!!lastMsg && isQuotaExceeded(lastMsg.content));
+}
+
+function areSameSidebarSession(prev: UnifiedSessionState, next: UnifiedSessionState): boolean {
+  const prevLastMsg = prev.messages[prev.messages.length - 1];
+  const nextLastMsg = next.messages[next.messages.length - 1];
+
+  return (
+    prev.info.id === next.info.id &&
+    prev.info.title === next.info.title &&
+    prev.info.createdAt === next.info.createdAt &&
+    prev.agentId === next.agentId &&
+    prev.isWaiting === next.isWaiting &&
+    prev.messages.length === next.messages.length &&
+    prevLastMsg?.id === nextLastMsg?.id &&
+    prevLastMsg?.content === nextLastMsg?.content &&
+    sessionHasQuota(prev) === sessionHasQuota(next)
+  );
+}
+
+function areSameSessions(prev: UnifiedSessionState[], next: UnifiedSessionState[]): boolean {
+  if (prev === next) return true;
+  if (prev.length !== next.length) return false;
+
+  return prev.every((session, index) => areSameSidebarSession(session, next[index]));
+}
+
+function areSessionSidebarPropsEqual(
+  prev: Readonly<SessionSidebarProps>,
+  next: Readonly<SessionSidebarProps>,
+): boolean {
+  return (
+    areSameSessions(prev.sessions, next.sessions) &&
+    prev.selectedSessionId === next.selectedSessionId &&
+    prev.overallConnectionStatus === next.overallConnectionStatus &&
+    prev.hasNewTask === next.hasNewTask &&
+    prev.menuOpenId === next.menuOpenId &&
+    prev.renamingId === next.renamingId &&
+    prev.renameValue === next.renameValue &&
+    prev.menuRef === next.menuRef &&
+    prev.onSelectSession === next.onSelectSession &&
+    prev.onOpenAgentSelect === next.onOpenAgentSelect &&
+    prev.onOpenTaskCreate === next.onOpenTaskCreate &&
+    prev.onOpenTaskList === next.onOpenTaskList &&
+    prev.onOpenStatus === next.onOpenStatus &&
+    prev.onOpenHarness === next.onOpenHarness &&
+    prev.onSetMenuOpenId === next.onSetMenuOpenId &&
+    prev.onStartRename === next.onStartRename &&
+    prev.onRenameValueChange === next.onRenameValueChange &&
+    prev.onConfirmRename === next.onConfirmRename &&
+    prev.onCancelRename === next.onCancelRename &&
+    prev.onDeleteSession === next.onDeleteSession
+  );
+}
+
+function SessionSidebarComponent({
   sessions,
   selectedSessionId,
   overallConnectionStatus,
@@ -68,7 +128,10 @@ export function SessionSidebar({
   return (
     <aside className="flex w-64 flex-shrink-0 flex-col border-r border-gray-900/[0.07] dark:border-white/[0.07]">
       <div className="flex items-center gap-2 border-b border-gray-900/[0.07] px-4 py-3 dark:border-white/[0.07]">
-        <Link href="/" className="text-gray-900/30 transition-colors hover:text-gray-900/60 dark:text-white/30 dark:hover:text-white/60">
+        <Link
+          href="/"
+          className="text-gray-900/30 transition-colors hover:text-gray-900/60 dark:text-white/30 dark:hover:text-white/60"
+        >
           ←
         </Link>
         <span className="text-sm font-semibold text-gray-900/80 dark:text-white/80">JC CLI</span>
@@ -113,10 +176,14 @@ export function SessionSidebar({
             className="relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-gray-900/[0.08] bg-gray-900/[0.03] text-gray-900/35 transition-colors hover:border-gray-900/[0.14] hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/35 dark:hover:border-white/[0.14] dark:hover:bg-white/[0.05] dark:hover:text-white/70"
           >
             <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-              <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 3.5A.75.75 0 012.75 7.5h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 8.25zm0 3.5A.75.75 0 012.75 11h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 11.75z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M2 4.75A.75.75 0 012.75 4h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 3.5A.75.75 0 012.75 7.5h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 8.25zm0 3.5A.75.75 0 012.75 11h10.5a.75.75 0 010 1.5H2.75A.75.75 0 012 11.75z"
+                clipRule="evenodd"
+              />
             </svg>
             {hasNewTask && (
-              <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-[#faf8f5] dark:ring-[#07090e]" />
+              <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-[#faf8f5] dark:ring-[#07090e]" />
             )}
           </button>
         </div>
@@ -133,23 +200,25 @@ export function SessionSidebar({
               const lastMsg = session.messages[session.messages.length - 1];
               const isSelected = selectedSessionId === session.info.id;
               const agentMeta = AGENT_META[session.agentId];
-              const quotaDetected =
-                isQuotaExceeded(session.streaming) ||
-                (!!lastMsg && isQuotaExceeded(lastMsg.content));
+              const quotaDetected = sessionHasQuota(session);
               const isRenaming = renamingId === session.info.id;
               const isMenuOpen = menuOpenId === session.info.id;
 
               return (
                 <li key={session.info.id} className="group relative">
                   {isRenaming ? (
-                    <div className={[
-                      "rounded-lg px-3 py-2",
-                      isSelected
-                        ? "bg-gray-900/[0.06] dark:bg-white/[0.06]"
-                        : "bg-gray-900/[0.03] dark:bg-white/[0.03]",
-                    ].join(" ")}>
+                    <div
+                      className={[
+                        "rounded-lg px-3 py-2",
+                        isSelected
+                          ? "bg-gray-900/[0.06] dark:bg-white/[0.06]"
+                          : "bg-gray-900/[0.03] dark:bg-white/[0.03]",
+                      ].join(" ")}
+                    >
                       <div className="flex items-center gap-1.5 pl-0">
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`} />
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`}
+                        />
                         <input
                           autoFocus
                           value={renameValue}
@@ -182,7 +251,9 @@ export function SessionSidebar({
                     >
                       <div className="flex items-center justify-between gap-1">
                         <div className="flex min-w-0 items-center gap-1.5 pr-5">
-                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`} />
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${agentMeta.dotColor}`}
+                          />
                           <span className="truncate text-xs font-medium">{session.info.title}</span>
                         </div>
                         {quotaDetected ? (
@@ -197,7 +268,7 @@ export function SessionSidebar({
                         {agentMeta.label} · {new Date(session.info.createdAt).toLocaleString()}
                       </p>
                       {lastMsg && (
-                        <p className="mt-0.5 pl-3 truncate text-[11px] text-gray-900/25 dark:text-white/25">
+                        <p className="mt-0.5 truncate pl-3 text-[11px] text-gray-900/25 dark:text-white/25">
                           {lastMsg.content.slice(0, 40) || "…"}
                         </p>
                       )}
@@ -207,7 +278,7 @@ export function SessionSidebar({
                   {!isRenaming && (
                     <div
                       ref={isMenuOpen ? menuRef : undefined}
-                      className="absolute right-1.5 top-2 z-10"
+                      className="absolute top-2 right-1.5 z-10"
                     >
                       <button
                         type="button"
@@ -235,7 +306,7 @@ export function SessionSidebar({
                       {isMenuOpen && (
                         <div
                           className={[
-                            "absolute right-0 top-full z-20 mt-1 min-w-[120px]",
+                            "absolute top-full right-0 z-20 mt-1 min-w-[120px]",
                             "rounded-lg border border-gray-900/[0.08] bg-white py-1",
                             "shadow-[0_4px_16px_rgba(0,0,0,0.10)]",
                             "dark:border-white/[0.08] dark:bg-[#0e1117]",
@@ -248,7 +319,11 @@ export function SessionSidebar({
                             onClick={() => onStartRename(session.info.id, session.info.title)}
                             className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-900/70 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/90 dark:text-white/70 dark:hover:bg-white/[0.05] dark:hover:text-white/90"
                           >
-                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                            <svg
+                              viewBox="0 0 16 16"
+                              fill="currentColor"
+                              className="h-3 w-3 shrink-0"
+                            >
                               <path d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.609zm1.414 1.06a.25.25 0 00-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 000-.354l-1.086-1.086zM11.189 6.25L9.75 4.81l-6.286 6.287a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.249.249 0 00.108-.064l6.286-6.286z" />
                             </svg>
                             이름 바꾸기
@@ -261,7 +336,11 @@ export function SessionSidebar({
                             }}
                             className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-xs text-red-500/80 transition-colors hover:bg-red-500/[0.06] hover:text-red-500 dark:text-red-400/80 dark:hover:bg-red-400/[0.08] dark:hover:text-red-400"
                           >
-                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
+                            <svg
+                              viewBox="0 0 16 16"
+                              fill="currentColor"
+                              className="h-3 w-3 shrink-0"
+                            >
                               <path d="M11 1.75V3h2.25a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75zM4.496 6.675l.66 6.6a.25.25 0 00.249.225h5.19a.25.25 0 00.249-.225l.66-6.6a.75.75 0 011.492.149l-.66 6.6A1.748 1.748 0 0110.595 15h-5.19a1.748 1.748 0 01-1.741-1.575l-.66-6.6a.75.75 0 111.492-.15zM6.5 1.75V3h3V1.75a.25.25 0 00-.25-.25h-2.5a.25.25 0 00-.25.25z" />
                             </svg>
                             삭제
@@ -285,7 +364,11 @@ export function SessionSidebar({
           className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-900/35 transition-colors hover:bg-gray-900/[0.04] hover:text-gray-900/65 dark:text-white/35 dark:hover:bg-white/[0.04] dark:hover:text-white/65"
         >
           <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5 shrink-0">
-            <path fillRule="evenodd" d="M7.429 1.525a6.593 6.593 0 011.142 0c.036.003.108.036.137.146l.289 1.105c.147.56.55.967.997 1.189.174.086.341.183.501.29.417.278.97.423 1.53.27l1.102-.303c.11-.03.175.016.195.046a6.645 6.645 0 01.571.99c.014.03.014.066.006.104a.44.44 0 01-.07.15l-.686.858c-.357.447-.496.975-.446 1.488.016.165.025.332.025.5 0 .168-.009.335-.025.5-.05.513.089 1.04.446 1.488l.687.858c.044.055.072.11.07.15-.008.038-.008.074-.007.103a6.557 6.557 0 01-.57.99c-.02.03-.087.077-.196.047l-1.102-.303c-.56-.153-1.113-.008-1.53.27a6.36 6.36 0 01-.502.29c-.447.222-.85.629-.997 1.189l-.289 1.105c-.029.11-.1.143-.137.146a6.645 6.645 0 01-1.142 0c-.036-.003-.108-.036-.137-.146l-.289-1.105c-.147-.56-.55-.967-.997-1.189a6.36 6.36 0 01-.501-.29c-.417-.278-.97-.423-1.53-.27l-1.102.303c-.11.03-.175-.016-.195-.046a6.557 6.557 0 01-.57-.99c-.014-.03-.014-.066-.007-.104a.44.44 0 01.07-.15l.687-.858c.357-.447.496-.975.446-1.488A6.5 6.5 0 012 8c0-.168.009-.335.025-.5.05-.513-.089-1.04-.446-1.488L.892 5.154a.44.44 0 01-.07-.15c-.008-.038-.008-.074.006-.103.116-.342.27-.67.37-.99.02-.03.087-.077.196-.047l1.102.303c.56.153 1.113.008 1.53-.27.16-.107.327-.204.501-.29.447-.222.85-.629.997-1.189l.289-1.105c.029-.11.1-.143.137-.146zM8 5.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d="M7.429 1.525a6.593 6.593 0 011.142 0c.036.003.108.036.137.146l.289 1.105c.147.56.55.967.997 1.189.174.086.341.183.501.29.417.278.97.423 1.53.27l1.102-.303c.11-.03.175.016.195.046a6.645 6.645 0 01.571.99c.014.03.014.066.006.104a.44.44 0 01-.07.15l-.686.858c-.357.447-.496.975-.446 1.488.016.165.025.332.025.5 0 .168-.009.335-.025.5-.05.513.089 1.04.446 1.488l.687.858c.044.055.072.11.07.15-.008.038-.008.074-.007.103a6.557 6.557 0 01-.57.99c-.02.03-.087.077-.196.047l-1.102-.303c-.56-.153-1.113-.008-1.53.27a6.36 6.36 0 01-.502.29c-.447.222-.85.629-.997 1.189l-.289 1.105c-.029.11-.1.143-.137.146a6.645 6.645 0 01-1.142 0c-.036-.003-.108-.036-.137-.146l-.289-1.105c-.147-.56-.55-.967-.997-1.189a6.36 6.36 0 01-.501-.29c-.417-.278-.97-.423-1.53-.27l-1.102.303c-.11.03-.175-.016-.195-.046a6.557 6.557 0 01-.57-.99c-.014-.03-.014-.066-.007-.104a.44.44 0 01.07-.15l.687-.858c.357-.447.496-.975.446-1.488A6.5 6.5 0 012 8c0-.168.009-.335.025-.5.05-.513-.089-1.04-.446-1.488L.892 5.154a.44.44 0 01-.07-.15c-.008-.038-.008-.074.006-.103.116-.342.27-.67.37-.99.02-.03.087-.077.196-.047l1.102.303c.56.153 1.113.008 1.53-.27.16-.107.327-.204.501-.29.447-.222.85-.629.997-1.189l.289-1.105c.029-.11.1-.143.137-.146zM8 5.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"
+              clipRule="evenodd"
+            />
           </svg>
           하네스 설정
         </button>
@@ -293,3 +376,6 @@ export function SessionSidebar({
     </aside>
   );
 }
+
+export const SessionSidebar = memo(SessionSidebarComponent, areSessionSidebarPropsEqual);
+SessionSidebar.displayName = "SessionSidebar";

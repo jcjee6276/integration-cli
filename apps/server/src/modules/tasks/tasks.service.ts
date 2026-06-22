@@ -196,6 +196,19 @@ export class TasksService {
     });
   }
 
+  findAllArchived(): Promise<TaskEntity[]> {
+    return this.taskRepo.find({
+      where: { archived: true },
+      relations: ['requirements', 'agents'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async unarchive(id: string): Promise<void> {
+    await this.findOne(id);
+    await this.taskRepo.update(id, { archived: false });
+  }
+
   async getRuns(taskId: string): Promise<TaskRunEntity[]> {
     return this.runRepo.find({
       where: { taskId },

@@ -40,6 +40,13 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
+  @ApiOperation({ summary: '보관된 작업 목록 조회' })
+  @ApiOkResponse({ description: '보관 작업 목록' })
+  @Get('archived')
+  findAllArchived() {
+    return this.tasksService.findAllArchived();
+  }
+
   @ApiOperation({ summary: '특정 작업 조회' })
   @ApiOkResponse({ description: '작업 상세 정보' })
   @Get(':id')
@@ -106,6 +113,14 @@ export class TasksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   archive(@Param('id') id: string) {
     return this.tasksService.archive(id);
+  }
+
+  @ApiOperation({ summary: '작업 보관 해제' })
+  @ApiNoContentResponse({ description: '보관 해제 완료 (응답 본문 없음)' })
+  @Post(':id/unarchive')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  unarchive(@Param('id') id: string) {
+    return this.tasksService.unarchive(id);
   }
 
   @ApiOperation({ summary: '에이전트 전체 변경사항 병합' })

@@ -98,6 +98,17 @@ export async function fetchTasks(): Promise<Task[]> {
   return res.json();
 }
 
+export async function fetchArchivedTasks(): Promise<Task[]> {
+  const res = await fetch(`${SERVER_URL}/tasks/archived`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function unarchiveTask(id: string): Promise<void> {
+  const res = await fetch(`${SERVER_URL}/tasks/${id}/unarchive`, { method: "POST" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function fetchTask(id: string): Promise<Task> {
   const res = await fetch(`${SERVER_URL}/tasks/${id}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
