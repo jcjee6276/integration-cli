@@ -10,6 +10,7 @@ import { GeminiSessionManager } from '../agents/gemini/gemini-session.manager';
 import { ConversationService } from '../conversations/conversation.service';
 import { AgentModel, ConversationType } from '../conversations/enums/conversation.enum';
 import type { CreateAgentHandoffDto, HandoffAgentId } from './dto/create-agent-handoff.dto';
+import type { CreateBatchHandoffDto } from './dto/create-batch-handoff.dto';
 
 export interface HandoffResult {
   agentId: HandoffAgentId;
@@ -206,6 +207,64 @@ export class HandoffService implements OnModuleDestroy {
       agentModel: MODEL_BY_AGENT[agentId],
       type,
     });
+  }
+
+  /** 여러 이슈를 단일 세션·단일 프롬프트로 위임 (일관성↑·토큰↓) */
+  async createBatch(dto: CreateBatchHandoffDto): Promise<HandoffResult & { count: number }> {
+    try {
+      const promptId = uuidv4();
+      const prompt = this.buildBatchPrompt(dto);
+      const sessionId = this.createSession(dto.agentId, dto.projectPath);
+
+      this.captureAgentResponse(dto.agentId, sessionId, promptId);
+      await this.saveConversation(
+        dto.agentId,
+        sessionId,
+        promptId,
+        prompt,
+        ConversationType.USER_MESSAGE,
+      );
+      this.sendMessage(dto.agentId, sessionId, prompt);
+
+      return {
+        agentId: dto.agentId,
+        sessionId,
+        promptId,
+        route: `${ROUTE_BY_AGENT[dto.agentId]}?sessionId=${encodeURIComponent(sessionId)}`,
+        count: dto.items.length,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '일괄 핸드오프를 시작하지 못했습니다';
+      this.logger.warn(`Agent batch handoff failed: ${message}`);
+      throw new BadRequestException(message);
+    }
+  }
+
+  private buildBatchPrompt(dto: CreateBatchHandoffDto): string {
+    try {
+      const intro =
+        dto.instruction?.trim() ||
+        '아래 이슈들을 한 세션에서 순서대로 진단하고 고쳐줘. 관련된 이슈는 묶어서 처리하고, 각 항목 처리 후 무엇을 바꿨는지 간단히 보고해줘.';
+
+      const items = dto.items.map((it, i) => {
+        const loc = it.filePath
+          ? `\n   파일: ${it.filePath}${it.line ? `:${it.line}${it.endLine && it.endLine !== it.line ? `-${it.endLine}` : ''}` : ''}`
+          : '';
+        const detail = it.detail?.trim() ? `\n   상세: ${it.detail.trim()}` : '';
+        return `${i + 1}. [${it.route || '-'}] ${it.title}${loc}${detail}`;
+      });
+
+      return [
+        intro,
+        '',
+        '---',
+        `Project root: ${dto.projectPath?.trim() || 'unknown'}`,
+        `이슈 ${dto.items.length}건:`,
+        ...items,
+      ].join('\n');
+    } catch {
+      return dto.items.map((it) => `- ${it.title}`).join('\n');
+    }
   }
 
   private buildPrompt(dto: CreateAgentHandoffDto): string {

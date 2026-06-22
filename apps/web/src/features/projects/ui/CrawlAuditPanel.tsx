@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { SERVER_URL } from "@/lib/constants";
 import { useToast } from "@/lib/toast";
 
 import type { HandoffAgentId } from "../api/agentHandoff.api";
@@ -97,7 +96,7 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
     run,
     verify,
   } = useCrawlAudit();
-  const { handoff, submittingAgent } = useAgentHandoff();
+  const { handoff, handoffBatch, submittingAgent } = useAgentHandoff();
   const { addToast } = useToast();
   const [agentId, setAgentId] = useState<HandoffAgentId>("codex");
   const [dispatched, setDispatched] = useState<Map<string, CrawlIssue>>(new Map());
@@ -168,9 +167,40 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
     }
   };
 
+  // 일괄: 에이전트 세션 1개에 모든 이슈를 단일 프롬프트로 — 일관성↑·토큰↓
   const dispatchAll = async () => {
-    for (const issue of fixable) {
-      if (!dispatched.has(issueKey(issue))) await dispatchOne(issue);
+    const pending = fixable.filter((i) => !dispatched.has(issueKey(i)));
+    if (pending.length === 0) return;
+    try {
+      await handoffBatch({
+        agentId,
+        projectPath,
+        items: pending.map((i) => ({
+          title: i.title,
+          route: i.route,
+          filePath: i.fileName,
+          line: i.line,
+          endLine: i.endLine,
+          detail: i.detail,
+        })),
+      });
+      setDispatched((prev) => {
+        const next = new Map(prev);
+        for (const i of pending) next.set(issueKey(i), i);
+        return next;
+      });
+      setVerdicts((prev) => {
+        const next = { ...prev };
+        for (const i of pending) delete next[issueKey(i)];
+        return next;
+      });
+      addToast({
+        type: "success",
+        title: "일괄 디스패치",
+        message: `${pending.length}건을 세션 1개로 전달`,
+      });
+    } catch {
+      addToast({ type: "error", title: "일괄 전달 실패", message: "다시 시도해 주세요" });
     }
   };
 
@@ -203,7 +233,6 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
   };
 
   const busy = running || verifying || Boolean(submittingAgent);
-  const apiTarget = SERVER_URL || "same-origin";
   const crawledRoutes = report?.routes.map((route) => route.route) ?? [];
 
   return (
@@ -227,7 +256,6 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
 
       <div className="mt-2 rounded-lg border border-gray-900/[0.06] bg-white/45 px-2.5 py-2 dark:border-white/[0.06] dark:bg-white/[0.02]">
         <div className="grid gap-1.5 text-[10px] text-gray-900/45 sm:grid-cols-2 dark:text-white/45">
-         
           <p className="min-w-0 truncate sm:col-span-2">
             <span className="font-semibold text-gray-900/55 dark:text-white/55">Project</span>{" "}
             <span className="font-mono">
