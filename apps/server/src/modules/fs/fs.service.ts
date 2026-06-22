@@ -288,12 +288,12 @@ export class FsService {
       candidates.push(
         {
           command: 'cursor',
-          args: ['--reuse-window', ...workspaceArgs, '-g', ideTarget],
+          args: ['--new-window', ...workspaceArgs, '-g', ideTarget],
           label: 'Cursor',
         },
         {
           command: 'code',
-          args: ['--reuse-window', ...workspaceArgs, '-g', ideTarget],
+          args: ['--new-window', ...workspaceArgs, '-g', ideTarget],
           label: 'VS Code',
         },
         { command: 'idea', args: jetBrainsLocationArgs, label: 'IntelliJ IDEA' },

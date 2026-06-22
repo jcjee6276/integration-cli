@@ -2,8 +2,10 @@
 
 import { useCallback, useState } from "react";
 
-import { createAgentHandoff } from "../api/agentHandoff.api";
+import { createAgentHandoff, createBatchHandoff } from "../api/agentHandoff.api";
 import type {
+  AgentHandoffBatchPayload,
+  AgentHandoffBatchResult,
   AgentHandoffPayload,
   AgentHandoffResult,
   HandoffAgentId,
@@ -27,9 +29,27 @@ export function useAgentHandoff() {
     }
   }, []);
 
+  const handoffBatch = useCallback(
+    async (payload: AgentHandoffBatchPayload): Promise<AgentHandoffBatchResult> => {
+      try {
+        setError(null);
+        setSubmittingAgent(payload.agentId);
+        return await createBatchHandoff(payload);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "일괄 핸드오프에 실패했습니다";
+        setError(message);
+        throw err;
+      } finally {
+        setSubmittingAgent(null);
+      }
+    },
+    [],
+  );
+
   return {
     submittingAgent,
     error,
     handoff,
+    handoffBatch,
   };
 }

@@ -46,38 +46,45 @@ export function useCrawlAudit() {
     }
   }, []);
 
-  const run = useCallback(async (appUrl: string, projectPath?: string | null) => {
-    if (!appUrl.trim()) {
-      setError("앱 URL이 필요합니다");
-      return;
-    }
-    setError(null);
-    setReport(null);
-    setProgress(null);
-    setRunning(true);
-
-    // 진행률은 /inspector WS의 inspector:crawl-progress 로 수신
-    let socket: Socket | null = null;
-    try {
-      socket = io(`${SERVER_URL}${INSPECTOR_WS_NAMESPACE}`, { transports: ["websocket"] });
-      socket.on("inspector:crawl-progress", (p: CrawlProgress) => setProgress(p));
-      socketRef.current = socket;
-    } catch {}
-
-    try {
-      const result = await runCrawl({ appUrl: appUrl.trim(), projectPath });
-      setReport(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "크롤에 실패했습니다");
-    } finally {
-      setRunning(false);
+  const run = useCallback(
+    async (appUrl: string, projectPath?: string | null, routes?: string[]) => {
+      if (!appUrl.trim()) {
+        setError("앱 URL이 필요합니다");
+        return;
+      }
+      setError(null);
+      setReport(null);
       setProgress(null);
+      setRunning(true);
+
+      // 진행률은 /inspector WS의 inspector:crawl-progress 로 수신
+      let socket: Socket | null = null;
       try {
-        socket?.disconnect();
-        socketRef.current = null;
+        socket = io(`${SERVER_URL}${INSPECTOR_WS_NAMESPACE}`, { transports: ["websocket"] });
+        socket.on("inspector:crawl-progress", (p: CrawlProgress) => setProgress(p));
+        socketRef.current = socket;
       } catch {}
-    }
-  }, []);
+
+      try {
+        const result = await runCrawl({
+          appUrl: appUrl.trim(),
+          projectPath,
+          routes: routes && routes.length ? routes : undefined,
+        });
+        setReport(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "크롤에 실패했습니다");
+      } finally {
+        setRunning(false);
+        setProgress(null);
+        try {
+          socket?.disconnect();
+          socketRef.current = null;
+        } catch {}
+      }
+    },
+    [],
+  );
 
   /** 영향 라우트만 재크롤 — 메인 report는 건드리지 않고 신선한 결과만 반환 (토큰 0) */
   const verify = useCallback(

@@ -191,7 +191,15 @@ export class ClaudePtyManager extends EventEmitter implements OnModuleDestroy {
   private spawnClaude(session: ClaudeSession, message: string): void {
     const sessionId = session.id;
 
-    const args = ['--output-format', 'stream-json', '--verbose'];
+    // 비대화형(-p) 모드에선 권한 프롬프트를 띄울 수 없어 Edit/Bash 등 도구 호출이
+    // 자동 거부된다(요청이 "무시"되는 원인). codex가 danger-full-access로 도는 것과
+    // 동일하게 권한 검사를 우회해 에이전트가 실제로 작업할 수 있게 한다.
+    const args = [
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--dangerously-skip-permissions',
+    ];
     if (session.model) {
       args.push('--model', session.model);
     }

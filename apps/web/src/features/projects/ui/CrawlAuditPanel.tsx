@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { SERVER_URL } from "@/lib/constants";
+import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import { openFileInIde } from "@/features/fs/api/fs.api";
 import { useToast } from "@/lib/toast";
 
 import type { HandoffAgentId } from "../api/agentHandoff.api";
@@ -43,15 +44,6 @@ function kindLabel(kind: CrawlIssue["kind"]) {
 function baseName(path?: string) {
   if (!path) return "";
   return path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;
-}
-
-function shortValue(value: string | null | undefined, fallback: string) {
-  try {
-    if (!value) return fallback;
-    return value;
-  } catch {
-    return fallback;
-  }
 }
 
 function isFrameworkIssue(issue: CrawlIssue) {
@@ -97,13 +89,37 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
     run,
     verify,
   } = useCrawlAudit();
-  const { handoff, submittingAgent } = useAgentHandoff();
+  const { handoff, handoffBatch, submittingAgent } = useAgentHandoff();
   const { addToast } = useToast();
   const [agentId, setAgentId] = useState<HandoffAgentId>("codex");
   const [dispatched, setDispatched] = useState<Map<string, CrawlIssue>>(new Map());
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({});
   const [regressions, setRegressions] = useState<CrawlIssue[]>([]);
   const [showFrameworkIssues, setShowFrameworkIssues] = useState(false);
+  // 감사 디렉토리: 기본은 스캔된 프로젝트 루트, 사용자가 별도 선택하면 override
+  const [auditDirOverride, setAuditDirOverride] = useState<string | null>(null);
+  const auditDir = auditDirOverride ?? projectPath ?? "";
+  // 라우트 선택: null = 전체 선택(기본)
+  const [routeSelection, setRouteSelection] = useState<Set<string> | null>(null);
+
+  const isRouteSelected = (route: string) => (routeSelection ? routeSelection.has(route) : true);
+  const selectedRoutes = routePreview.filter(isRouteSelected);
+
+  const toggleRoute = (route: string) => {
+    setRouteSelection((prev) => {
+      const base = prev ?? new Set(routePreview);
+      const next = new Set(base);
+      if (next.has(route)) next.delete(route);
+      else next.add(route);
+      return next;
+    });
+  };
+  const toggleAllRoutes = () => {
+    setRouteSelection((prev) => {
+      const allSelected = !prev || prev.size >= routePreview.length;
+      return allSelected ? new Set<string>() : null;
+    });
+  };
 
   const resetState = () => {
     setDispatched(new Map());
@@ -112,15 +128,25 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
   };
 
   const startAudit = () => {
+    if (selectedRoutes.length === 0) {
+      addToast({ type: "error", title: "라우트 미선택", message: "감사할 라우트를 선택하세요" });
+      return;
+    }
     resetState();
-    void run(appUrl, projectPath);
+    void run(appUrl, auditDir, selectedRoutes);
+  };
+
+  const onAuditDirChange = (dir: string) => {
+    setAuditDirOverride(dir);
+    setRouteSelection(null); // 디렉토리 바뀌면 라우트 선택 초기화(전체)
+    void loadRoutes(dir);
   };
 
   useEffect(() => {
     try {
-      void loadRoutes(projectPath);
+      void loadRoutes(auditDir);
     } catch {}
-  }, [loadRoutes, projectPath]);
+  }, [loadRoutes, auditDir]);
 
   const flatIssues = useMemo(
     () => (report ? report.routes.flatMap((r) => r.issues) : []),
@@ -144,6 +170,33 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
   );
   const fixable = useMemo(() => visibleIssues.filter((i) => i.fileName), [visibleIssues]);
 
+  // 이슈 파일을 IDE로 열기 (Code Viewer의 IDE 열기와 동일)
+  const openInIde = async (issue: CrawlIssue) => {
+    try {
+      if (!issue.fileName) return;
+      const result = await openFileInIde({
+        path: issue.fileName,
+        projectPath: auditDir || projectPath,
+        line: issue.line,
+      });
+      addToast(
+        result.ok
+          ? {
+              type: "success",
+              title: "IDE에서 열림",
+              message: `${baseName(issue.fileName)}${issue.line ? `:${issue.line}` : ""} · ${result.opener ?? "IDE"}`,
+            }
+          : {
+              type: "error",
+              title: "IDE 열기 실패",
+              message: result.error ?? "VS Code, Cursor, IntelliJ 실행 상태를 확인해 주세요",
+            },
+      );
+    } catch {
+      addToast({ type: "error", title: "IDE 열기 실패", message: "다시 시도해 주세요" });
+    }
+  };
+
   const dispatchOne = async (issue: CrawlIssue) => {
     try {
       if (!issue.fileName) return;
@@ -151,7 +204,7 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
       await handoff({
         agentId,
         request: buildPrompt(issue),
-        projectPath,
+        projectPath: auditDir || projectPath,
         filePath: issue.fileName,
         line: issue.line,
         endLine: issue.endLine,
@@ -168,9 +221,40 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
     }
   };
 
+  // 일괄: 에이전트 세션 1개에 모든 이슈를 단일 프롬프트로 — 일관성↑·토큰↓
   const dispatchAll = async () => {
-    for (const issue of fixable) {
-      if (!dispatched.has(issueKey(issue))) await dispatchOne(issue);
+    const pending = fixable.filter((i) => !dispatched.has(issueKey(i)));
+    if (pending.length === 0) return;
+    try {
+      await handoffBatch({
+        agentId,
+        projectPath: auditDir || projectPath,
+        items: pending.map((i) => ({
+          title: i.title,
+          route: i.route,
+          filePath: i.fileName,
+          line: i.line,
+          endLine: i.endLine,
+          detail: i.detail,
+        })),
+      });
+      setDispatched((prev) => {
+        const next = new Map(prev);
+        for (const i of pending) next.set(issueKey(i), i);
+        return next;
+      });
+      setVerdicts((prev) => {
+        const next = { ...prev };
+        for (const i of pending) delete next[issueKey(i)];
+        return next;
+      });
+      addToast({
+        type: "success",
+        title: "일괄 디스패치",
+        message: `${pending.length}건을 세션 1개로 전달`,
+      });
+    } catch {
+      addToast({ type: "error", title: "일괄 전달 실패", message: "다시 시도해 주세요" });
     }
   };
 
@@ -178,7 +262,7 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
   const onVerify = async () => {
     const issues = Array.from(dispatched.values());
     const routes = Array.from(new Set(issues.map((i) => i.route)));
-    const fresh = await verify(appUrl, projectPath, routes);
+    const fresh = await verify(appUrl, auditDir || projectPath, routes);
     if (!fresh) return;
 
     const freshIssues = fresh.routes.flatMap((r) => r.issues);
@@ -203,7 +287,6 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
   };
 
   const busy = running || verifying || Boolean(submittingAgent);
-  const apiTarget = SERVER_URL || "same-origin";
   const crawledRoutes = report?.routes.map((route) => route.route) ?? [];
 
   return (
@@ -226,48 +309,72 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
       </div>
 
       <div className="mt-2 rounded-lg border border-gray-900/[0.06] bg-white/45 px-2.5 py-2 dark:border-white/[0.06] dark:bg-white/[0.02]">
-        <div className="grid gap-1.5 text-[10px] text-gray-900/45 sm:grid-cols-2 dark:text-white/45">
-         
-          <p className="min-w-0 truncate sm:col-span-2">
-            <span className="font-semibold text-gray-900/55 dark:text-white/55">Project</span>{" "}
-            <span className="font-mono">
-              {shortValue(projectPath, "없음 - 라우트 자동 탐색 비활성")}
-            </span>
-          </p>
+        {/* 감사 디렉토리 — 프로젝트 루트와 분리해서 선택 */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-gray-900/55 dark:text-white/55">
+            감사 디렉토리
+          </span>
+          {projectPath && auditDir !== projectPath && (
+            <button
+              type="button"
+              onClick={() => onAuditDirChange(projectPath)}
+              className="text-[10px] text-gray-900/40 underline-offset-2 hover:underline dark:text-white/40"
+            >
+              프로젝트 루트로
+            </button>
+          )}
+        </div>
+        <div className="mt-1">
+          <WorkingDirPicker value={auditDir} onChange={onAuditDirChange} variant="field" />
         </div>
 
-        {!projectPath && (
-          <p className="mt-2 rounded-md bg-amber-500/[0.10] px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
-            프로젝트 루트가 없어 현재 감사는 기본 라우트 / 만 검사합니다. 먼저 프로젝트를 스캔해
-            루트를 지정해 주세요.
-          </p>
-        )}
-
+        {/* 라우트 선택 — 원하는 라우트만 감사 */}
         <div className="mt-2">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold text-gray-900/55 dark:text-white/55">
-              예정 라우트
+              라우트 선택
             </span>
             <span className="text-[10px] text-gray-900/30 dark:text-white/30">
-              {routesLoading ? "조회 중..." : `${routePreview.length}개`}
+              {routesLoading
+                ? "조회 중..."
+                : `${selectedRoutes.length}/${routePreview.length} 선택`}
             </span>
             {routesError && (
               <span className="text-[10px] text-red-600 dark:text-red-300">{routesError}</span>
             )}
-          </div>
-          <div className="mt-1 flex max-h-14 flex-wrap gap-1 overflow-y-auto">
-            {routePreview.slice(0, 24).map((route) => (
-              <span
-                key={route}
-                className="rounded-md border border-gray-900/[0.06] bg-gray-900/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-gray-900/45 dark:border-white/[0.06] dark:bg-white/[0.04] dark:text-white/45"
+            {routePreview.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleAllRoutes}
+                className="ml-auto cursor-pointer rounded-md border border-gray-900/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-gray-900/45 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
               >
-                {route}
-              </span>
-            ))}
-            {routePreview.length > 24 && (
-              <span className="px-1.5 py-0.5 text-[10px] text-gray-900/30 dark:text-white/30">
-                +{routePreview.length - 24}
-              </span>
+                {selectedRoutes.length === routePreview.length ? "전체 해제" : "전체 선택"}
+              </button>
+            )}
+          </div>
+          <div className="mt-1 flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+            {routePreview.map((route) => {
+              const sel = isRouteSelected(route);
+              return (
+                <button
+                  key={route}
+                  type="button"
+                  onClick={() => toggleRoute(route)}
+                  title={sel ? "선택 해제" : "선택"}
+                  className={[
+                    "cursor-pointer rounded-md border px-1.5 py-0.5 font-mono text-[10px] transition-colors",
+                    sel
+                      ? "border-emerald-500/40 bg-emerald-500/[0.12] text-emerald-700 dark:text-emerald-300"
+                      : "border-gray-900/[0.06] bg-gray-900/[0.02] text-gray-900/35 hover:bg-gray-900/[0.05] dark:border-white/[0.06] dark:bg-white/[0.02] dark:text-white/35 dark:hover:bg-white/[0.06]",
+                  ].join(" ")}
+                >
+                  {sel ? "✓ " : ""}
+                  {route}
+                </button>
+              );
+            })}
+            {!routesLoading && routePreview.length === 0 && (
+              <span className="text-[10px] text-gray-900/30 dark:text-white/30">라우트 없음</span>
             )}
           </div>
         </div>
@@ -406,12 +513,22 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
                           <p className="truncate text-[11px] text-gray-900/70 dark:text-white/70">
                             {issue.title}
                           </p>
-                          {(issue.fileName || issue.url) && (
-                            <p className="truncate font-mono text-[10px] text-gray-900/35 dark:text-white/35">
-                              {issue.fileName
-                                ? `${baseName(issue.fileName)}${issue.line ? `:${issue.line}` : ""}`
-                                : issue.url}
-                            </p>
+                          {issue.fileName ? (
+                            <button
+                              type="button"
+                              onClick={() => void openInIde(issue)}
+                              title="IDE에서 열기"
+                              className="block max-w-full cursor-pointer truncate text-left font-mono text-[10px] text-emerald-700/80 underline-offset-2 transition-colors hover:text-emerald-700 hover:underline dark:text-emerald-300/80 dark:hover:text-emerald-300"
+                            >
+                              {baseName(issue.fileName)}
+                              {issue.line ? `:${issue.line}` : ""}
+                            </button>
+                          ) : (
+                            issue.url && (
+                              <p className="truncate font-mono text-[10px] text-gray-900/35 dark:text-white/35">
+                                {issue.url}
+                              </p>
+                            )
                           )}
                         </div>
                         {verdict === "fixed" && (

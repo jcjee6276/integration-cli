@@ -18,7 +18,7 @@ interface Props {
   onCreated?: (task: Task) => void;
 }
 
-function TaskCreateModalContent({ open, onClose, onCreated }: Props) {
+export const TaskCreateModal = memo(function TaskCreateModal({ open, onClose, onCreated }: Props) {
   const {
     form,
     submitting,
@@ -53,30 +53,47 @@ function TaskCreateModalContent({ open, onClose, onCreated }: Props) {
     [addAgent],
   );
 
-  const handleAgentSelectClose = useCallback(() => {
-    setAgentSelectOpen(false);
-  }, []);
+  const closeAgentSelect = useCallback(() => setAgentSelectOpen(false), []);
 
-  const handleClose = useCallback(() => {
-    reset();
-    onClose();
-  }, [reset, onClose]);
+  const handleClose = useCallback(() => { reset(); onClose(); }, [reset, onClose]);
 
   return (
     <>
-      {agentSelectOpen && (
-        <AgentSelectModal
-          open={true}
-          onClose={handleAgentSelectClose}
-          onSelect={handleAgentSelect}
-        />
-      )}
-      <Modal open={open} onClose={handleClose} title="새 작업 추가" maxWidth="max-w-xl">
-        <div className="flex flex-col gap-5">
-          {/* ── 작업 제목 ─────────────────────────────────────────────── */}
-          <section className="flex flex-col gap-2">
-            <label className="text-[11px] font-medium tracking-wider text-gray-900/30 uppercase dark:text-white/30">
-              작업 목표 <span className="text-orange-500">*</span>
+    <AgentSelectModal
+      open={agentSelectOpen}
+      onClose={closeAgentSelect}
+      onSelect={handleAgentSelect}
+    />
+    <Modal open={open} onClose={handleClose} title="새 작업 추가" maxWidth="max-w-xl">
+      <div className="flex flex-col gap-5">
+
+        {/* ── 작업 제목 ─────────────────────────────────────────────── */}
+        <section className="flex flex-col gap-2">
+          <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
+            작업 목표 <span className="text-orange-500">*</span>
+          </label>
+          <textarea
+            rows={2}
+            value={form.title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예: 로그인 페이지 UI 구현 및 API 연동"
+            className="w-full resize-none rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2.5 text-sm text-gray-900/80 placeholder-gray-900/20 outline-none transition-colors focus:border-orange-500/50 focus:bg-gray-900/[0.05] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/80 dark:placeholder-white/20 dark:focus:bg-white/[0.05]"
+          />
+        </section>
+
+        {/* ── 워크 디렉토리 ─────────────────────────────────────────── */}
+        <section className="flex flex-col gap-2">
+          <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
+            워크 디렉토리 <span className="text-orange-500">*</span>
+          </label>
+          <WorkingDirPicker value={form.workingDir} onChange={setWorkingDir} />
+        </section>
+
+        {/* ── 요구사항 ──────────────────────────────────────────────── */}
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-medium uppercase tracking-wider text-gray-900/30 dark:text-white/30">
+              요구사항
             </label>
             <textarea
               rows={2}
@@ -223,10 +240,4 @@ function TaskCreateModalContent({ open, onClose, onCreated }: Props) {
       </Modal>
     </>
   );
-}
-
-export const TaskCreateModal = memo(function TaskCreateModal(props: Props) {
-  if (!props.open) return null;
-
-  return <TaskCreateModalContent {...props} />;
 });

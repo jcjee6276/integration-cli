@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { getClaudeStatus, getGeminiAuthStatus } from "@/features/auth/api/auth.api";
@@ -230,21 +230,10 @@ interface AgentStatusModalProps {
   onClose: () => void;
 }
 
-interface AgentStatusState {
-  claudeStatus: ClaudeStatus | null;
-  geminiStatus: GeminiAuthStatus | null;
-  loading: boolean;
-}
-
-const INITIAL_AGENT_STATUS: AgentStatusState = {
-  claudeStatus: null,
-  geminiStatus: null,
-  loading: false,
-};
-
-function useAgentStatusModal(open: boolean) {
-  const [status, setStatus] = useState<AgentStatusState>(INITIAL_AGENT_STATUS);
-  const requestIdRef = useRef(0);
+export const AgentStatusModal = memo(function AgentStatusModal({ open, onClose }: AgentStatusModalProps) {
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
+  const [geminiStatus, setGeminiStatus] = useState<GeminiAuthStatus | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     const requestId = requestIdRef.current + 1;

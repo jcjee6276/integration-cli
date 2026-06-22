@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import type { ChangeEvent } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import { useDirBrowser } from "@/features/fs/hooks/useDirBrowser";
 
@@ -101,7 +100,7 @@ function DirDropdown({
   );
 }
 
-export function WorkingDirPicker({ value, onChange, variant = "field" }: WorkingDirPickerProps) {
+export const WorkingDirPicker = memo(function WorkingDirPicker({ value, onChange, variant = "field" }: WorkingDirPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { open, currentPath, dirs, loading, navigate, openBrowser, closeBrowser, navigateUp } =
     useDirBrowser();
@@ -218,4 +217,4 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
       {dropdown}
     </div>
   );
-}
+});

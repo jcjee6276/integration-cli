@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect } from "react";
+import { memo, useEffect } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { useAgentStatusStore } from "@/store/agentStatusStore";
@@ -218,18 +218,8 @@ interface AgentSelectModalProps {
   connectionStatusByAgent?: Record<AgentId, ConnectionStatus>;
 }
 
-interface AgentSelectModalViewProps {
-  onClose: () => void;
-  onSelect: (agentId: AgentId) => void;
-  statusByAgent: Record<AgentId, ConnectionStatus>;
-}
-
-function AgentSelectModalWithStore({
-  onClose,
-  onSelect,
-}: Omit<AgentSelectModalViewProps, "statusByAgent">) {
-  const statusByAgent = useAgentStatusStore((state) => state.statusByAgent);
-  const refresh = useAgentStatusStore((state) => state.refresh);
+export const AgentSelectModal = memo(function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAgent }: AgentSelectModalProps) {
+  const { statusByAgent, refresh } = useAgentStatusStore();
 
   useEffect(() => {
     void refresh();
@@ -267,7 +257,7 @@ function AgentSelectModalView({ onClose, onSelect, statusByAgent }: AgentSelectM
       </div>
     </Modal>
   );
-}
+});
 
 function AgentSelectModalComponent({
   open,
