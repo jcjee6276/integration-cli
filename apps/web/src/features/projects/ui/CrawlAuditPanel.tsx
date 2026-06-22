@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import { openFileInIde } from "@/features/fs/api/fs.api";
 import { useToast } from "@/lib/toast";
 
 import type { HandoffAgentId } from "../api/agentHandoff.api";
@@ -168,6 +169,33 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
     [flatIssues, visibleIssueKeys],
   );
   const fixable = useMemo(() => visibleIssues.filter((i) => i.fileName), [visibleIssues]);
+
+  // 이슈 파일을 IDE로 열기 (Code Viewer의 IDE 열기와 동일)
+  const openInIde = async (issue: CrawlIssue) => {
+    try {
+      if (!issue.fileName) return;
+      const result = await openFileInIde({
+        path: issue.fileName,
+        projectPath: auditDir || projectPath,
+        line: issue.line,
+      });
+      addToast(
+        result.ok
+          ? {
+              type: "success",
+              title: "IDE에서 열림",
+              message: `${baseName(issue.fileName)}${issue.line ? `:${issue.line}` : ""} · ${result.opener ?? "IDE"}`,
+            }
+          : {
+              type: "error",
+              title: "IDE 열기 실패",
+              message: result.error ?? "VS Code, Cursor, IntelliJ 실행 상태를 확인해 주세요",
+            },
+      );
+    } catch {
+      addToast({ type: "error", title: "IDE 열기 실패", message: "다시 시도해 주세요" });
+    }
+  };
 
   const dispatchOne = async (issue: CrawlIssue) => {
     try {
@@ -485,12 +513,22 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
                           <p className="truncate text-[11px] text-gray-900/70 dark:text-white/70">
                             {issue.title}
                           </p>
-                          {(issue.fileName || issue.url) && (
-                            <p className="truncate font-mono text-[10px] text-gray-900/35 dark:text-white/35">
-                              {issue.fileName
-                                ? `${baseName(issue.fileName)}${issue.line ? `:${issue.line}` : ""}`
-                                : issue.url}
-                            </p>
+                          {issue.fileName ? (
+                            <button
+                              type="button"
+                              onClick={() => void openInIde(issue)}
+                              title="IDE에서 열기"
+                              className="block max-w-full cursor-pointer truncate text-left font-mono text-[10px] text-emerald-700/80 underline-offset-2 transition-colors hover:text-emerald-700 hover:underline dark:text-emerald-300/80 dark:hover:text-emerald-300"
+                            >
+                              {baseName(issue.fileName)}
+                              {issue.line ? `:${issue.line}` : ""}
+                            </button>
+                          ) : (
+                            issue.url && (
+                              <p className="truncate font-mono text-[10px] text-gray-900/35 dark:text-white/35">
+                                {issue.url}
+                              </p>
+                            )
                           )}
                         </div>
                         {verdict === "fixed" && (
