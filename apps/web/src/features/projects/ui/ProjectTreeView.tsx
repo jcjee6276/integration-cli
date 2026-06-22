@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
 import type { FsTreeNode, FsTreeResult } from "@/features/fs/api/fs.api";
+import { useIntentionalOverRenderTest } from "@/hooks/useIntentionalOverRenderTest";
 import { ThemeToggle } from "@/lib/theme";
 import { useToast } from "@/lib/toast";
 
@@ -260,6 +261,9 @@ export function ProjectTreeView({
   onToggleExtension,
   onClearExtensions,
 }: ProjectTreeViewProps) {
+  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
+  useIntentionalOverRenderTest("ProjectTreeView", { intervalMs: 650, maxTicks: 20 });
+
   const { containerRef, treeWidth, resizing, startResize } = useResizablePanels();
   const { addToast } = useToast();
   const [treeVisible, setTreeVisible] = useState(true);

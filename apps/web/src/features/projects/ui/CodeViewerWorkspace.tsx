@@ -11,6 +11,7 @@ import {
   type FsImportersResult,
   type FsTreeNode,
 } from "@/features/fs/api/fs.api";
+import { useIntentionalOverRenderTest } from "@/hooks/useIntentionalOverRenderTest";
 import { useToast } from "@/lib/toast";
 
 import type { HandoffAgentId } from "../api/agentHandoff.api";
@@ -395,6 +396,9 @@ function CodePane({
   ) => void;
   onActivatePane: (paneId: string) => void;
 }) {
+  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
+  useIntentionalOverRenderTest("CodePane", { intervalMs: 800, maxTicks: 18 });
+
   const { addToast } = useToast();
   const { submittingAgent, handoff } = useAgentHandoff();
   const impact = useImpactCoupling();
@@ -671,6 +675,9 @@ export function CodeViewerWorkspace({
   onSplitWithFile,
   onActivatePane,
 }: CodeViewerWorkspaceProps) {
+  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
+  useIntentionalOverRenderTest("CodeViewerWorkspace", { intervalMs: 950, maxTicks: 16 });
+
   const visiblePanes = panes.filter((pane) => pane.filePaths.length > 0);
   const { containerRef, leftWidth, resizing, startResize } = useCodeSplitResize();
 

@@ -57,3 +57,19 @@ export async function runCrawl(input: {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export async function discoverCrawlRoutes(input: {
+  projectPath?: string | null;
+}): Promise<string[]> {
+  const res = await fetch(`${SERVER_URL}/inspector/crawl/routes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      appUrl: "http://localhost",
+      projectPath: input.projectPath ?? undefined,
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { routes?: string[] };
+  return data.routes?.length ? data.routes : ["/"];
+}

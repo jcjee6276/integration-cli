@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
+import { useIntentionalOverRenderTest } from "@/hooks/useIntentionalOverRenderTest";
 import type { PermissionPrompt } from "@/lib/ansi";
 
 import type { ConnectionStatus, UnifiedSessionState } from "../hooks/useUnifiedSessions";
@@ -67,6 +68,9 @@ export function ChatWorkspace({
   onDirChange,
   onModelSettingsChange,
 }: ChatWorkspaceProps) {
+  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
+  useIntentionalOverRenderTest("ChatWorkspace", { intervalMs: 1000, maxTicks: 16 });
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {!selectedSession ? (

@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 
 import type { FsTreeNode } from "@/features/fs/api/fs.api";
+import { useIntentionalOverRenderTest } from "@/hooks/useIntentionalOverRenderTest";
 
 import type { InspectorElement } from "../api/inspector.api";
 import { useCodeViewer } from "../hooks/useCodeViewer";
@@ -28,6 +29,9 @@ function guessProjectRoot(fileName: string): string | null {
 }
 
 export function ProjectsPageContainer() {
+  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
+  useIntentionalOverRenderTest("ProjectsPageContainer", { intervalMs: 900, maxTicks: 18 });
+
   const {
     projectPath,
     setProjectPath,

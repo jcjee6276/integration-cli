@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { SERVER_URL } from "@/lib/constants";
 import { useToast } from "@/lib/toast";
 
 import type { HandoffAgentId } from "../api/agentHandoff.api";
@@ -17,6 +18,14 @@ interface CrawlAuditPanelProps {
 type Verdict = "fixed" | "present";
 
 const AGENTS: HandoffAgentId[] = ["codex", "claude", "gemini"];
+const FRAMEWORK_COMPONENTS = [
+  "OuterLayoutRouter",
+  "SegmentViewNode",
+  "__next_metadata_boundary__",
+  "__next_viewport_boundary__",
+  "__next_root_layout_boundary__",
+  "__next_outlet_boundary__",
+];
 
 function kindColor(kind: CrawlIssue["kind"]) {
   if (kind === "network") return "text-amber-600 dark:text-amber-300";
@@ -36,6 +45,32 @@ function baseName(path?: string) {
   return path.split(/[/\\]/).filter(Boolean).at(-1) ?? path;
 }
 
+function shortValue(value: string | null | undefined, fallback: string) {
+  try {
+    if (!value) return fallback;
+    return value;
+  } catch {
+    return fallback;
+  }
+}
+
+function isFrameworkIssue(issue: CrawlIssue) {
+  try {
+    const title = issue.title.toLowerCase();
+    const fileName = issue.fileName?.replace(/\\/g, "/").toLowerCase() ?? "";
+    return (
+      FRAMEWORK_COMPONENTS.some((name) => issue.title.includes(name)) ||
+      fileName.includes("/node_modules/next/") ||
+      fileName.includes("/.next/") ||
+      fileName.includes("/next/dist/") ||
+      title.includes("layout-router") ||
+      title.includes("segment-explorer")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function buildPrompt(issue: CrawlIssue) {
   const lines = [
     `다음 ${issue.kind} 이슈를 진단하고 고쳐줘.`,
@@ -49,13 +84,26 @@ function buildPrompt(issue: CrawlIssue) {
 }
 
 export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
-  const { running, verifying, progress, report, error, run, verify } = useCrawlAudit();
+  const {
+    running,
+    verifying,
+    progress,
+    report,
+    error,
+    routePreview,
+    routesLoading,
+    routesError,
+    loadRoutes,
+    run,
+    verify,
+  } = useCrawlAudit();
   const { handoff, submittingAgent } = useAgentHandoff();
   const { addToast } = useToast();
   const [agentId, setAgentId] = useState<HandoffAgentId>("codex");
   const [dispatched, setDispatched] = useState<Map<string, CrawlIssue>>(new Map());
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({});
   const [regressions, setRegressions] = useState<CrawlIssue[]>([]);
+  const [showFrameworkIssues, setShowFrameworkIssues] = useState(false);
 
   const resetState = () => {
     setDispatched(new Map());
@@ -68,11 +116,33 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
     void run(appUrl, projectPath);
   };
 
+  useEffect(() => {
+    try {
+      void loadRoutes(projectPath);
+    } catch {}
+  }, [loadRoutes, projectPath]);
+
   const flatIssues = useMemo(
     () => (report ? report.routes.flatMap((r) => r.issues) : []),
     [report],
   );
-  const fixable = useMemo(() => flatIssues.filter((i) => i.fileName), [flatIssues]);
+  const frameworkIssues = useMemo(() => flatIssues.filter(isFrameworkIssue), [flatIssues]);
+  const visibleIssueKeys = useMemo(() => {
+    try {
+      return new Set(
+        flatIssues
+          .filter((issue) => showFrameworkIssues || !isFrameworkIssue(issue))
+          .map((issue) => issueKey(issue)),
+      );
+    } catch {
+      return new Set<string>();
+    }
+  }, [flatIssues, showFrameworkIssues]);
+  const visibleIssues = useMemo(
+    () => flatIssues.filter((issue) => visibleIssueKeys.has(issueKey(issue))),
+    [flatIssues, visibleIssueKeys],
+  );
+  const fixable = useMemo(() => visibleIssues.filter((i) => i.fileName), [visibleIssues]);
 
   const dispatchOne = async (issue: CrawlIssue) => {
     try {
@@ -133,6 +203,8 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
   };
 
   const busy = running || verifying || Boolean(submittingAgent);
+  const apiTarget = SERVER_URL || "same-origin";
+  const crawledRoutes = report?.routes.map((route) => route.route) ?? [];
 
   return (
     <div className="mt-3 border-t border-gray-900/[0.07] pt-3 dark:border-white/[0.07]">
@@ -151,6 +223,54 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
         >
           {running ? "감사 중..." : "감사 실행"}
         </button>
+      </div>
+
+      <div className="mt-2 rounded-lg border border-gray-900/[0.06] bg-white/45 px-2.5 py-2 dark:border-white/[0.06] dark:bg-white/[0.02]">
+        <div className="grid gap-1.5 text-[10px] text-gray-900/45 sm:grid-cols-2 dark:text-white/45">
+         
+          <p className="min-w-0 truncate sm:col-span-2">
+            <span className="font-semibold text-gray-900/55 dark:text-white/55">Project</span>{" "}
+            <span className="font-mono">
+              {shortValue(projectPath, "없음 - 라우트 자동 탐색 비활성")}
+            </span>
+          </p>
+        </div>
+
+        {!projectPath && (
+          <p className="mt-2 rounded-md bg-amber-500/[0.10] px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+            프로젝트 루트가 없어 현재 감사는 기본 라우트 / 만 검사합니다. 먼저 프로젝트를 스캔해
+            루트를 지정해 주세요.
+          </p>
+        )}
+
+        <div className="mt-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-gray-900/55 dark:text-white/55">
+              예정 라우트
+            </span>
+            <span className="text-[10px] text-gray-900/30 dark:text-white/30">
+              {routesLoading ? "조회 중..." : `${routePreview.length}개`}
+            </span>
+            {routesError && (
+              <span className="text-[10px] text-red-600 dark:text-red-300">{routesError}</span>
+            )}
+          </div>
+          <div className="mt-1 flex max-h-14 flex-wrap gap-1 overflow-y-auto">
+            {routePreview.slice(0, 24).map((route) => (
+              <span
+                key={route}
+                className="rounded-md border border-gray-900/[0.06] bg-gray-900/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-gray-900/45 dark:border-white/[0.06] dark:bg-white/[0.04] dark:text-white/45"
+              >
+                {route}
+              </span>
+            ))}
+            {routePreview.length > 24 && (
+              <span className="px-1.5 py-0.5 text-[10px] text-gray-900/30 dark:text-white/30">
+                +{routePreview.length - 24}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {running && progress && (
@@ -176,8 +296,19 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
         <div className="mt-2">
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-gray-900/55 dark:text-white/55">
-              {report.totalIssues}개 이슈 · 수정 가능 {fixable.length}건
+              {visibleIssues.length}개 표시 · 전체 {report.totalIssues}개 · 수정 가능{" "}
+              {fixable.length}건
             </span>
+            {frameworkIssues.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowFrameworkIssues((value) => !value)}
+                title="Next 내부 라우터/메타데이터 boundary 같은 프레임워크 이슈 표시 전환"
+                className="cursor-pointer rounded-md border border-gray-900/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-gray-900/45 transition-colors hover:bg-gray-900/[0.05] hover:text-gray-900/70 dark:border-white/[0.08] dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+              >
+                {showFrameworkIssues ? "프레임워크 숨김" : `프레임워크 ${frameworkIssues.length}건`}
+              </button>
+            )}
             <select
               value={agentId}
               onChange={(e) => setAgentId(e.target.value as HandoffAgentId)}
@@ -208,6 +339,22 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
             </button>
           </div>
 
+          <div className="mt-2 rounded-md border border-gray-900/[0.06] bg-gray-900/[0.02] px-2 py-1.5 dark:border-white/[0.06] dark:bg-white/[0.02]">
+            <p className="text-[11px] font-semibold text-gray-900/50 dark:text-white/50">
+              실제 검사 라우트 {crawledRoutes.length}개
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {crawledRoutes.map((route) => (
+                <span
+                  key={route}
+                  className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-gray-900/45 dark:bg-white/[0.05] dark:text-white/45"
+                >
+                  {route}
+                </span>
+              ))}
+            </div>
+          </div>
+
           {regressions.length > 0 && (
             <div className="mt-2 rounded-md border border-red-500/30 bg-red-500/[0.08] px-2 py-1.5">
               <p className="text-[11px] font-semibold text-red-600 dark:text-red-300">
@@ -225,7 +372,18 @@ export function CrawlAuditPanel({ appUrl, projectPath }: CrawlAuditPanelProps) {
           )}
 
           <div className="mt-2 max-h-72 space-y-2 overflow-auto">
+            {visibleIssues.length === 0 && (
+              <div className="rounded-md border border-gray-900/[0.06] bg-white/50 px-2 py-2 text-[11px] text-gray-900/40 dark:border-white/[0.06] dark:bg-white/[0.02] dark:text-white/40">
+                {flatIssues.length === 0
+                  ? "감지된 이슈가 없습니다. 위의 실제 검사 라우트가 기대한 화면을 포함하는지 확인해 주세요."
+                  : "프레임워크 이슈만 감지되어 기본 목록에서는 숨겨졌습니다."}
+              </div>
+            )}
             {report.routes
+              .map((route) => ({
+                ...route,
+                issues: route.issues.filter((issue) => visibleIssueKeys.has(issueKey(issue))),
+              }))
               .filter((r) => r.issues.length > 0)
               .map((r) => (
                 <div key={r.route}>

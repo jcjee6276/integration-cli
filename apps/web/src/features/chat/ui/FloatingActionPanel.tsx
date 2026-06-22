@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { useArchivedTasks } from "@/features/tasks/hooks/useArchivedTasks";
+import { useIntentionalOverRenderTest } from "@/hooks/useIntentionalOverRenderTest";
 
 type PanelTab = "archive" | "project";
 
@@ -133,6 +134,9 @@ function ArchiveTab() {
 // ─── FloatingActionPanel ──────────────────────────────────────────────────────
 
 export function FloatingActionPanel() {
+  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
+  useIntentionalOverRenderTest("FloatingActionPanel", { intervalMs: 850, maxTicks: 18 });
+
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<PanelTab>("archive");

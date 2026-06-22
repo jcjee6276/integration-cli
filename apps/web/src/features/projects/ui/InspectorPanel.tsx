@@ -106,28 +106,7 @@ export function InspectorPanel({
 
       {error && <p className="mt-2 text-[11px] text-red-600 dark:text-red-300">{error}</p>}
 
-      {lastElement && (
-        <div className="mt-2 rounded-lg border border-gray-900/[0.07] bg-white/60 px-3 py-2 dark:border-white/[0.07] dark:bg-white/[0.02]">
-          {lastElement.notFound ? (
-            <p className="text-[11px] text-amber-600 dark:text-amber-300">
-              소스를 찾을 수 없음
-              {lastElement.tagName ? ` — <${lastElement.tagName}>` : ""}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              {lastElement.componentName && (
-                <span className="text-xs font-semibold text-gray-900/70 dark:text-white/70">
-                  {lastElement.componentName}
-                </span>
-              )}
-              <span className="truncate font-mono text-[11px] text-gray-900/45 dark:text-white/45">
-                {getFileName(lastElement.fileName)}
-                {lastElement.line ? `:${lastElement.line}` : ""}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      
 
       <CrawlAuditPanel appUrl={appUrl} projectPath={projectPath} />
     </div>

@@ -5,7 +5,12 @@ import { io, type Socket } from "socket.io-client";
 
 import { SERVER_URL } from "@/lib/constants";
 
-import { runCrawl, type CrawlProgress, type CrawlReport } from "../api/crawl.api";
+import {
+  discoverCrawlRoutes,
+  runCrawl,
+  type CrawlProgress,
+  type CrawlReport,
+} from "../api/crawl.api";
 
 const INSPECTOR_WS_NAMESPACE = "/inspector";
 
@@ -15,7 +20,31 @@ export function useCrawlAudit() {
   const [progress, setProgress] = useState<CrawlProgress | null>(null);
   const [report, setReport] = useState<CrawlReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [routePreview, setRoutePreview] = useState<string[]>(["/"]);
+  const [routesLoading, setRoutesLoading] = useState(false);
+  const [routesError, setRoutesError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  const loadRoutes = useCallback(async (projectPath?: string | null) => {
+    try {
+      setRoutesError(null);
+      if (!projectPath) {
+        setRoutePreview(["/"]);
+        return ["/"];
+      }
+      setRoutesLoading(true);
+      const routes = await discoverCrawlRoutes({ projectPath });
+      setRoutePreview(routes);
+      return routes;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "라우트 조회에 실패했습니다";
+      setRoutesError(message);
+      setRoutePreview(["/"]);
+      return ["/"];
+    } finally {
+      setRoutesLoading(false);
+    }
+  }, []);
 
   const run = useCallback(async (appUrl: string, projectPath?: string | null) => {
     if (!appUrl.trim()) {
@@ -77,5 +106,18 @@ export function useCrawlAudit() {
     setError(null);
   }, []);
 
-  return { running, verifying, progress, report, error, run, verify, reset };
+  return {
+    running,
+    verifying,
+    progress,
+    report,
+    error,
+    routePreview,
+    routesLoading,
+    routesError,
+    loadRoutes,
+    run,
+    verify,
+    reset,
+  };
 }
