@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { AgentId } from "../ui/AgentSelectModal";
 import type { AgentModelSettings, AgentModelSettingsByAgent } from "../lib/agentModelOptions";
+import type { AgentId } from "../ui/AgentSelectModal";
+
 import { useClaudeSessions } from "./useClaudeSessions";
 import type { ChatMessage, SessionState } from "./useClaudeSessions";
 import { useCodexSessions } from "./useCodexSessions";
@@ -19,32 +20,73 @@ export function getOverallConnectionStatus(statuses: ConnectionStatus[]): Connec
 }
 
 export function useUnifiedSessions() {
-  const claude = useClaudeSessions();
-  const gemini = useGeminiSessions();
-  const codex = useCodexSessions();
+  const {
+    connectionStatus: claudeConnectionStatus,
+    sessions: claudeSessions,
+    error: claudeError,
+    createSession: createClaudeSession,
+    selectSession: selectClaudeSession,
+    sendMessage: sendClaudeMessage,
+    terminateSession: terminateClaudeSession,
+    renameSession: renameClaudeSession,
+    deleteSessionFromDB: deleteClaudeSessionFromDB,
+    injectMessage: injectClaudeSessionMessage,
+  } = useClaudeSessions();
+  const {
+    connectionStatus: geminiConnectionStatus,
+    sessions: geminiSessions,
+    error: geminiError,
+    createSession: createGeminiSession,
+    selectSession: selectGeminiSession,
+    sendMessage: sendGeminiMessage,
+    terminateSession: terminateGeminiSession,
+    renameSession: renameGeminiSession,
+    deleteSessionFromDB: deleteGeminiSessionFromDB,
+  } = useGeminiSessions();
+  const {
+    connectionStatus: codexConnectionStatus,
+    sessions: codexSessions,
+    error: codexError,
+    createSession: createCodexSession,
+    selectSession: selectCodexSession,
+    sendMessage: sendCodexMessage,
+    terminateSession: terminateCodexSession,
+    renameSession: renameCodexSession,
+    deleteSessionFromDB: deleteCodexSessionFromDB,
+  } = useCodexSessions();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const sessions = useMemo(
     () =>
-      [...claude.sessions, ...gemini.sessions, ...codex.sessions].sort(
+      [...claudeSessions, ...geminiSessions, ...codexSessions].sort(
         (a, b) => new Date(b.info.createdAt).getTime() - new Date(a.info.createdAt).getTime(),
       ),
-    [claude.sessions, gemini.sessions, codex.sessions],
+    [claudeSessions, geminiSessions, codexSessions],
   );
+  const sessionsRef = useRef<UnifiedSessionState[]>([]);
+
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   const connectionStatusByAgent = useMemo<Record<AgentId, ConnectionStatus>>(
     () => ({
-      claude: claude.connectionStatus,
-      gemini: gemini.connectionStatus,
-      codex: codex.connectionStatus,
+      claude: claudeConnectionStatus,
+      gemini: geminiConnectionStatus,
+      codex: codexConnectionStatus,
       opencode: "disconnected",
     }),
-    [claude.connectionStatus, gemini.connectionStatus, codex.connectionStatus],
+    [claudeConnectionStatus, geminiConnectionStatus, codexConnectionStatus],
   );
 
   const overallConnectionStatus = useMemo(
-    () => getOverallConnectionStatus([claude.connectionStatus, gemini.connectionStatus, codex.connectionStatus]),
-    [claude.connectionStatus, gemini.connectionStatus, codex.connectionStatus],
+    () =>
+      getOverallConnectionStatus([
+        claudeConnectionStatus,
+        geminiConnectionStatus,
+        codexConnectionStatus,
+      ]),
+    [claudeConnectionStatus, geminiConnectionStatus, codexConnectionStatus],
   );
 
   const selectedSession = useMemo(
@@ -56,21 +98,21 @@ export function useUnifiedSessions() {
     ? connectionStatusByAgent[selectedSession.agentId]
     : overallConnectionStatus;
 
-  const error = claude.error ?? gemini.error ?? codex.error;
+  const error = claudeError ?? geminiError ?? codexError;
 
   const findSession = useCallback(
-    (sessionId: string) => sessions.find((s) => s.info.id === sessionId) ?? null,
-    [sessions],
+    (sessionId: string) => sessionsRef.current.find((s) => s.info.id === sessionId) ?? null,
+    [],
   );
 
   const selectSession = useCallback(
     (sessionId: string) => {
       setSelectedSessionId(sessionId);
-      claude.selectSession(sessionId);
-      gemini.selectSession(sessionId);
-      codex.selectSession(sessionId);
+      selectClaudeSession(sessionId);
+      selectGeminiSession(sessionId);
+      selectCodexSession(sessionId);
     },
-    [claude, gemini, codex],
+    [selectClaudeSession, selectGeminiSession, selectCodexSession],
   );
 
   const createSession = useCallback(
@@ -83,17 +125,17 @@ export function useUnifiedSessions() {
 
       let sessionId: string | null = null;
       if (agentId === "gemini") {
-        sessionId = await gemini.createSession(workingDirectory);
+        sessionId = await createGeminiSession(workingDirectory);
       } else if (agentId === "codex") {
-        sessionId = await codex.createSession(workingDirectory, modelSettings);
+        sessionId = await createCodexSession(workingDirectory, modelSettings);
       } else if (agentId === "claude") {
-        sessionId = await claude.createSession(agentId, workingDirectory, modelSettings);
+        sessionId = await createClaudeSession(agentId, workingDirectory, modelSettings);
       }
 
       if (sessionId) setSelectedSessionId(sessionId);
       return sessionId;
     },
-    [connectionStatusByAgent, claude, gemini, codex],
+    [connectionStatusByAgent, createClaudeSession, createGeminiSession, createCodexSession],
   );
 
   const sendMessage = useCallback(
@@ -101,53 +143,53 @@ export function useUnifiedSessions() {
       const session = findSession(sessionId);
       if (!session) return;
       const modelSettings = modelSettingsByAgent?.[session.agentId];
-      if (session.agentId === "gemini") gemini.sendMessage(sessionId, text);
-      else if (session.agentId === "codex") codex.sendMessage(sessionId, text, modelSettings);
-      else claude.sendMessage(sessionId, text, modelSettings);
+      if (session.agentId === "gemini") sendGeminiMessage(sessionId, text);
+      else if (session.agentId === "codex") sendCodexMessage(sessionId, text, modelSettings);
+      else sendClaudeMessage(sessionId, text, modelSettings);
     },
-    [findSession, claude, gemini, codex],
+    [findSession, sendClaudeMessage, sendGeminiMessage, sendCodexMessage],
   );
 
   const terminateSession = useCallback(
     async (sessionId: string) => {
       const session = findSession(sessionId);
       if (!session) return;
-      if (session.agentId === "gemini") await gemini.terminateSession(sessionId);
-      else if (session.agentId === "codex") await codex.terminateSession(sessionId);
-      else await claude.terminateSession(sessionId);
+      if (session.agentId === "gemini") await terminateGeminiSession(sessionId);
+      else if (session.agentId === "codex") await terminateCodexSession(sessionId);
+      else await terminateClaudeSession(sessionId);
       setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
     },
-    [findSession, claude, gemini, codex],
+    [findSession, terminateClaudeSession, terminateGeminiSession, terminateCodexSession],
   );
 
   const renameSession = useCallback(
     (sessionId: string, newTitle: string) => {
       const session = findSession(sessionId);
       if (!session) return;
-      if (session.agentId === "gemini") gemini.renameSession(sessionId, newTitle);
-      else if (session.agentId === "codex") codex.renameSession(sessionId, newTitle);
-      else claude.renameSession(sessionId, newTitle);
+      if (session.agentId === "gemini") renameGeminiSession(sessionId, newTitle);
+      else if (session.agentId === "codex") renameCodexSession(sessionId, newTitle);
+      else renameClaudeSession(sessionId, newTitle);
     },
-    [findSession, claude, gemini, codex],
+    [findSession, renameClaudeSession, renameGeminiSession, renameCodexSession],
   );
 
   const deleteSession = useCallback(
     (sessionId: string) => {
       const session = findSession(sessionId);
       if (!session) return;
-      if (session.agentId === "gemini") gemini.deleteSessionFromDB(sessionId);
-      else if (session.agentId === "codex") codex.deleteSessionFromDB(sessionId);
-      else claude.deleteSessionFromDB(sessionId);
+      if (session.agentId === "gemini") deleteGeminiSessionFromDB(sessionId);
+      else if (session.agentId === "codex") deleteCodexSessionFromDB(sessionId);
+      else deleteClaudeSessionFromDB(sessionId);
       setSelectedSessionId((prev) => (prev === sessionId ? null : prev));
     },
-    [findSession, claude, gemini, codex],
+    [findSession, deleteClaudeSessionFromDB, deleteGeminiSessionFromDB, deleteCodexSessionFromDB],
   );
 
   const injectClaudeMessage = useCallback(
     (sessionId: string, message: Omit<ChatMessage, "id" | "createdAt">) => {
-      claude.injectMessage(sessionId, message);
+      injectClaudeSessionMessage(sessionId, message);
     },
-    [claude],
+    [injectClaudeSessionMessage],
   );
 
   return {

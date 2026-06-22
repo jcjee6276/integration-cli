@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import type { ChangeEvent } from "react";
 
 import { useDirBrowser } from "@/features/fs/hooks/useDirBrowser";
 
@@ -41,7 +42,9 @@ function DirDropdown({
   const positionClass = direction === "up" ? "bottom-full mb-1" : "top-full mt-1";
 
   return (
-    <div className={`absolute left-0 z-50 w-80 rounded-xl border border-gray-900/[0.1] bg-white shadow-lg dark:border-white/[0.1] dark:bg-gray-900 ${positionClass}`}>
+    <div
+      className={`absolute left-0 z-50 w-80 rounded-xl border border-gray-900/[0.1] bg-white shadow-lg dark:border-white/[0.1] dark:bg-gray-900 ${positionClass}`}
+    >
       {/* 현재 경로 + 위로 버튼 */}
       <div className="flex items-center gap-1.5 border-b border-gray-900/[0.07] px-3 py-2 dark:border-white/[0.07]">
         <button
@@ -114,12 +117,33 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
     return () => document.removeEventListener("mousedown", handler);
   }, [open, closeBrowser]);
 
-  const handleOpenBrowser = () => openBrowser(value || undefined);
+  const handleOpenBrowser = useCallback(() => {
+    try {
+      void openBrowser(value || undefined);
+    } catch {}
+  }, [openBrowser, value]);
 
-  const handleSelect = () => {
-    onChange(currentPath);
-    closeBrowser();
-  };
+  const handleSelect = useCallback(() => {
+    try {
+      onChange(currentPath);
+      closeBrowser();
+    } catch {}
+  }, [closeBrowser, currentPath, onChange]);
+
+  const handleClear = useCallback(() => {
+    try {
+      onChange("");
+    } catch {}
+  }, [onChange]);
+
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      try {
+        onChange(event.target.value);
+      } catch {}
+    },
+    [onChange],
+  );
 
   const dropdown = open ? (
     <DirDropdown
@@ -152,7 +176,7 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
             </span>
             <button
               type="button"
-              onClick={() => onChange("")}
+              onClick={handleClear}
               title="지우기"
               className="shrink-0 cursor-pointer text-gray-900/20 transition-colors hover:text-gray-900/50 dark:text-white/20 dark:hover:text-white/50"
             >
@@ -162,7 +186,9 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
             </button>
           </div>
         ) : (
-          <span className="text-[11px] text-gray-900/25 dark:text-white/25">워크 디렉토리 없음</span>
+          <span className="text-[11px] text-gray-900/25 dark:text-white/25">
+            워크 디렉토리 없음
+          </span>
         )}
 
         {dropdown}
@@ -176,9 +202,9 @@ export function WorkingDirPicker({ value, onChange, variant = "field" }: Working
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleInputChange}
         placeholder="~/IdeaProjects/project 또는 IdeaProjects/project"
-        className="flex-1 rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2 font-mono text-sm text-gray-900/65 placeholder-gray-900/20 outline-none transition-colors focus:border-orange-500/50 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/65 dark:placeholder-white/20"
+        className="flex-1 rounded-xl border border-gray-900/[0.08] bg-gray-900/[0.03] px-3 py-2 font-mono text-sm text-gray-900/65 placeholder-gray-900/20 transition-colors outline-none focus:border-orange-500/50 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/65 dark:placeholder-white/20"
       />
       <button
         type="button"

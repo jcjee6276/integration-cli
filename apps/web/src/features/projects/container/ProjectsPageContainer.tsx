@@ -3,7 +3,6 @@
 import { useCallback, useRef } from "react";
 
 import type { FsTreeNode } from "@/features/fs/api/fs.api";
-import { useIntentionalOverRenderTest } from "@/hooks/useIntentionalOverRenderTest";
 
 import type { InspectorElement } from "../api/inspector.api";
 import { useCodeViewer } from "../hooks/useCodeViewer";
@@ -29,9 +28,6 @@ function guessProjectRoot(fileName: string): string | null {
 }
 
 export function ProjectsPageContainer() {
-  // INTENTIONAL_OVER_RENDER_TEST: 과다 렌더링 탐지 검증용.
-  useIntentionalOverRenderTest("ProjectsPageContainer", { intervalMs: 900, maxTicks: 18 });
-
   const {
     projectPath,
     setProjectPath,
@@ -47,6 +43,7 @@ export function ProjectsPageContainer() {
     loadTree,
   } = useProjectTree();
   const codeViewer = useCodeViewer();
+  const { focusLine, openFile } = codeViewer;
 
   // 첫 inspect resolve 시 한 번만 루트 추정 → 스캔
   const scannedRootRef = useRef(false);
@@ -68,21 +65,32 @@ export function ProjectsPageContainer() {
         const name = element.fileName.split(/[/\\]/).filter(Boolean).at(-1) ?? element.fileName;
         const node: FsTreeNode = { name, path: element.fileName, type: "file" };
         setSelectedPath(element.fileName);
-        void codeViewer.openFile(node);
+        void openFile(node);
         if (element.line && element.line >= 1) {
-          codeViewer.focusLine(element.fileName, element.line, element.endLine);
+          focusLine(element.fileName, element.line, element.endLine);
         }
       } catch {}
     },
-    [codeViewer, loadTree, setProjectPath, setSelectedPath],
+    [focusLine, loadTree, openFile, setProjectPath, setSelectedPath],
   );
 
   const inspector = useInspector({ onElement: handleInspectElement });
 
-  const handleSelectNode = (node: FsTreeNode) => {
-    setSelectedPath(node.path);
-    if (node.type === "file") void codeViewer.openFile(node);
-  };
+  const handleSelectNode = useCallback(
+    (node: FsTreeNode) => {
+      try {
+        setSelectedPath(node.path);
+        if (node.type === "file") void openFile(node);
+      } catch {}
+    },
+    [openFile, setSelectedPath],
+  );
+
+  const handleLoadTree = useCallback(() => {
+    try {
+      void loadTree();
+    } catch {}
+  }, [loadTree]);
 
   return (
     <ProjectTreeView
@@ -96,7 +104,7 @@ export function ProjectsPageContainer() {
       codeViewer={codeViewer}
       inspector={inspector}
       onProjectPathChange={setProjectPath}
-      onLoadTree={() => void loadTree()}
+      onLoadTree={handleLoadTree}
       onSelectNode={handleSelectNode}
       onToggleExtension={toggleExtensionFilter}
       onClearExtensions={clearExtensionFilters}
