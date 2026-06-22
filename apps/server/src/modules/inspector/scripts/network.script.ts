@@ -17,6 +17,8 @@ export const NETWORK_SCRIPT = `
     var PANEL_ID = '__jc-net-panel';
     var TOOLBAR_ID = '__jc-inspect-toolbox';
     var state = { open:false, mode:'all', errorsOnly:false, query:'', expandedId:null, tab:'headers', records:[], bodies:{}, detailHeight:220, resizing:false };
+    // 폴링 재렌더 시 상세 본문 스크롤 위치 보존용 (탭/요청이 바뀌면 0으로 리셋)
+    var lastDetailView = null;
 
     function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
     function fmtBytes(n){ if(n==null) return '-'; if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
@@ -241,12 +243,21 @@ export const NETWORK_SCRIPT = `
         } else if(state.tab==='timing'){
           body = timingBars(r.timing);
         }
+        // 같은 요청·같은 탭을 다시 그릴 때(폴링)는 스크롤 위치를 유지, 탭/요청이 바뀌면 0
+        var viewKey = r.id + '|' + state.tab;
+        var prevBody = document.getElementById('__jc-net-detail-body');
+        var prevScroll = (prevBody && lastDetailView === viewKey) ? prevBody.scrollTop : 0;
+
         detail.innerHTML =
           '<div style="display:flex;align-items:center;gap:2px;border-bottom:1px solid rgba(255,255,255,0.08);background:#0e1117;min-width:0;flex:0 0 auto">' +
             '<div style="display:flex;gap:2px;min-width:0;overflow-x:auto">' + tabBtn('headers','Headers') + tabBtn('payload','Payload') + tabBtn('response','Response') + tabBtn('timing','Timing') + '</div>' +
             '<button data-act="curl" style="margin-left:auto;flex:0 0 auto;cursor:pointer;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#9ca3af;border-radius:6px;padding:4px 8px;font:600 11px/1 inherit;white-space:nowrap">Copy as cURL</button>' +
           '</div>' +
-          '<div style="padding:8px 10px;overflow:auto;flex:1 1 auto;min-height:0">' + body + '</div>';
+          '<div id="__jc-net-detail-body" style="padding:8px 10px;overflow:auto;flex:1 1 auto;min-height:0">' + body + '</div>';
+
+        var newBody = document.getElementById('__jc-net-detail-body');
+        if(newBody && prevScroll) newBody.scrollTop = prevScroll;
+        lastDetailView = viewKey;
       } catch(e){}
     }
 
