@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { WorkingDirPicker } from "@/components/ui/WorkingDirPicker";
@@ -16,7 +16,7 @@ interface Props {
   onCreated?: (task: Task) => void;
 }
 
-export function TaskCreateModal({ open, onClose, onCreated }: Props) {
+export const TaskCreateModal = memo(function TaskCreateModal({ open, onClose, onCreated }: Props) {
   const {
     form,
     submitting,
@@ -43,18 +43,23 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
 
   const [agentSelectOpen, setAgentSelectOpen] = useState(false);
 
-  const handleAgentSelect = (agentId: AgentId) => {
-    addAgent(agentId);
-    setAgentSelectOpen(false);
-  };
+  const handleAgentSelect = useCallback(
+    (agentId: AgentId) => {
+      addAgent(agentId);
+      setAgentSelectOpen(false);
+    },
+    [addAgent],
+  );
 
-  const handleClose = () => { reset(); onClose(); };
+  const closeAgentSelect = useCallback(() => setAgentSelectOpen(false), []);
+
+  const handleClose = useCallback(() => { reset(); onClose(); }, [reset, onClose]);
 
   return (
     <>
     <AgentSelectModal
       open={agentSelectOpen}
-      onClose={() => setAgentSelectOpen(false)}
+      onClose={closeAgentSelect}
       onSelect={handleAgentSelect}
     />
     <Modal open={open} onClose={handleClose} title="새 작업 추가" maxWidth="max-w-xl">
@@ -202,4 +207,4 @@ export function TaskCreateModal({ open, onClose, onCreated }: Props) {
     </Modal>
     </>
   );
-}
+});

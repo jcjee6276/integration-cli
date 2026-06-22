@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { useAgentStatusStore } from "@/store/agentStatusStore";
@@ -194,7 +194,7 @@ interface AgentSelectModalProps {
   connectionStatusByAgent?: Record<AgentId, ConnectionStatus>;
 }
 
-export function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAgent }: AgentSelectModalProps) {
+export const AgentSelectModal = memo(function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAgent }: AgentSelectModalProps) {
   const { statusByAgent, refresh } = useAgentStatusStore();
 
   useEffect(() => {
@@ -217,7 +217,7 @@ export function AgentSelectModal({ open, onClose, onSelect, connectionStatusByAg
       </div>
     </Modal>
   );
-}
+});
 
 // ─── Agent meta (for external use) ───────────────────────────────────────────
 

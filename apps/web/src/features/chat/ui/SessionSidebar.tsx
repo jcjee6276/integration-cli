@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { memo } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { isQuotaExceeded } from "@/lib/quota";

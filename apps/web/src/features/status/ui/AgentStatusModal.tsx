@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 
 import { getClaudeStatus, getGeminiAuthStatus } from "@/features/auth/api/auth.api";
 import type { ClaudeStatus, GeminiAuthStatus } from "@/features/auth/api/auth.api";
@@ -198,7 +198,7 @@ interface AgentStatusModalProps {
   onClose: () => void;
 }
 
-export function AgentStatusModal({ open, onClose }: AgentStatusModalProps) {
+export const AgentStatusModal = memo(function AgentStatusModal({ open, onClose }: AgentStatusModalProps) {
   const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
   const [geminiStatus, setGeminiStatus] = useState<GeminiAuthStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -264,4 +264,4 @@ export function AgentStatusModal({ open, onClose }: AgentStatusModalProps) {
       </div>
     </Modal>
   );
-}
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { isQuotaExceeded } from "@/lib/quota";
@@ -459,7 +459,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function TaskListModal({ open, onClose }: Props) {
+export const TaskListModal = memo(function TaskListModal({ open, onClose }: Props) {
   const {
     tasks,
     loading,
@@ -588,4 +588,4 @@ export function TaskListModal({ open, onClose }: Props) {
       </div>
     </Modal>
   );
-}
+});

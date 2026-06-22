@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import type { HarnessExt, HarnessRole } from "../api/harness.api";
@@ -126,7 +126,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function HarnessModal({ open, onClose }: Props) {
+export const HarnessModal = memo(function HarnessModal({ open, onClose }: Props) {
   const [selectedRole, setSelectedRole] = useState<HarnessRole>("common");
 
   return (
@@ -168,4 +168,4 @@ export function HarnessModal({ open, onClose }: Props) {
       </div>
     </Modal>
   );
-}
+});
